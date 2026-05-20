@@ -224,7 +224,7 @@ jobs:
           path: ${{ runner.temp }}/publish-input
 
       - name: Configure Microsoft Store CLI
-        uses: microsoft/microsoft-store-apppublisher@v1.1
+        uses: microsoft/microsoft-store-apppublisher@v1.2
 
       - name: Validate Microsoft Store configuration
         shell: pwsh
