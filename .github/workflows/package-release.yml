@@ -133,7 +133,7 @@ jobs:
             --platform "${{ matrix.platform }}" \
             --workspace "$RUNNER_TEMP/store-release-${{ matrix.platform }}"
 
-      - name: Build AppX
+      - name: Build MSIX
         shell: bash
         run: |
           node scripts/build-appx.mjs \
@@ -183,7 +183,7 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/publish-input
 
-      - name: Publish AppX release metadata
+      - name: Publish Store release metadata
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -250,12 +250,12 @@ jobs:
             --clientId $env:AZURE_AD_APPLICATION_CLIENT_ID `
             --clientSecret $env:AZURE_AD_APPLICATION_SECRET
 
-      - name: Publish AppX packages to Store
+      - name: Publish MSIX packages to Store
         shell: pwsh
         run: |
-          $packages = Get-ChildItem -Path "${{ runner.temp }}/publish-input" -Filter *.appx -Recurse | Sort-Object FullName
+          $packages = Get-ChildItem -Path "${{ runner.temp }}/publish-input" -Filter *.msix -Recurse | Sort-Object FullName
           if ($packages.Count -eq 0) {
-            throw "No .appx package found under ${{ runner.temp }}/publish-input."
+            throw "No .msix package found under ${{ runner.temp }}/publish-input."
           }
 
           foreach ($package in $packages) {

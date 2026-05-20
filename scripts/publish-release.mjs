@@ -13,6 +13,9 @@ function contentTypeFromPath(filePath) {
   if (lowerPath.endsWith('.json')) {
     return 'application/json; charset=utf-8';
   }
+  if (lowerPath.endsWith('.msix')) {
+    return 'application/vnd.ms-appx';
+  }
   if (lowerPath.endsWith('.appx')) {
     return 'application/vnd.ms-appx';
   }
@@ -107,7 +110,7 @@ function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubRelea
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
     `- Server version: ${plan.upstream.server.version}`,
     '- Distribution mode: steam',
-    `- AppX assets: ${publicationArtifacts.mergedInventory.artifacts.length}`,
+    `- MSIX assets: ${publicationArtifacts.mergedInventory.artifacts.length}`,
     `- Release metadata asset: ${path.basename(publicationArtifacts.metadataPath)}`,
     `- GitHub Release assets uploaded: ${githubReleaseAssets}`
   ].join('\n');

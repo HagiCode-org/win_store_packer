@@ -88,7 +88,7 @@ function listZipEntryPaths(archiveBuffer, archivePath) {
 
 function isZipLikeArchive(targetPath) {
   const lowerPath = targetPath.toLowerCase();
-  return lowerPath.endsWith('.zip') || lowerPath.endsWith('.appx');
+  return lowerPath.endsWith('.zip') || lowerPath.endsWith('.appx') || lowerPath.endsWith('.msix');
 }
 
 export async function validateZipPaths(archivePath) {
@@ -145,7 +145,7 @@ export async function createArchive(sourceDirectory, destinationPath) {
   await ensureDir(path.dirname(destinationPath));
   await rm(destinationPath, { force: true });
 
-  const archiveTarget = lowerPath.endsWith('.appx')
+  const archiveTarget = lowerPath.endsWith('.appx') || lowerPath.endsWith('.msix')
     ? `${destinationPath}.ziptmp`
     : destinationPath;
 
@@ -161,7 +161,7 @@ export async function createArchive(sourceDirectory, destinationPath) {
       await runCommand('zip', ['-qr', archiveTarget, '.'], { cwd: sourceDirectory });
     }
 
-    if (lowerPath.endsWith('.appx')) {
+    if (lowerPath.endsWith('.appx') || lowerPath.endsWith('.msix')) {
       await rename(archiveTarget, destinationPath);
     }
 

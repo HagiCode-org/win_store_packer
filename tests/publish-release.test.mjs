@@ -6,21 +6,21 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { publishRelease } from '../scripts/publish-release.mjs';
 import { writeJson } from '../scripts/lib/fs-utils.mjs';
 
-test('publishRelease creates or updates a GitHub release and uploads the appx and metadata assets', async () => {
+test('publishRelease creates or updates a GitHub release and uploads the msix and metadata assets', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-publish-'));
   const artifactsDir = path.join(tempRoot, 'artifacts');
   const outputDir = path.join(tempRoot, 'output');
   const planPath = path.join(tempRoot, 'build-plan.json');
-  const appxPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64.appx');
+  const msixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64.msix');
   await mkdir(artifactsDir, { recursive: true });
-  await writeFile(appxPath, 'fixture');
+  await writeFile(msixPath, 'fixture');
   await writeJson(path.join(artifactsDir, 'artifact-inventory-win-x64.json'), {
     platform: 'win-x64',
     artifacts: [
       {
         platform: 'win-x64',
-        fileName: path.basename(appxPath),
-        outputPath: appxPath,
+        fileName: path.basename(msixPath),
+        outputPath: msixPath,
         sizeBytes: 7,
         sha256: 'abc'
       }

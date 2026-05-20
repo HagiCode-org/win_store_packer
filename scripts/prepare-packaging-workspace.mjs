@@ -50,7 +50,7 @@ async function validateDesktopWorkspace({ desktopWorkspace, storePackageConfig }
   const packageJson = await readJson(packageJsonPath);
   const buildScript = packageJson?.scripts?.[storePackageConfig.desktop.buildScript];
   if (!buildScript) {
-    throw new Error(`Desktop workspace package.json is missing the "${storePackageConfig.desktop.buildScript}" script required for AppX packaging.`);
+    throw new Error(`Desktop workspace package.json is missing the "${storePackageConfig.desktop.buildScript}" script required for Store packaging.`);
   }
 
   await ensureDir(runtimeRoot);

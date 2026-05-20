@@ -119,7 +119,7 @@ function createPlan(tempRoot) {
   };
 }
 
-test('dry-run packaging assembles the tagged workspace, stages the server payload, builds an appx, and emits publication metadata', async () => {
+test('dry-run packaging assembles the tagged workspace, stages the server payload, builds an msix, and emits publication metadata', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-packaging-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -197,11 +197,11 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(releaseMetadata.distributionMode, 'steam');
   assert.equal(releaseMetadata.runtimeSource, 'portable-fixed');
 
-  const appxPath = inventory.artifacts[0].outputPath;
-  const appxListing = (await validateZipPaths(appxPath)).join('\n');
-  assert.match(appxListing, /extra\/portable-fixed\/current\/manifest\.json/);
-  assert.match(appxListing, /extra\/portable-fixed\/current\/lib\/PCode\.Web\.dll/);
-  assert.match(appxListing, /AppxManifest\.xml|store-package-identity\.json/);
+  const msixPath = inventory.artifacts[0].outputPath;
+  const msixListing = (await validateZipPaths(msixPath)).join('\n');
+  assert.match(msixListing, /extra\/portable-fixed\/current\/manifest\.json/);
+  assert.match(msixListing, /extra\/portable-fixed\/current\/lib\/PCode\.Web\.dll/);
+  assert.match(msixListing, /AppxManifest\.xml|store-package-identity\.json/);
 
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.yml'), 'utf8');
   assert.match(overlayConfigText, /extends: electron-builder\.yml/);

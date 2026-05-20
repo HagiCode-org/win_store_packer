@@ -29,7 +29,7 @@ function selectAvailableScript(scripts, candidates) {
   return candidates.find((scriptName) => typeof scripts?.[scriptName] === 'string') ?? null;
 }
 
-function buildDesktopAppxCommand(overlayConfigPath, scripts) {
+function buildDesktopStoreCommand(overlayConfigPath, scripts) {
   const overlayConfigName = path.basename(overlayConfigPath);
   const commands = [];
 
@@ -55,27 +55,39 @@ function buildDesktopAppxCommand(overlayConfigPath, scripts) {
   return commands.join(' && ');
 }
 
-async function createSyntheticAppx({
-  appxPath,
+async function createSyntheticStorePackage({
+  artifactPath,
   desktopWorkspace,
   runtimeInjectionRoot,
   packageIdentity
 }) {
-  const stagingRoot = path.join(path.dirname(appxPath), '.synthetic-appx');
+  const stagingRoot = path.join(path.dirname(artifactPath), '.synthetic-msix');
   await cleanDir(stagingRoot);
   await ensureDir(path.join(stagingRoot, 'extra', 'portable-fixed'));
   await copyDir(runtimeInjectionRoot, path.join(stagingRoot, 'extra', 'portable-fixed', 'current'));
   await writeJson(path.join(stagingRoot, 'store-package-identity.json'), packageIdentity);
-  await createArchive(stagingRoot, appxPath);
+  await createArchive(stagingRoot, artifactPath);
 }
 
-async function findAppxOutputs(pkgDirectory) {
+async function findStoreOutputs(pkgDirectory) {
   if (!(await pathExists(pkgDirectory))) {
     return [];
   }
 
   const files = await listFilesRecursively(pkgDirectory);
-  return files.filter((filePath) => filePath.toLowerCase().endsWith('.appx')).sort();
+  return files
+    .filter((filePath) => {
+      const lowerPath = filePath.toLowerCase();
+      return lowerPath.endsWith('.appx') || lowerPath.endsWith('.msix');
+    })
+    .sort((left, right) => {
+      const leftLower = left.toLowerCase();
+      const rightLower = right.toLowerCase();
+      if (leftLower.endsWith('.msix') !== rightLower.endsWith('.msix')) {
+        return leftLower.endsWith('.msix') ? -1 : 1;
+      }
+      return leftLower.localeCompare(rightLower);
+    });
 }
 
 async function shouldUseSyntheticDryRunBuild(desktopWorkspace, planDryRun) {
@@ -140,8 +152,8 @@ export async function buildAppx({
   const syntheticDryRun = forceDryRun || (await shouldUseSyntheticDryRunBuild(workspaceManifest.desktopWorkspace, plan.build.dryRun));
 
   if (syntheticDryRun) {
-    await createSyntheticAppx({
-      appxPath: path.join(pkgDirectory, buildStoreArtifactName(plan.release.tag, platformId)),
+    await createSyntheticStorePackage({
+      artifactPath: path.join(pkgDirectory, buildStoreArtifactName(plan.release.tag, platformId)),
       desktopWorkspace: workspaceManifest.desktopWorkspace,
       runtimeInjectionRoot: workspaceManifest.runtimeInjectionRoot,
       packageIdentity: storePackageConfig.packageIdentity
@@ -150,17 +162,17 @@ export async function buildAppx({
     await runShellCommand(desktopBuildCommand, workspaceManifest.desktopWorkspace);
   } else {
     await runShellCommand(
-      buildDesktopAppxCommand(overlayConfig.outputPath, desktopScripts),
+      buildDesktopStoreCommand(overlayConfig.outputPath, desktopScripts),
       workspaceManifest.desktopWorkspace
     );
   }
 
-  const appxOutputs = await findAppxOutputs(pkgDirectory);
-  if (appxOutputs.length === 0) {
-    throw new Error(`No .appx outputs were produced under ${pkgDirectory}.`);
+  const storeOutputs = await findStoreOutputs(pkgDirectory);
+  if (storeOutputs.length === 0) {
+    throw new Error(`No Store package outputs (.appx or .msix) were produced under ${pkgDirectory}.`);
   }
 
-  const primaryOutput = appxOutputs[0];
+  const primaryOutput = storeOutputs[0];
   const artifactFileName = buildStoreArtifactName(plan.release.tag, platformId);
   const artifactPath = path.join(workspaceManifest.outputDirectory, artifactFileName);
   await ensureDir(workspaceManifest.outputDirectory);
@@ -179,7 +191,7 @@ export async function buildAppx({
     buildMode: syntheticDryRun ? 'synthetic-dry-run' : 'desktop-build-script',
     sourceElectronBuilderConfigPath: overlayConfig.sourcePath,
     outputElectronBuilderConfigPath: overlayConfig.outputPath,
-    rawAppxOutputs: appxOutputs,
+    rawStoreOutputs: storeOutputs,
     publishedArtifactPath: artifactPath
   };
   const buildMetadataPath = path.join(resolvedWorkspacePath, `build-metadata-${platformId}.json`);
@@ -209,7 +221,7 @@ export async function buildAppx({
   await writeJson(artifactInventoryPath, artifactInventory);
 
   await appendSummary([
-    `### AppX build prepared for ${platformId}`,
+    `### MSIX build prepared for ${platformId}`,
     `- Release tag: ${workspaceManifest.releaseTag}`,
     `- Desktop tag: ${workspaceManifest.desktopTag}`,
     `- Server version: ${workspaceManifest.serverVersion}`,
@@ -257,7 +269,7 @@ if (isDirectExecution) {
   main().catch(async (error) => {
     annotateError(error.message);
     await appendSummary([
-      '## AppX build failed',
+      '## MSIX build failed',
       `- ${error.message}`
     ]);
     console.error(error);

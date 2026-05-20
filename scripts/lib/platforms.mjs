@@ -7,6 +7,7 @@ const PLATFORM_MAP = {
     runtimeKey: 'win-x64-nort',
     desktopAssetPatterns: [
       /^hagicode\.desktop\..*-unpacked\.zip$/i,
+      /^hagicode\.desktop\..*\.msix$/i,
       /^hagicode\.desktop\..*\.appx$/i,
       /^hagicode\.desktop\..*\.exe$/i
     ]
@@ -84,7 +85,7 @@ export function deriveStoreReleaseTag(desktopVersion, serverVersion) {
 
 export function buildStoreArtifactName(releaseTag, platformId) {
   const safeReleaseTag = String(releaseTag).replace(/[^A-Za-z0-9._-]+/g, '-');
-  return `hagicode-store-${safeReleaseTag}-${platformId}.appx`;
+  return `hagicode-store-${safeReleaseTag}-${platformId}.msix`;
 }
 
 export function matchDesktopAssetForPlatform(assets, platformId) {

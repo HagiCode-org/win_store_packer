@@ -1,24 +1,24 @@
 # win_store_packer
 
-`win_store_packer` builds and publishes Windows Store AppX packages that already contain the bundled Hagicode Server runtime.
+`win_store_packer` builds and publishes Windows Store MSIX packages that already contain the bundled Hagicode Server runtime.
 
-It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, prepares a tagged Desktop source workspace, stages the Server payload into `resources/portable-fixed/current`, builds an AppX without the desktop repository's local Azure signing steps, and publishes the resulting AppX plus release metadata from this repository.
+It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, prepares a tagged Desktop source workspace, stages the Server payload into `resources/portable-fixed/current`, builds a Store package without the desktop repository's local Azure signing steps, and publishes the resulting MSIX plus release metadata from this repository.
 
-The published AppX is intentionally treated as **Steam mode by default**. Desktop switches into `distributionMode=steam` whenever the packaged `extra/portable-fixed/current` payload validates, so this Store flow ships that payload as the authoritative runtime source and records `distributionMode: "steam"` plus `runtimeSource: "portable-fixed"` in the emitted metadata.
+The published MSIX is intentionally treated as **Steam mode by default**. Desktop switches into `distributionMode=steam` whenever the packaged `extra/portable-fixed/current` payload validates, so this Store flow ships that payload as the authoritative runtime source and records `distributionMode: "steam"` plus `runtimeSource: "portable-fixed"` in the emitted metadata.
 
 ## Repository Contract
 
 - `hagicode-desktop` is a read-only input. This repository expects it at `inputs/hagicode-desktop` and tracks it through `.gitmodules`.
 - The selected Desktop release version is normalized to the exact Git tag `v<desktop-version-without-leading-v>`.
 - Workspace preparation fails fast if that tag does not exist or cannot be checked out cleanly.
-- The final packaged runtime must come from `resources/portable-fixed/current`, which electron-builder already maps to `extra/portable-fixed/current` inside the AppX.
+- The final packaged runtime must come from `resources/portable-fixed/current`, which electron-builder already maps to `extra/portable-fixed/current` inside the Store package.
 - The packaged `portable-fixed/current` payload is the contract that makes Desktop start in Steam mode for this distribution.
 
 ## Configuration
 
 ### `config/store-package.json`
 
-Defines the AppX identity metadata and packaging contract:
+Defines the Store package identity metadata and packaging contract:
 
 - `packageIdentity.displayName`
 - `packageIdentity.publisherDisplayName`
@@ -56,7 +56,7 @@ Scheduled runs use the latest eligible Windows Desktop and Server assets from th
 
 ## Microsoft Store publication
 
-`package-release.yml` now publishes the built `.appx` to Microsoft Store in the same workflow run that publishes the GitHub Release. The Store publish job is skipped when `dry_run` is enabled.
+`package-release.yml` now publishes the built `.msix` to Microsoft Store in the same workflow run that publishes the GitHub Release. The Store publish job is skipped when `dry_run` is enabled.
 
 Configure the repository with the Microsoft Store credentials required by the official `microsoft/microsoft-store-apppublisher` action:
 
@@ -65,7 +65,7 @@ Configure the repository with the Microsoft Store credentials required by the of
 - `AZURE_AD_TENANT_ID`
 - `SELLER_ID`
 
-Also configure `MICROSOFT_STORE_PRODUCT_ID` as a repository variable or secret so the workflow can call `msstore publish ... -id <Store product Id>` for the packaged AppX.
+Also configure `MICROSOFT_STORE_PRODUCT_ID` as a repository variable or secret so the workflow can call `msstore publish ... -id <Store product Id>` for the packaged MSIX.
 
 ## Local Verification
 
@@ -108,7 +108,7 @@ node scripts/stage-server-payload.mjs \
   --workspace build/store-win-x64
 ```
 
-Build the AppX:
+Build the MSIX artifact:
 
 ```bash
 node scripts/build-appx.mjs \
@@ -136,7 +136,7 @@ Per-platform build outputs are written into the workspace root:
 - `payload-validation-win-x64.json`
 - `build-metadata-win-x64.json`
 - `artifact-inventory-win-x64.json`
-- `release-assets/hagicode-store-<release-tag>-win-x64.appx`
+- `release-assets/hagicode-store-<release-tag>-win-x64.msix`
 
 The build metadata and artifact inventory also record:
 
@@ -157,6 +157,6 @@ The release metadata and dry-run report also record:
 
 ## Store-specific Differences From Desktop CI
 
-- The Store flow preserves AppX identity metadata by generating a Store-specific electron-builder config overlay from `config/store-package.json`.
+- The Store flow preserves Store identity metadata by generating a Store-specific electron-builder config overlay from `config/store-package.json`.
 - The workflow does **not** run `azure/login` or `azure/artifact-signing-action`.
-- GitHub Releases receive the AppX artifact and release metadata JSON; Steam depot data and Azure Steam index updates are out of scope here.
+- GitHub Releases receive the MSIX artifact and release metadata JSON; Steam depot data and Azure Steam index updates are out of scope here.

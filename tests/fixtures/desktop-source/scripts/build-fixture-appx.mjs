@@ -23,8 +23,8 @@ async function run(command, args, options = {}) {
 async function main() {
   const cwd = process.cwd();
   const pkgDir = path.join(cwd, 'pkg');
-  const stagingDir = path.join(pkgDir, '.fixture-appx');
-  const appxPath = path.join(pkgDir, 'fixture-output.appx');
+  const stagingDir = path.join(pkgDir, '.fixture-msix');
+  const msixPath = path.join(pkgDir, 'fixture-output.msix');
   await rm(stagingDir, { recursive: true, force: true });
   await mkdir(path.join(stagingDir, 'extra', 'portable-fixed'), { recursive: true });
   await cp(
@@ -34,7 +34,7 @@ async function main() {
   );
   await writeFile(path.join(stagingDir, 'AppxManifest.xml'), '<Package></Package>\n', 'utf8');
   await mkdir(pkgDir, { recursive: true });
-  await rm(appxPath, { force: true });
+  await rm(msixPath, { force: true });
 
   if (process.platform === 'win32') {
     await run('powershell.exe', [
@@ -46,7 +46,7 @@ async function main() {
         "Add-Type -AssemblyName 'System.IO.Compression'",
         "Add-Type -AssemblyName 'System.IO.Compression.FileSystem'",
         `$sourceDirectory = '${stagingDir.replace(/'/g, "''")}'`,
-        `$destinationArchive = '${appxPath.replace(/'/g, "''")}'`,
+        `$destinationArchive = '${msixPath.replace(/'/g, "''")}'`,
         '$sourceRoot = [System.IO.Path]::GetFullPath($sourceDirectory)',
         "if (-not $sourceRoot.EndsWith([System.IO.Path]::DirectorySeparatorChar.ToString()) -and -not $sourceRoot.EndsWith([System.IO.Path]::AltDirectorySeparatorChar.ToString())) { $sourceRoot += [System.IO.Path]::DirectorySeparatorChar }",
         '$archiveStream = [System.IO.File]::Open($destinationArchive, [System.IO.FileMode]::Create)',
@@ -75,7 +75,7 @@ async function main() {
     return;
   }
 
-  await run('zip', ['-qr', appxPath, '.'], { cwd: stagingDir });
+  await run('zip', ['-qr', msixPath, '.'], { cwd: stagingDir });
 }
 
 main().catch((error) => {
