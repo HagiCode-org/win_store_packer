@@ -18,7 +18,7 @@ function npmCommand() {
 
 async function runShellCommand(commandText, cwd) {
   if (process.platform === 'win32') {
-    await runCommand('powershell.exe', ['-NoLogo', '-NonInteractive', '-Command', commandText], { cwd });
+    await runCommand('cmd.exe', ['/d', '/s', '/c', commandText], { cwd });
     return;
   }
 
