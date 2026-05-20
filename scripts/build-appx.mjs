@@ -30,7 +30,7 @@ function selectAvailableScript(scripts, candidates) {
 }
 
 function buildDesktopAppxCommand(overlayConfigPath, scripts) {
-  const quotedConfig = JSON.stringify(path.basename(overlayConfigPath));
+  const overlayConfigName = path.basename(overlayConfigPath);
   const commands = [];
 
   const runtimeScript = selectAvailableScript(scripts, ['prepare:runtime', 'prepare:runtime:optional']);
@@ -46,7 +46,7 @@ function buildDesktopAppxCommand(overlayConfigPath, scripts) {
     }
   }
 
-  commands.push(`node scripts/run-electron-builder.js --win appx --publish never --config ${quotedConfig}`);
+  commands.push(`node scripts/run-electron-builder.js --win appx --publish never --config ${overlayConfigName}`);
 
   if (smokeTestScript) {
     commands.push(`npm run ${smokeTestScript}`);
