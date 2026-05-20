@@ -25,17 +25,34 @@ async function runShellCommand(commandText, cwd) {
   await runCommand('/bin/bash', ['-lc', commandText], { cwd });
 }
 
-function buildDesktopAppxCommand(overlayConfigPath) {
+function selectAvailableScript(scripts, candidates) {
+  return candidates.find((scriptName) => typeof scripts?.[scriptName] === 'string') ?? null;
+}
+
+function buildDesktopAppxCommand(overlayConfigPath, scripts) {
   const quotedConfig = JSON.stringify(path.basename(overlayConfigPath));
-  return [
-    'npm run prepare:runtime',
-    'npm run prepare:bundled-toolchain',
-    'npm run prepare:code-server-runtime',
-    'npm run prepare:omniroute-runtime',
-    'npm run build:prod',
-    `node scripts/run-electron-builder.js --win appx --publish never --config ${quotedConfig}`,
-    'npm run package:smoke-test'
-  ].join(' && ');
+  const commands = [];
+
+  const runtimeScript = selectAvailableScript(scripts, ['prepare:runtime', 'prepare:runtime:optional']);
+  const toolchainScript = selectAvailableScript(scripts, ['prepare:bundled-toolchain', 'prepare:bundled-toolchain:optional']);
+  const codeServerScript = selectAvailableScript(scripts, ['prepare:code-server-runtime', 'prepare:code-server-runtime:optional']);
+  const omnirouteScript = selectAvailableScript(scripts, ['prepare:omniroute-runtime', 'prepare:omniroute-runtime:optional']);
+  const buildProdScript = selectAvailableScript(scripts, ['build:prod', 'build:all', 'build']);
+  const smokeTestScript = selectAvailableScript(scripts, ['package:smoke-test', 'smoke-test']);
+
+  for (const scriptName of [runtimeScript, toolchainScript, codeServerScript, omnirouteScript, buildProdScript]) {
+    if (scriptName) {
+      commands.push(`npm run ${scriptName}`);
+    }
+  }
+
+  commands.push(`node scripts/run-electron-builder.js --win appx --publish never --config ${quotedConfig}`);
+
+  if (smokeTestScript) {
+    commands.push(`npm run ${smokeTestScript}`);
+  }
+
+  return commands.join(' && ');
 }
 
 async function createSyntheticAppx({
@@ -118,6 +135,8 @@ export async function buildAppx({
     await runCommand(npmCommand(), ['ci'], { cwd: workspaceManifest.desktopWorkspace });
   }
 
+  const desktopPackageJson = await readJson(path.join(workspaceManifest.desktopWorkspace, 'package.json'));
+  const desktopScripts = desktopPackageJson?.scripts ?? {};
   const syntheticDryRun = forceDryRun || (await shouldUseSyntheticDryRunBuild(workspaceManifest.desktopWorkspace, plan.build.dryRun));
 
   if (syntheticDryRun) {
@@ -131,7 +150,7 @@ export async function buildAppx({
     await runShellCommand(desktopBuildCommand, workspaceManifest.desktopWorkspace);
   } else {
     await runShellCommand(
-      buildDesktopAppxCommand(overlayConfig.outputPath),
+      buildDesktopAppxCommand(overlayConfig.outputPath, desktopScripts),
       workspaceManifest.desktopWorkspace
     );
   }
