@@ -179,14 +179,23 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   const buildMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64.json'));
   const inventory = await readJson(path.join(workspacePath, 'artifact-inventory-win-x64.json'));
   const dryRunReport = await readJson(path.join(publishOutputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.publish-dry-run.json'));
+  const releaseMetadata = await readJson(path.join(publishOutputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json'));
 
   assert.equal(workspaceManifest.desktopTag, 'v0.3.0');
   assert.equal(workspaceReport.validationPassed, true);
   assert.equal(payloadReport.validationPassed, true);
   assert.equal(buildMetadata.validationPassed, true);
+  assert.equal(buildMetadata.distributionMode, 'steam');
+  assert.equal(buildMetadata.runtimeSource, 'portable-fixed');
   assert.equal(inventory.artifacts.length, 1);
+  assert.equal(inventory.artifacts[0].distributionMode, 'steam');
+  assert.equal(inventory.artifacts[0].runtimeSource, 'portable-fixed');
   assert.equal(dryRunReport.releaseTag, 'store-desktop-v0.3.0-server-v0.1.0-beta.34');
+  assert.equal(dryRunReport.distributionMode, 'steam');
+  assert.equal(dryRunReport.runtimeSource, 'portable-fixed');
   assert.equal(dryRunReport.desktopTag, 'v0.3.0');
+  assert.equal(releaseMetadata.distributionMode, 'steam');
+  assert.equal(releaseMetadata.runtimeSource, 'portable-fixed');
 
   const appxPath = inventory.artifacts[0].outputPath;
   const appxListing = (await validateZipPaths(appxPath)).join('\n');
@@ -195,6 +204,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(appxListing, /AppxManifest\.xml|store-package-identity\.json/);
 
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.yml'), 'utf8');
+  assert.match(overlayConfigText, /extends: electron-builder\.yml/);
   assert.match(overlayConfigText, /identityName: newbe36524\.HagicodeDesktop/);
 });
 

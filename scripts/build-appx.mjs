@@ -169,6 +169,8 @@ export async function buildAppx({
   const buildMetadata = {
     validationPassed: true,
     platform: platformId,
+    distributionMode: 'steam',
+    runtimeSource: 'portable-fixed',
     desktopVersion: workspaceManifest.desktopVersion,
     desktopTag: workspaceManifest.desktopTag,
     desktopRef: workspaceManifest.desktopRef,
@@ -187,6 +189,8 @@ export async function buildAppx({
     artifactPath,
     platformId,
     metadata: {
+      distributionMode: 'steam',
+      runtimeSource: 'portable-fixed',
       desktopVersion: workspaceManifest.desktopVersion,
       desktopTag: workspaceManifest.desktopTag,
       desktopRef: workspaceManifest.desktopRef,
@@ -209,6 +213,7 @@ export async function buildAppx({
     `- Release tag: ${workspaceManifest.releaseTag}`,
     `- Desktop tag: ${workspaceManifest.desktopTag}`,
     `- Server version: ${workspaceManifest.serverVersion}`,
+    '- Distribution mode: steam',
     `- Artifact: ${artifactFileName}`,
     `- Build mode: ${buildMetadata.buildMode}`
   ]);

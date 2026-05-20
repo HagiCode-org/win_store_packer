@@ -57,6 +57,8 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
   const releaseMetadata = {
     releaseTag: plan.release.tag,
     releaseName: plan.release.name,
+    distributionMode: 'steam',
+    runtimeSource: 'portable-fixed',
     desktop: {
       version: plan.upstream.desktop.version,
       tag: plan.upstream.desktop.tag,
@@ -104,6 +106,7 @@ function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubRelea
     `- Desktop version: ${plan.upstream.desktop.version}`,
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
     `- Server version: ${plan.upstream.server.version}`,
+    '- Distribution mode: steam',
     `- AppX assets: ${publicationArtifacts.mergedInventory.artifacts.length}`,
     `- Release metadata asset: ${path.basename(publicationArtifacts.metadataPath)}`,
     `- GitHub Release assets uploaded: ${githubReleaseAssets}`
@@ -135,6 +138,8 @@ export async function publishRelease({
     const dryRunReport = {
       releaseTag: plan.release.tag,
       repository: plan.release.repository,
+      distributionMode: 'steam',
+      runtimeSource: 'portable-fixed',
       desktopVersion: plan.upstream.desktop.version,
       desktopTag: plan.upstream.desktop.tag,
       serverVersion: plan.upstream.server.version,
@@ -150,6 +155,7 @@ export async function publishRelease({
       `- Release tag: ${plan.release.tag}`,
       `- Desktop tag: ${plan.upstream.desktop.tag}`,
       `- Server version: ${plan.upstream.server.version}`,
+      '- Distribution mode: steam',
       `- Assets prepared: ${publicationArtifacts.uploads.length}`
     ]);
 
@@ -210,7 +216,8 @@ export async function publishRelease({
     `- Release action: ${releaseResult.action}`,
     `- Uploaded assets: ${uploadedAssets.length}`,
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
-    `- Server version: ${plan.upstream.server.version}`
+    `- Server version: ${plan.upstream.server.version}`,
+    '- Distribution mode: steam'
   ]);
 
   return publicationResult;

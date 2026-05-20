@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { publishRelease } from '../scripts/publish-release.mjs';
 import { writeJson } from '../scripts/lib/fs-utils.mjs';
 
@@ -106,4 +106,9 @@ test('publishRelease creates or updates a GitHub release and uploads the appx an
   assert.equal(result.uploadedAssets.length, 2);
   assert.ok(requests.some((request) => request.url.includes('/releases') && request.method === 'POST'));
   assert.ok(requests.some((request) => request.url.includes('uploads.github.com') && request.method === 'POST'));
+
+  const metadataPath = path.join(outputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json');
+  const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
+  assert.equal(metadata.distributionMode, 'steam');
+  assert.equal(metadata.runtimeSource, 'portable-fixed');
 });
