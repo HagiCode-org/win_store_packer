@@ -54,6 +54,19 @@ Manual dispatch inputs:
 
 Scheduled runs use the latest eligible Windows Desktop and Server assets from the configured Azure indexes and skip packaging when the derived Store release tag already exists.
 
+## Microsoft Store publication
+
+`package-release.yml` now publishes the built `.appx` to Microsoft Store in the same workflow run that publishes the GitHub Release. The Store publish job is skipped when `dry_run` is enabled.
+
+Configure the repository with the Microsoft Store credentials required by the official `microsoft/microsoft-store-apppublisher` action:
+
+- `AZURE_AD_APPLICATION_CLIENT_ID`
+- `AZURE_AD_APPLICATION_SECRET`
+- `AZURE_AD_TENANT_ID`
+- `SELLER_ID`
+
+Also configure `MICROSOFT_STORE_PRODUCT_ID` as a repository variable or secret so the workflow can call `msstore publish ... -id <Store product Id>` for the packaged AppX.
+
 ## Local Verification
 
 From `repos/win_store_packer`:
