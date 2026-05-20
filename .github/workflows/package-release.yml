@@ -212,7 +212,6 @@ jobs:
       AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
       AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
       SELLER_ID: ${{ secrets.SELLER_ID }}
-      MICROSOFT_STORE_PRODUCT_ID: ${{ env.MICROSOFT_STORE_PRODUCT_ID }}
     steps:
       - name: Checkout win_store_packer
         uses: actions/checkout@v5
