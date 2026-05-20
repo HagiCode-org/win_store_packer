@@ -10,9 +10,9 @@ function yamlScalar(value) {
   return String(value);
 }
 
-function renderAppxBlock(packageIdentity) {
+function renderAppxBlock(packageIdentity, appx = {}) {
   const languageLines = packageIdentity.languages.map((language) => `    - ${language}`).join('\n');
-  return [
+  const lines = [
     'appx:',
     `  displayName: ${yamlScalar(packageIdentity.displayName)}`,
     `  publisherDisplayName: ${yamlScalar(packageIdentity.publisherDisplayName)}`,
@@ -22,13 +22,23 @@ function renderAppxBlock(packageIdentity) {
     '  languages:',
     languageLines,
     `  addAutoLaunchExtension: ${yamlScalar(packageIdentity.addAutoLaunchExtension)}`
-  ].join('\n');
+  ];
+
+  if (appx.minVersion) {
+    lines.push(`  minVersion: ${yamlScalar(appx.minVersion)}`);
+  }
+
+  if (appx.maxVersionTested) {
+    lines.push(`  maxVersionTested: ${yamlScalar(appx.maxVersionTested)}`);
+  }
+
+  return lines.join('\n');
 }
 
-function renderStoreOverlayConfig(sourceConfigPath, packageIdentity) {
+function renderStoreOverlayConfig(sourceConfigPath, packageIdentity, appx) {
   return [
     `extends: ${yamlScalar(sourceConfigPath)}`,
-    renderAppxBlock(packageIdentity)
+    renderAppxBlock(packageIdentity, appx)
   ].join('\n');
 }
 
@@ -45,7 +55,7 @@ export async function writeStoreElectronBuilderConfig({
     throw new Error(`Desktop packaging config ${sourcePath} does not exist.`);
   }
 
-  await writeFile(outputPath, `${renderStoreOverlayConfig(sourceConfigPath, config.packageIdentity)}\n`, 'utf8');
+  await writeFile(outputPath, `${renderStoreOverlayConfig(sourceConfigPath, config.packageIdentity, config.appx)}\n`, 'utf8');
   return {
     config,
     sourcePath,

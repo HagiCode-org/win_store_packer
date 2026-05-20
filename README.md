@@ -26,6 +26,8 @@ Defines the Store package identity metadata and packaging contract:
 - `packageIdentity.identityName`
 - `packageIdentity.backgroundColor`
 - `packageIdentity.languages`
+- `appx.minVersion`
+- `appx.maxVersionTested`
 - `supportedWindowsTargets`
 - `desktop.submodulePath`
 - `desktop.electronBuilderConfigPath`

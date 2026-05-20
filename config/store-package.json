@@ -23,6 +23,10 @@
   "supportedWindowsTargets": [
     "win-x64"
   ],
+  "appx": {
+    "minVersion": "10.0.17763.0",
+    "maxVersionTested": "10.0.19045.0"
+  },
   "desktop": {
     "submodulePath": "inputs/hagicode-desktop",
     "electronBuilderConfigPath": "electron-builder.yml",

@@ -31,6 +31,13 @@ function requireArray(value, label) {
   return value;
 }
 
+function optionalNonEmptyString(value, label) {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  return requireNonEmptyString(value, label);
+}
+
 export function validateStorePackageConfig(config) {
   requireObject(config, 'storePackageConfig');
   const packageIdentity = requireObject(config.packageIdentity, 'storePackageConfig.packageIdentity');
@@ -46,7 +53,17 @@ export function validateStorePackageConfig(config) {
   requireNonEmptyString(desktop.buildScript, 'storePackageConfig.desktop.buildScript');
   requireNonEmptyString(desktop.runtimeInjectionPath, 'storePackageConfig.desktop.runtimeInjectionPath');
   requireArray(config.supportedWindowsTargets, 'storePackageConfig.supportedWindowsTargets');
-  return config;
+  const appx = config.appx ? requireObject(config.appx, 'storePackageConfig.appx') : undefined;
+  return {
+    ...config,
+    appx: appx
+      ? {
+          ...appx,
+          minVersion: optionalNonEmptyString(appx.minVersion, 'storePackageConfig.appx.minVersion'),
+          maxVersionTested: optionalNonEmptyString(appx.maxVersionTested, 'storePackageConfig.appx.maxVersionTested')
+        }
+      : undefined
+  };
 }
 
 export function validateWorkflowDefaults(config) {
