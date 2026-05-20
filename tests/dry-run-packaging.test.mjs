@@ -90,10 +90,10 @@ function createPlan(tempRoot) {
     },
     store: {
       packageIdentity: {
-        displayName: 'Hagicode Desktop',
+        displayName: 'Hagicode',
         publisherDisplayName: 'newbe36524',
         publisher: 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F',
-        identityName: 'newbe36524.HagicodeDesktop',
+        identityName: 'newbe36524.Hagicode',
         backgroundColor: 'transparent',
         languages: ['en-US'],
         addAutoLaunchExtension: false
@@ -205,7 +205,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
 
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.yml'), 'utf8');
   assert.match(overlayConfigText, /extends: electron-builder\.yml/);
-  assert.match(overlayConfigText, /identityName: newbe36524\.HagicodeDesktop/);
+  assert.match(overlayConfigText, /identityName: newbe36524\.Hagicode/);
 });
 
 test('workspace preparation fails when the expected desktop tag is missing', async () => {
