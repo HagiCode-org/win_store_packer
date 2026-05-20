@@ -25,6 +25,13 @@ function renderAppxBlock(packageIdentity) {
   ].join('\n');
 }
 
+function renderStoreOverlayConfig(sourceConfigPath, packageIdentity) {
+  return [
+    `extends: ${yamlScalar(sourceConfigPath)}`,
+    renderAppxBlock(packageIdentity)
+  ].join('\n');
+}
+
 export async function writeStoreElectronBuilderConfig({
   desktopWorkspace,
   sourceConfigPath,
@@ -38,7 +45,7 @@ export async function writeStoreElectronBuilderConfig({
     throw new Error(`Desktop packaging config ${sourcePath} does not exist.`);
   }
 
-  await writeFile(outputPath, `${renderAppxBlock(config.packageIdentity)}\n`, 'utf8');
+  await writeFile(outputPath, `${renderStoreOverlayConfig(sourceConfigPath, config.packageIdentity)}\n`, 'utf8');
   return {
     config,
     sourcePath,
