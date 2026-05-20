@@ -60,14 +60,16 @@ Scheduled runs use the latest eligible Windows Desktop and Server assets from th
 
 `package-release.yml` now publishes the built `.msix` to Microsoft Store in the same workflow run that publishes the GitHub Release. The Store publish job is skipped when `dry_run` is enabled.
 
-Configure the repository with the Microsoft Store credentials required by the official `microsoft/microsoft-store-apppublisher` action:
+The workflow uses the official `microsoft/store-submission@v1` action instead of invoking the `msstore` CLI directly. It first publishes the `.msix` to the GitHub Release, then builds the `product-update` payload from the public release asset URLs and submits that payload to Partner Center as a packaged app submission.
 
-- `AZURE_AD_APPLICATION_CLIENT_ID`
-- `AZURE_AD_APPLICATION_SECRET`
-- `AZURE_AD_TENANT_ID`
+Configure the repository with the Microsoft Store credentials required by `microsoft/store-submission@v1`:
+
 - `SELLER_ID`
+- `TENANT_ID` (or the legacy `AZURE_AD_TENANT_ID`)
+- `CLIENT_ID` (or the legacy `AZURE_AD_APPLICATION_CLIENT_ID`)
+- `CLIENT_SECRET` (or the legacy `AZURE_AD_APPLICATION_SECRET`)
 
-Also configure `MICROSOFT_STORE_PRODUCT_ID` as a repository variable or secret so the workflow can call `msstore publish ... -id <Store product Id>` for the packaged MSIX.
+Also configure `MICROSOFT_STORE_PRODUCT_ID` as a repository variable or secret so the workflow can target the correct Partner Center product.
 
 ## Local Verification
 
