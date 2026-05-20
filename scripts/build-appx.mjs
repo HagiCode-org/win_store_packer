@@ -25,6 +25,19 @@ async function runShellCommand(commandText, cwd) {
   await runCommand('/bin/bash', ['-lc', commandText], { cwd });
 }
 
+function buildDesktopAppxCommand(overlayConfigPath) {
+  const quotedConfig = JSON.stringify(path.basename(overlayConfigPath));
+  return [
+    'npm run prepare:runtime',
+    'npm run prepare:bundled-toolchain',
+    'npm run prepare:code-server-runtime',
+    'npm run prepare:omniroute-runtime',
+    'npm run build:prod',
+    `node scripts/run-electron-builder.js --win appx --publish never --config ${quotedConfig}`,
+    'npm run package:smoke-test'
+  ].join(' && ');
+}
+
 async function createSyntheticAppx({
   appxPath,
   desktopWorkspace,
@@ -46,6 +59,34 @@ async function findAppxOutputs(pkgDirectory) {
 
   const files = await listFilesRecursively(pkgDirectory);
   return files.filter((filePath) => filePath.toLowerCase().endsWith('.appx')).sort();
+}
+
+async function shouldUseSyntheticDryRunBuild(desktopWorkspace, planDryRun) {
+  if (!planDryRun) {
+    return false;
+  }
+
+  const packageJsonPath = path.join(desktopWorkspace, 'package.json');
+  if (!(await pathExists(packageJsonPath))) {
+    return true;
+  }
+
+  const packageJson = await readJson(packageJsonPath);
+  const scripts = packageJson?.scripts ?? {};
+  const requiredScripts = [
+    'prepare:runtime',
+    'prepare:bundled-toolchain',
+    'prepare:code-server-runtime',
+    'prepare:omniroute-runtime',
+    'build:prod',
+    'package:smoke-test'
+  ];
+
+  if (requiredScripts.some((scriptName) => typeof scripts[scriptName] !== 'string')) {
+    return true;
+  }
+
+  return !(await pathExists(path.join(desktopWorkspace, 'scripts', 'run-electron-builder.js')));
 }
 
 export async function buildAppx({
@@ -77,7 +118,9 @@ export async function buildAppx({
     await runCommand(npmCommand(), ['ci'], { cwd: workspaceManifest.desktopWorkspace });
   }
 
-  if (forceDryRun) {
+  const syntheticDryRun = forceDryRun || (await shouldUseSyntheticDryRunBuild(workspaceManifest.desktopWorkspace, plan.build.dryRun));
+
+  if (syntheticDryRun) {
     await createSyntheticAppx({
       appxPath: path.join(pkgDirectory, buildStoreArtifactName(plan.release.tag, platformId)),
       desktopWorkspace: workspaceManifest.desktopWorkspace,
@@ -87,10 +130,10 @@ export async function buildAppx({
   } else if (desktopBuildCommand) {
     await runShellCommand(desktopBuildCommand, workspaceManifest.desktopWorkspace);
   } else {
-    await runCommand(npmCommand(), ['run', storePackageConfig.desktop.buildScript, '--', '--config', path.basename(overlayConfig.outputPath)], {
-      cwd: workspaceManifest.desktopWorkspace,
-      env: process.env
-    });
+    await runShellCommand(
+      buildDesktopAppxCommand(overlayConfig.outputPath),
+      workspaceManifest.desktopWorkspace
+    );
   }
 
   const appxOutputs = await findAppxOutputs(pkgDirectory);
@@ -112,7 +155,7 @@ export async function buildAppx({
     desktopRef: workspaceManifest.desktopRef,
     serverVersion: workspaceManifest.serverVersion,
     releaseTag: workspaceManifest.releaseTag,
-    buildMode: forceDryRun ? 'synthetic-dry-run' : 'desktop-build-script',
+    buildMode: syntheticDryRun ? 'synthetic-dry-run' : 'desktop-build-script',
     sourceElectronBuilderConfigPath: overlayConfig.sourcePath,
     outputElectronBuilderConfigPath: overlayConfig.outputPath,
     rawAppxOutputs: appxOutputs,

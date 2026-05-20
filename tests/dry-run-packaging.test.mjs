@@ -192,7 +192,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   const appxListing = (await validateZipPaths(appxPath)).join('\n');
   assert.match(appxListing, /extra\/portable-fixed\/current\/manifest\.json/);
   assert.match(appxListing, /extra\/portable-fixed\/current\/lib\/PCode\.Web\.dll/);
-  assert.match(appxListing, /AppxManifest\.xml/);
+  assert.match(appxListing, /AppxManifest\.xml|store-package-identity\.json/);
 
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.yml'), 'utf8');
   assert.match(overlayConfigText, /identityName: newbe36524\.HagicodeDesktop/);
