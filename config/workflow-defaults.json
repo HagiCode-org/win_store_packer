@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "defaultPlatforms": [
+    "win-x64"
+  ],
+  "buildPlanArtifactName": "resolved-build-plan",
+  "packageArtifactNamePrefix": "store-package",
+  "releaseMetadataArtifactPrefix": "store-release-metadata",
+  "desktopSourcePath": "inputs/hagicode-desktop",
+  "schedule": "0 */4 * * *"
+}

@@ -1,0 +1,12 @@
+{
+  "name": "win_store_packer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@10.9.2",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "verify:dry-run": "node --test tests/dry-run-packaging.test.mjs",
+    "verify:publication": "node --test tests/publish-release.test.mjs"
+  }
+}

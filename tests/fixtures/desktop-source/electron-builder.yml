@@ -1,0 +1,22 @@
+appId: com.newbe36524.hagicode
+productName: Hagicode Desktop
+files:
+  - dist/**/*
+  - resources/**/*
+  - package.json
+win:
+  target:
+    - portable
+    - appx
+appx:
+  displayName: Hagicode Desktop
+  publisherDisplayName: newbe36524
+  publisher: CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F
+  identityName: newbe36524.HagicodeDesktop
+  backgroundColor: transparent
+  languages:
+    - en-US
+  addAutoLaunchExtension: false
+mac:
+  target:
+    - default

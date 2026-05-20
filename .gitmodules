@@ -1,0 +1,3 @@
+[submodule "inputs/hagicode-desktop"]
+	path = inputs/hagicode-desktop
+	url = https://github.com/HagiCode-org/desktop.git

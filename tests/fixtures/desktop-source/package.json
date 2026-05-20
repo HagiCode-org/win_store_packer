@@ -1,0 +1,9 @@
+{
+  "name": "desktop-fixture",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:appx": "node scripts/build-fixture-appx.mjs"
+  }
+}
