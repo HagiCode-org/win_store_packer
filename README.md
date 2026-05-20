@@ -4,12 +4,15 @@
 
 It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, prepares a tagged Desktop source workspace, stages the Server payload into `resources/portable-fixed/current`, builds an AppX without the desktop repository's local Azure signing steps, and publishes the resulting AppX plus release metadata from this repository.
 
+The published AppX is intentionally treated as **Steam mode by default**. Desktop switches into `distributionMode=steam` whenever the packaged `extra/portable-fixed/current` payload validates, so this Store flow ships that payload as the authoritative runtime source and records `distributionMode: "steam"` plus `runtimeSource: "portable-fixed"` in the emitted metadata.
+
 ## Repository Contract
 
 - `hagicode-desktop` is a read-only input. This repository expects it at `inputs/hagicode-desktop` and tracks it through `.gitmodules`.
 - The selected Desktop release version is normalized to the exact Git tag `v<desktop-version-without-leading-v>`.
 - Workspace preparation fails fast if that tag does not exist or cannot be checked out cleanly.
 - The final packaged runtime must come from `resources/portable-fixed/current`, which electron-builder already maps to `extra/portable-fixed/current` inside the AppX.
+- The packaged `portable-fixed/current` payload is the contract that makes Desktop start in Steam mode for this distribution.
 
 ## Configuration
 
@@ -122,12 +125,22 @@ Per-platform build outputs are written into the workspace root:
 - `artifact-inventory-win-x64.json`
 - `release-assets/hagicode-store-<release-tag>-win-x64.appx`
 
+The build metadata and artifact inventory also record:
+
+- `distributionMode: "steam"`
+- `runtimeSource: "portable-fixed"`
+
 Publication outputs are written into the publish output directory:
 
 - `<release-tag>.artifact-inventory.json`
 - `<release-tag>.release-metadata.json`
 - `<release-tag>.publish-dry-run.json` for dry runs
 - `<release-tag>.publication-result.json` for real releases
+
+The release metadata and dry-run report also record:
+
+- `distributionMode: "steam"`
+- `runtimeSource: "portable-fixed"`
 
 ## Store-specific Differences From Desktop CI
 
