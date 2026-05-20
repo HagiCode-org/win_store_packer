@@ -1,0 +1,34 @@
+name: list-store-apps
+
+on:
+  workflow_dispatch:
+
+jobs:
+  list_apps:
+    name: List Microsoft Store apps
+    runs-on: windows-latest
+    env:
+      AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+      AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+      AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+      SELLER_ID: ${{ secrets.SELLER_ID }}
+    steps:
+      - name: Checkout win_store_packer
+        uses: actions/checkout@v5
+
+      - name: Configure Microsoft Store CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.2
+
+      - name: Reconfigure Microsoft Store credentials
+        shell: pwsh
+        run: |
+          msstore reconfigure `
+            --tenantId $env:AZURE_AD_TENANT_ID `
+            --sellerId $env:SELLER_ID `
+            --clientId $env:AZURE_AD_APPLICATION_CLIENT_ID `
+            --clientSecret $env:AZURE_AD_APPLICATION_SECRET
+
+      - name: List Microsoft Store apps
+        shell: pwsh
+        run: |
+          msstore apps list
