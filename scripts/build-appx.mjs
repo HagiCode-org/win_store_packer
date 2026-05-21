@@ -8,7 +8,12 @@ import { createArtifactRecord } from './lib/artifacts.mjs';
 import { runCommand } from './lib/command.mjs';
 import { loadReleasePlan } from './lib/release-plan.mjs';
 import { buildStoreArtifactName } from './lib/platforms.mjs';
-import { loadStorePackageConfig } from './lib/store-config.mjs';
+import {
+  loadStorePackageConfig,
+  normalizeStorePackageVersion,
+  normalizeStoreSigningMode,
+  resolveStoreSigningConfig
+} from './lib/store-config.mjs';
 import { writeStoreElectronBuilderConfig } from './lib/appx-config.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 
@@ -57,15 +62,18 @@ function buildDesktopStoreCommand(overlayConfigPath, scripts) {
 
 async function createSyntheticStorePackage({
   artifactPath,
-  desktopWorkspace,
   runtimeInjectionRoot,
-  packageIdentity
+  packageIdentity,
+  packageVersion
 }) {
   const stagingRoot = path.join(path.dirname(artifactPath), '.synthetic-msix');
   await cleanDir(stagingRoot);
   await ensureDir(path.join(stagingRoot, 'extra', 'portable-fixed'));
   await copyDir(runtimeInjectionRoot, path.join(stagingRoot, 'extra', 'portable-fixed', 'current'));
-  await writeJson(path.join(stagingRoot, 'store-package-identity.json'), packageIdentity);
+  await writeJson(path.join(stagingRoot, 'store-package-identity.json'), {
+    ...packageIdentity,
+    packageVersion
+  });
   await createArchive(stagingRoot, artifactPath);
 }
 
@@ -123,12 +131,19 @@ export async function buildAppx({
   workspacePath,
   platformId,
   forceDryRun = false,
-  desktopBuildCommand
+  desktopBuildCommand,
+  signingMode = 'disabled'
 }) {
   const { plan } = await loadReleasePlan(planPath);
   const storePackageConfig = await loadStorePackageConfig();
   const resolvedWorkspacePath = path.resolve(workspacePath);
   const workspaceManifest = await readJson(path.join(resolvedWorkspacePath, 'workspace-manifest.json'));
+  const storePackageVersion = normalizeStorePackageVersion(plan.upstream.desktop.tag, storePackageConfig.packageVersion);
+  const normalizedSigningMode = normalizeStoreSigningMode(signingMode);
+  const signingConfig = resolveStoreSigningConfig({
+    storePackageConfig,
+    signingMode: normalizedSigningMode
+  });
 
   if (!storePackageConfig.supportedWindowsTargets.includes(platformId)) {
     throw new Error(`Unsupported Windows target ${platformId}. Supported targets: ${storePackageConfig.supportedWindowsTargets.join(', ')}`);
@@ -139,8 +154,18 @@ export async function buildAppx({
   const overlayConfig = await writeStoreElectronBuilderConfig({
     desktopWorkspace: workspaceManifest.desktopWorkspace,
     sourceConfigPath: storePackageConfig.desktop.electronBuilderConfigPath,
-    outputConfigPath: 'electron-builder.store.yml'
+    outputConfigPath: 'electron-builder.store.yml',
+    packageVersion: storePackageVersion,
+    publisherOverride: signingConfig.publisher
   });
+  const verificationScriptPath = path.join(
+    workspaceManifest.desktopWorkspace,
+    storePackageConfig.signing.verificationScriptRelativePath
+  );
+
+  if (signingConfig.enabled && !(await pathExists(verificationScriptPath))) {
+    throw new Error(`Missing Desktop signature verification script at ${verificationScriptPath}.`);
+  }
 
   const packageLockPath = path.join(workspaceManifest.desktopWorkspace, 'package-lock.json');
   if (!forceDryRun && await pathExists(packageLockPath)) {
@@ -153,10 +178,10 @@ export async function buildAppx({
 
   if (syntheticDryRun) {
     await createSyntheticStorePackage({
-      artifactPath: path.join(pkgDirectory, buildStoreArtifactName(plan.release.tag, platformId)),
-      desktopWorkspace: workspaceManifest.desktopWorkspace,
+      artifactPath: path.join(pkgDirectory, buildStoreArtifactName(plan.release.tag, platformId, 'unsigned')),
       runtimeInjectionRoot: workspaceManifest.runtimeInjectionRoot,
-      packageIdentity: storePackageConfig.packageIdentity
+      packageIdentity: storePackageConfig.packageIdentity,
+      packageVersion: storePackageVersion
     });
   } else if (desktopBuildCommand) {
     await runShellCommand(desktopBuildCommand, workspaceManifest.desktopWorkspace);
@@ -173,10 +198,19 @@ export async function buildAppx({
   }
 
   const primaryOutput = storeOutputs[0];
-  const artifactFileName = buildStoreArtifactName(plan.release.tag, platformId);
-  const artifactPath = path.join(workspaceManifest.outputDirectory, artifactFileName);
+  const unsignedArtifactFileName = buildStoreArtifactName(plan.release.tag, platformId, 'unsigned');
+  const unsignedArtifactPath = path.join(workspaceManifest.outputDirectory, unsignedArtifactFileName);
   await ensureDir(workspaceManifest.outputDirectory);
-  await copySingleFile(primaryOutput, artifactPath);
+  await copySingleFile(primaryOutput, unsignedArtifactPath);
+
+  let signedArtifactPath = null;
+  if (signingConfig.enabled) {
+    signedArtifactPath = path.join(
+      workspaceManifest.outputDirectory,
+      buildStoreArtifactName(plan.release.tag, platformId, 'signed')
+    );
+    await copySingleFile(unsignedArtifactPath, signedArtifactPath);
+  }
 
   const buildMetadata = {
     validationPassed: true,
@@ -188,17 +222,33 @@ export async function buildAppx({
     desktopRef: workspaceManifest.desktopRef,
     serverVersion: workspaceManifest.serverVersion,
     releaseTag: workspaceManifest.releaseTag,
+    storePackageVersion,
     buildMode: syntheticDryRun ? 'synthetic-dry-run' : 'desktop-build-script',
     sourceElectronBuilderConfigPath: overlayConfig.sourcePath,
     outputElectronBuilderConfigPath: overlayConfig.outputPath,
+    outputElectronBuilderBuildVersion: overlayConfig.packageVersion,
     rawStoreOutputs: storeOutputs,
-    publishedArtifactPath: artifactPath
+    publishedArtifactPath: unsignedArtifactPath,
+    artifacts: {
+      unsigned: unsignedArtifactPath,
+      signed: signedArtifactPath
+    },
+    signing: {
+      mode: normalizedSigningMode,
+      enabled: signingConfig.enabled,
+      required: signingConfig.required,
+      status: signingConfig.enabled ? 'pending-external-signing' : 'disabled',
+      publisher: signingConfig.publisher,
+      verificationScriptPath: signingConfig.enabled ? verificationScriptPath : null,
+      stagedSignedArtifactPath: signedArtifactPath,
+      missingConfiguration: signingConfig.missing
+    }
   };
   const buildMetadataPath = path.join(resolvedWorkspacePath, `build-metadata-${platformId}.json`);
   await writeJson(buildMetadataPath, buildMetadata);
 
-  const artifactRecord = await createArtifactRecord({
-    artifactPath,
+  const unsignedArtifactRecord = await createArtifactRecord({
+    artifactPath: unsignedArtifactPath,
     platformId,
     metadata: {
       distributionMode: 'steam',
@@ -206,13 +256,24 @@ export async function buildAppx({
       desktopVersion: workspaceManifest.desktopVersion,
       desktopTag: workspaceManifest.desktopTag,
       desktopRef: workspaceManifest.desktopRef,
-      serverVersion: workspaceManifest.serverVersion
+      serverVersion: workspaceManifest.serverVersion,
+      storePackageVersion,
+      variant: 'unsigned',
+      signed: false,
+      primaryForStoreSubmission: false
     }
   });
   const artifactInventory = {
     platform: platformId,
     releaseTag: workspaceManifest.releaseTag,
-    artifacts: [artifactRecord],
+    storePackageVersion,
+    signing: {
+      mode: normalizedSigningMode,
+      enabled: signingConfig.enabled,
+      required: signingConfig.required,
+      stagedSignedArtifactPath: signedArtifactPath
+    },
+    artifacts: [unsignedArtifactRecord],
     buildMetadataPath,
     workspaceValidationPath: path.join(resolvedWorkspacePath, `workspace-validation-${platformId}.json`),
     payloadValidationPath: path.join(resolvedWorkspacePath, `payload-validation-${platformId}.json`)
@@ -225,15 +286,20 @@ export async function buildAppx({
     `- Release tag: ${workspaceManifest.releaseTag}`,
     `- Desktop tag: ${workspaceManifest.desktopTag}`,
     `- Server version: ${workspaceManifest.serverVersion}`,
+    `- Store package version: ${storePackageVersion}`,
     '- Distribution mode: steam',
-    `- Artifact: ${artifactFileName}`,
+    `- Unsigned artifact: ${unsignedArtifactFileName}`,
+    `- Signing mode: ${normalizedSigningMode}`,
+    ...(signedArtifactPath ? [`- Signed artifact staging path: ${path.basename(signedArtifactPath)}`] : []),
     `- Build mode: ${buildMetadata.buildMode}`
   ]);
 
   return {
     artifactInventoryPath,
     buildMetadataPath,
-    artifactPath
+    artifactPath: unsignedArtifactPath,
+    unsignedArtifactPath,
+    signedArtifactPath
   };
 }
 
@@ -244,7 +310,8 @@ export async function main() {
       platform: { type: 'string' },
       workspace: { type: 'string' },
       'force-dry-run': { type: 'boolean' },
-      'desktop-build-command': { type: 'string' }
+      'desktop-build-command': { type: 'string' },
+      'signing-mode': { type: 'string' }
     }
   });
 
@@ -257,7 +324,8 @@ export async function main() {
     workspacePath: values.workspace,
     platformId: values.platform,
     forceDryRun: values['force-dry-run'] ?? false,
-    desktopBuildCommand: values['desktop-build-command']
+    desktopBuildCommand: values['desktop-build-command'],
+    signingMode: values['signing-mode'] ?? 'disabled'
   });
 
   console.log(JSON.stringify(result, null, 2));

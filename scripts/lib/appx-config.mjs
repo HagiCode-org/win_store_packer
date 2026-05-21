@@ -10,13 +10,13 @@ function yamlScalar(value) {
   return String(value);
 }
 
-function renderAppxBlock(packageIdentity, appx = {}) {
+function renderAppxBlock(packageIdentity, appx = {}, publisherOverride) {
   const languageLines = packageIdentity.languages.map((language) => `    - ${language}`).join('\n');
   const lines = [
     'appx:',
     `  displayName: ${yamlScalar(packageIdentity.displayName)}`,
     `  publisherDisplayName: ${yamlScalar(packageIdentity.publisherDisplayName)}`,
-    `  publisher: ${yamlScalar(packageIdentity.publisher)}`,
+    `  publisher: ${yamlScalar(publisherOverride ?? packageIdentity.publisher)}`,
     `  identityName: ${yamlScalar(packageIdentity.identityName)}`,
     `  backgroundColor: ${yamlScalar(packageIdentity.backgroundColor)}`,
     '  languages:',
@@ -35,17 +35,23 @@ function renderAppxBlock(packageIdentity, appx = {}) {
   return lines.join('\n');
 }
 
-function renderStoreOverlayConfig(sourceConfigPath, packageIdentity, appx) {
+function renderStoreOverlayConfig(sourceConfigPath, packageIdentity, appx, { packageVersion, publisherOverride }) {
+  const packageJsonVersion = String(packageVersion).split('.').slice(0, 3).join('.');
   return [
     `extends: ${yamlScalar(sourceConfigPath)}`,
-    renderAppxBlock(packageIdentity, appx)
+    `buildVersion: ${yamlScalar(packageVersion)}`,
+    'extraMetadata:',
+    `  version: ${yamlScalar(packageJsonVersion)}`,
+    renderAppxBlock(packageIdentity, appx, publisherOverride)
   ].join('\n');
 }
 
 export async function writeStoreElectronBuilderConfig({
   desktopWorkspace,
   sourceConfigPath,
-  outputConfigPath
+  outputConfigPath,
+  packageVersion,
+  publisherOverride
 }) {
   const config = await loadStorePackageConfig();
   const sourcePath = path.join(desktopWorkspace, sourceConfigPath);
@@ -55,10 +61,16 @@ export async function writeStoreElectronBuilderConfig({
     throw new Error(`Desktop packaging config ${sourcePath} does not exist.`);
   }
 
-  await writeFile(outputPath, `${renderStoreOverlayConfig(sourceConfigPath, config.packageIdentity, config.appx)}\n`, 'utf8');
+  await writeFile(
+    outputPath,
+    `${renderStoreOverlayConfig(sourceConfigPath, config.packageIdentity, config.appx, { packageVersion, publisherOverride })}\n`,
+    'utf8'
+  );
   return {
     config,
     sourcePath,
-    outputPath
+    outputPath,
+    packageVersion,
+    publisherOverride: publisherOverride ?? null
   };
 }

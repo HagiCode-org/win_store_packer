@@ -11,18 +11,34 @@ test('publishRelease creates or updates a GitHub release and uploads the msix an
   const artifactsDir = path.join(tempRoot, 'artifacts');
   const outputDir = path.join(tempRoot, 'output');
   const planPath = path.join(tempRoot, 'build-plan.json');
-  const msixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64.msix');
+  const unsignedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix');
+  const signedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix');
   await mkdir(artifactsDir, { recursive: true });
-  await writeFile(msixPath, 'fixture');
+  await writeFile(unsignedMsixPath, 'fixture-unsigned');
+  await writeFile(signedMsixPath, 'fixture-signed');
   await writeJson(path.join(artifactsDir, 'artifact-inventory-win-x64.json'), {
     platform: 'win-x64',
+    storePackageVersion: '0.3.0.0',
     artifacts: [
       {
         platform: 'win-x64',
-        fileName: path.basename(msixPath),
-        outputPath: msixPath,
-        sizeBytes: 7,
-        sha256: 'abc'
+        fileName: path.basename(unsignedMsixPath),
+        outputPath: unsignedMsixPath,
+        sizeBytes: 16,
+        sha256: 'abc',
+        variant: 'unsigned',
+        signed: false,
+        primaryForStoreSubmission: false
+      },
+      {
+        platform: 'win-x64',
+        fileName: path.basename(signedMsixPath),
+        outputPath: signedMsixPath,
+        sizeBytes: 14,
+        sha256: 'def',
+        variant: 'signed',
+        signed: true,
+        primaryForStoreSubmission: true
       }
     ]
   });
@@ -103,7 +119,7 @@ test('publishRelease creates or updates a GitHub release and uploads the msix an
   });
 
   assert.equal(result.releaseAction, 'created');
-  assert.equal(result.uploadedAssets.length, 2);
+  assert.equal(result.uploadedAssets.length, 3);
   assert.ok(requests.some((request) => request.url.includes('/releases') && request.method === 'POST'));
   assert.ok(requests.some((request) => request.url.includes('uploads.github.com') && request.method === 'POST'));
 
@@ -111,4 +127,7 @@ test('publishRelease creates or updates a GitHub release and uploads the msix an
   const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
   assert.equal(metadata.distributionMode, 'steam');
   assert.equal(metadata.runtimeSource, 'portable-fixed');
+  assert.equal(metadata.storePackageVersion, '0.3.0.0');
+  assert.equal(metadata.artifacts.filter((artifact) => artifact.fileName.endsWith('.msix')).length, 2);
+  assert.equal(metadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.variant, 'signed');
 });

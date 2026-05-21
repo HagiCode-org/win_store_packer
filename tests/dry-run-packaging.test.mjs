@@ -7,6 +7,7 @@ import { cp, mkdtemp, readFile } from 'node:fs/promises';
 import { createArchive, validateZipPaths } from '../scripts/lib/archive.mjs';
 import { runCommand } from '../scripts/lib/command.mjs';
 import { readJson, writeJson } from '../scripts/lib/fs-utils.mjs';
+import { buildAppx } from '../scripts/build-appx.mjs';
 import { preparePackagingWorkspace } from '../scripts/prepare-packaging-workspace.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -187,15 +188,21 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(buildMetadata.validationPassed, true);
   assert.equal(buildMetadata.distributionMode, 'steam');
   assert.equal(buildMetadata.runtimeSource, 'portable-fixed');
+  assert.equal(buildMetadata.storePackageVersion, '0.3.0.0');
+  assert.equal(buildMetadata.signing.mode, 'disabled');
   assert.equal(inventory.artifacts.length, 1);
   assert.equal(inventory.artifacts[0].distributionMode, 'steam');
   assert.equal(inventory.artifacts[0].runtimeSource, 'portable-fixed');
+  assert.equal(inventory.artifacts[0].variant, 'unsigned');
+  assert.equal(inventory.artifacts[0].storePackageVersion, '0.3.0.0');
   assert.equal(dryRunReport.releaseTag, 'store-desktop-v0.3.0-server-v0.1.0-beta.34');
   assert.equal(dryRunReport.distributionMode, 'steam');
   assert.equal(dryRunReport.runtimeSource, 'portable-fixed');
   assert.equal(dryRunReport.desktopTag, 'v0.3.0');
+  assert.equal(dryRunReport.storePackageVersion, '0.3.0.0');
   assert.equal(releaseMetadata.distributionMode, 'steam');
   assert.equal(releaseMetadata.runtimeSource, 'portable-fixed');
+  assert.equal(releaseMetadata.storePackageVersion, '0.3.0.0');
 
   const msixPath = inventory.artifacts[0].outputPath;
   const msixListing = (await validateZipPaths(msixPath)).join('\n');
@@ -205,7 +212,9 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
 
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.yml'), 'utf8');
   assert.match(overlayConfigText, /extends: electron-builder\.yml/);
+  assert.match(overlayConfigText, /buildVersion: 0\.3\.0\.0/);
   assert.match(overlayConfigText, /identityName: newbe36524\.Hagicode/);
+  assert.match(msixPath, /-unsigned\.msix$/);
 });
 
 test('workspace preparation fails when the expected desktop tag is missing', async () => {
@@ -226,5 +235,49 @@ test('workspace preparation fails when the expected desktop tag is missing', asy
         desktopSourcePath: desktopRepoPath
       }),
     /Desktop tag v0\.3\.0 is not available/
+  );
+});
+
+test('build-appx fails early when signed packaging is required but Azure signing configuration is missing', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-signing-config-'));
+  const planPath = path.join(tempRoot, 'build-plan.json');
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const desktopRepoPath = await createTaggedDesktopRepo(tempRoot);
+  const serverArchivePath = await createServerArchive(tempRoot);
+  await writeJson(planPath, createPlan(tempRoot));
+
+  await runCommand('node', [
+    path.join(repoRoot, 'scripts', 'prepare-packaging-workspace.mjs'),
+    '--plan',
+    planPath,
+    '--platform',
+    'win-x64',
+    '--workspace',
+    workspacePath,
+    '--desktop-source',
+    desktopRepoPath
+  ]);
+
+  await runCommand('node', [
+    path.join(repoRoot, 'scripts', 'stage-server-payload.mjs'),
+    '--plan',
+    planPath,
+    '--platform',
+    'win-x64',
+    '--workspace',
+    workspacePath,
+    '--server-asset-source',
+    serverArchivePath
+  ]);
+
+  await assert.rejects(
+    () =>
+      buildAppx({
+        planPath,
+        workspacePath,
+        platformId: 'win-x64',
+        signingMode: 'required'
+      }),
+    /Missing Store signing configuration/
   );
 });

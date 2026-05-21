@@ -46,10 +46,12 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
   }
 
   const inventories = await Promise.all(inventoryFiles.sort().map((entry) => readJson(path.join(artifactsDir, entry))));
+  const storePackageVersion = inventories.map((inventory) => inventory.storePackageVersion).find(Boolean) ?? null;
   const mergedInventory = {
     releaseTag: plan.release.tag,
     dryRun: Boolean(plan.build.dryRun),
     platforms: inventories.map((inventory) => inventory.platform),
+    storePackageVersion,
     artifacts: inventories.flatMap((inventory) => inventory.artifacts)
   };
 
@@ -62,6 +64,7 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
     releaseName: plan.release.name,
     distributionMode: 'steam',
     runtimeSource: 'portable-fixed',
+    storePackageVersion,
     desktop: {
       version: plan.upstream.desktop.version,
       tag: plan.upstream.desktop.tag,
@@ -102,6 +105,8 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
 }
 
 function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubReleaseAssets }) {
+  const primaryArtifact = publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission);
+  const unsignedArtifact = publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.variant === 'unsigned');
   return [
     `## Windows Store ${plan.release.tag}`,
     '',
@@ -109,8 +114,11 @@ function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubRelea
     `- Desktop version: ${plan.upstream.desktop.version}`,
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
     `- Server version: ${plan.upstream.server.version}`,
+    `- Store package version: ${publicationArtifacts.releaseMetadata.storePackageVersion ?? 'unavailable'}`,
     '- Distribution mode: steam',
-    `- MSIX assets: ${publicationArtifacts.mergedInventory.artifacts.length}`,
+    `- MSIX assets: ${publicationArtifacts.mergedInventory.artifacts.filter((artifact) => artifact.fileName.toLowerCase().endsWith('.msix')).length}`,
+    `- Primary Store submission artifact: ${primaryArtifact?.fileName ?? 'none'}`,
+    `- Unsigned artifact: ${unsignedArtifact?.fileName ?? 'none'}`,
     `- Release metadata asset: ${path.basename(publicationArtifacts.metadataPath)}`,
     `- GitHub Release assets uploaded: ${githubReleaseAssets}`
   ].join('\n');
@@ -146,6 +154,7 @@ export async function publishRelease({
       desktopVersion: plan.upstream.desktop.version,
       desktopTag: plan.upstream.desktop.tag,
       serverVersion: plan.upstream.server.version,
+      storePackageVersion: publicationArtifacts.releaseMetadata.storePackageVersion,
       uploads: publicationArtifacts.uploads.map((upload) => ({
         fileName: upload.fileName,
         filePath: upload.filePath
@@ -158,7 +167,9 @@ export async function publishRelease({
       `- Release tag: ${plan.release.tag}`,
       `- Desktop tag: ${plan.upstream.desktop.tag}`,
       `- Server version: ${plan.upstream.server.version}`,
+      `- Store package version: ${publicationArtifacts.releaseMetadata.storePackageVersion ?? 'unavailable'}`,
       '- Distribution mode: steam',
+      `- Signed primary package: ${publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.fileName ?? 'none'}`,
       `- Assets prepared: ${publicationArtifacts.uploads.length}`
     ]);
 
@@ -220,6 +231,8 @@ export async function publishRelease({
     `- Uploaded assets: ${uploadedAssets.length}`,
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
     `- Server version: ${plan.upstream.server.version}`,
+    `- Store package version: ${publicationArtifacts.releaseMetadata.storePackageVersion ?? 'unavailable'}`,
+    `- Signed primary package: ${publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.fileName ?? 'none'}`,
     '- Distribution mode: steam'
   ]);
 

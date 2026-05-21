@@ -27,6 +27,22 @@
     "minVersion": "10.0.17763.0",
     "maxVersionTested": "10.0.19045.0"
   },
+  "packageVersion": {
+    "source": "desktop-tag",
+    "revision": 0
+  },
+  "signing": {
+    "publisherSubjectEnvVar": "AZURE_CODESIGN_APPX_PUBLISHER",
+    "verificationScriptRelativePath": "scripts/verify-signature.js",
+    "azure": {
+      "clientIdEnvVar": "AZURE_CLIENT_ID",
+      "tenantIdEnvVar": "AZURE_TENANT_ID",
+      "subscriptionIdEnvVar": "AZURE_SUBSCRIPTION_ID",
+      "endpointEnvVar": "AZURE_CODESIGN_ENDPOINT",
+      "accountNameEnvVar": "AZURE_CODESIGN_ACCOUNT_NAME",
+      "certificateProfileNameEnvVar": "AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME"
+    }
+  },
   "desktop": {
     "submodulePath": "inputs/hagicode-desktop",
     "electronBuilderConfigPath": "electron-builder.yml",

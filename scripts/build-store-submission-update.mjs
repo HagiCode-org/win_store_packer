@@ -61,6 +61,7 @@ export async function buildStoreSubmissionUpdate({
 
   const packages = releaseMetadata.artifacts
     .filter((artifact) => artifact.fileName.toLowerCase().endsWith('.msix'))
+    .filter((artifact) => artifact.primaryForStoreSubmission === true && artifact.signed === true)
     .map((artifact) => {
       const packageUrl = uploadedAssetUrls.get(artifact.fileName);
       if (!packageUrl) {
@@ -75,7 +76,7 @@ export async function buildStoreSubmissionUpdate({
     });
 
   if (packages.length === 0) {
-    throw new Error('No published .msix assets were found for Store submission.');
+    throw new Error('No primary signed .msix asset was found for Store submission.');
   }
 
   const updatePayload = { packages };
@@ -87,7 +88,8 @@ export async function buildStoreSubmissionUpdate({
     '## Microsoft Store submission payload prepared',
     `- Packages: ${packages.length}`,
     `- Languages: ${languages.join(', ')}`,
-    `- Release tag: ${plan.release.tag}`
+    `- Release tag: ${plan.release.tag}`,
+    `- Primary signed package: ${packages[0]?.packageUrl ?? 'none'}`
   ]);
 
   return {
