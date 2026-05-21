@@ -184,6 +184,14 @@ jobs:
 
       - name: Build MSIX
         shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_CODESIGN_ENDPOINT: ${{ secrets.AZURE_CODESIGN_ENDPOINT }}
+          AZURE_CODESIGN_ACCOUNT_NAME: ${{ secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
+          AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
+          AZURE_CODESIGN_APPX_PUBLISHER: ${{ secrets.AZURE_CODESIGN_APPX_PUBLISHER }}
         run: |
           node scripts/build-appx.mjs \
             --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
