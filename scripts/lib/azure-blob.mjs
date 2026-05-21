@@ -55,6 +55,10 @@ export function resolveAssetDownloadUrl({ asset, sasUrl, overrideSource }) {
     return path.resolve(overrideSource);
   }
 
+  if (sasUrl && asset?.path) {
+    return buildSignedBlobUrl(sasUrl, asset.path);
+  }
+
   if (asset?.directUrl) {
     return asset.directUrl;
   }
