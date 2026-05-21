@@ -17,6 +17,9 @@ import {
 import { writeStoreElectronBuilderConfig } from './lib/appx-config.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, '..');
+
 function npmCommand() {
   return process.platform === 'win32' ? 'npm.cmd' : 'npm';
 }
@@ -159,12 +162,12 @@ export async function buildAppx({
     publisherOverride: signingConfig.publisher
   });
   const verificationScriptPath = path.join(
-    workspaceManifest.desktopWorkspace,
+    repoRoot,
     storePackageConfig.signing.verificationScriptRelativePath
   );
 
   if (signingConfig.enabled && !(await pathExists(verificationScriptPath))) {
-    throw new Error(`Missing Desktop signature verification script at ${verificationScriptPath}.`);
+    throw new Error(`Missing Store signature verification script at ${verificationScriptPath}.`);
   }
 
   const packageLockPath = path.join(workspaceManifest.desktopWorkspace, 'package-lock.json');

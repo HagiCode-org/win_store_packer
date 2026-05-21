@@ -33,7 +33,7 @@
   },
   "signing": {
     "publisherSubjectEnvVar": "AZURE_CODESIGN_APPX_PUBLISHER",
-    "verificationScriptRelativePath": "scripts/verify-signature.js",
+    "verificationScriptRelativePath": "scripts/verify-signature.mjs",
     "azure": {
       "clientIdEnvVar": "AZURE_CLIENT_ID",
       "tenantIdEnvVar": "AZURE_TENANT_ID",
