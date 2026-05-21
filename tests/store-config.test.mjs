@@ -27,3 +27,43 @@ test('resolveStoreSigningConfig reports missing Azure signing inputs when signin
     /Missing Store signing configuration/
   );
 });
+
+test('resolveStoreSigningConfig accepts a publisher subject wrapped in quotes', async () => {
+  const storePackageConfig = await loadStorePackageConfig();
+  const signingConfig = resolveStoreSigningConfig({
+    storePackageConfig,
+    signingMode: 'required',
+    env: {
+      AZURE_CODESIGN_APPX_PUBLISHER: '"CN=Hagicode, O=HagiCode, C=US"',
+      AZURE_CLIENT_ID: 'client-id',
+      AZURE_TENANT_ID: 'tenant-id',
+      AZURE_SUBSCRIPTION_ID: 'subscription-id',
+      AZURE_CODESIGN_ENDPOINT: 'https://example.test',
+      AZURE_CODESIGN_ACCOUNT_NAME: 'account-name',
+      AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: 'profile-name'
+    }
+  });
+
+  assert.equal(signingConfig.publisher, 'CN=Hagicode, O=HagiCode, C=US');
+});
+
+test('resolveStoreSigningConfig rejects a publisher that is not a valid distinguished name', async () => {
+  const storePackageConfig = await loadStorePackageConfig();
+  assert.throws(
+    () =>
+      resolveStoreSigningConfig({
+        storePackageConfig,
+        signingMode: 'required',
+        env: {
+          AZURE_CODESIGN_APPX_PUBLISHER: 'not-a-distinguished-name',
+          AZURE_CLIENT_ID: 'client-id',
+          AZURE_TENANT_ID: 'tenant-id',
+          AZURE_SUBSCRIPTION_ID: 'subscription-id',
+          AZURE_CODESIGN_ENDPOINT: 'https://example.test',
+          AZURE_CODESIGN_ACCOUNT_NAME: 'account-name',
+          AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: 'profile-name'
+        }
+      }),
+    /Invalid Store signing publisher/
+  );
+});

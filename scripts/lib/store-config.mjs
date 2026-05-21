@@ -52,6 +52,21 @@ function optionalNonEmptyString(value, label) {
   return requireNonEmptyString(value, label);
 }
 
+function stripOptionalWrappingQuotes(value) {
+  const normalized = requireNonEmptyString(value, 'publisherSubject');
+  if (
+    (normalized.startsWith('"') && normalized.endsWith('"')) ||
+    (normalized.startsWith('\'') && normalized.endsWith('\''))
+  ) {
+    return normalized.slice(1, -1).trim();
+  }
+  return normalized;
+}
+
+function isValidDistinguishedName(value) {
+  return /^(?:(?:CN|L|O|OU|E|C|S|STREET|T|G|I|SN|DC|SERIALNUMBER|Description|PostalCode|POBox|Phone|X21Address|dnQualifier|OID\.(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*))+)=((?:[^,+="<>#;])+|".*"))(?:,\s*(?:(?:CN|L|O|OU|E|C|S|STREET|T|G|I|SN|DC|SERIALNUMBER|Description|PostalCode|POBox|Phone|X21Address|dnQualifier|OID\.(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*))+)=((?:[^,+="<>#;])+|".*")))*$/u.test(value);
+}
+
 function validatePackageVersionConfig(config) {
   const packageVersion = requireObject(config, 'storePackageConfig.packageVersion');
   const source = requireNonEmptyString(packageVersion.source, 'storePackageConfig.packageVersion.source');
@@ -196,12 +211,14 @@ export function resolveStoreSigningConfig({
   const signing = validateSigningConfig(storePackageConfig.signing);
   const enabled = mode !== 'disabled';
   const required = mode === 'required';
+  const rawPublisher = env[signing.publisherSubjectEnvVar]?.trim() || null;
+  const normalizedPublisher = rawPublisher ? stripOptionalWrappingQuotes(rawPublisher) : null;
 
   const resolved = {
     mode,
     enabled,
     required,
-    publisher: env[signing.publisherSubjectEnvVar]?.trim() || null,
+    publisher: normalizedPublisher,
     publisherSubjectEnvVar: signing.publisherSubjectEnvVar,
     verificationScriptRelativePath: signing.verificationScriptRelativePath,
     azure: {
@@ -237,6 +254,12 @@ export function resolveStoreSigningConfig({
 
   if (resolved.missing.length > 0) {
     throw new Error(`Missing Store signing configuration: ${resolved.missing.join(', ')}.`);
+  }
+
+  if (!isValidDistinguishedName(resolved.publisher)) {
+    throw new Error(
+      `Invalid Store signing publisher in ${resolved.publisherSubjectEnvVar}. Expected an X.500 subject like CN=Example, O=Example Corp, C=US.`
+    );
   }
 
   return resolved;
