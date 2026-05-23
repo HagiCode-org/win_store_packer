@@ -7,6 +7,16 @@ test('normalizeStorePackageVersion derives a four-part Windows package version f
   assert.equal(normalizeStorePackageVersion('v0.1.56', storePackageConfig.packageVersion), '0.1.56.0');
 });
 
+test('loadStorePackageConfig exposes the AppX capabilities required by Hagicode Desktop', async () => {
+  const storePackageConfig = await loadStorePackageConfig();
+  assert.deepEqual(storePackageConfig.appx?.capabilities, [
+    'runFullTrust',
+    'internetClient',
+    'internetClientServer',
+    'privateNetworkClientServer'
+  ]);
+});
+
 test('normalizeStorePackageVersion rejects non-stable Desktop tags', async () => {
   const storePackageConfig = await loadStorePackageConfig();
   assert.throws(

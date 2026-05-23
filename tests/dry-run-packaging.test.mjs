@@ -214,6 +214,10 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(overlayConfigText, /extends: electron-builder\.yml/);
   assert.match(overlayConfigText, /buildVersion: 0\.3\.0\.0/);
   assert.match(overlayConfigText, /identityName: newbe36524\.Hagicode/);
+  assert.match(overlayConfigText, /capabilities:\n(?:    - .+\n)+/);
+  assert.match(overlayConfigText, /    - internetClient/);
+  assert.match(overlayConfigText, /    - internetClientServer/);
+  assert.match(overlayConfigText, /    - privateNetworkClientServer/);
   assert.match(msixPath, /-unsigned\.msix$/);
 });
 

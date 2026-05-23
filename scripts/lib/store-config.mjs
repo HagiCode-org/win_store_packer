@@ -52,6 +52,15 @@ function optionalNonEmptyString(value, label) {
   return requireNonEmptyString(value, label);
 }
 
+function optionalStringArray(value, label) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  const values = requireArray(value, label).map((entry, index) => requireNonEmptyString(entry, `${label}[${index}]`));
+  return values;
+}
+
 function stripOptionalWrappingQuotes(value) {
   const normalized = requireNonEmptyString(value, 'publisherSubject');
   if (
@@ -130,7 +139,8 @@ export function validateStorePackageConfig(config) {
       ? {
           ...appx,
           minVersion: optionalNonEmptyString(appx.minVersion, 'storePackageConfig.appx.minVersion'),
-          maxVersionTested: optionalNonEmptyString(appx.maxVersionTested, 'storePackageConfig.appx.maxVersionTested')
+          maxVersionTested: optionalNonEmptyString(appx.maxVersionTested, 'storePackageConfig.appx.maxVersionTested'),
+          capabilities: optionalStringArray(appx.capabilities, 'storePackageConfig.appx.capabilities')
         }
       : undefined
   };

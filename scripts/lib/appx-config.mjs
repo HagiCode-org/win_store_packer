@@ -10,8 +10,18 @@ function yamlScalar(value) {
   return String(value);
 }
 
+function renderYamlList(key, values, indent = '    ') {
+  if (!Array.isArray(values) || values.length === 0) {
+    return [];
+  }
+
+  return [
+    `  ${key}:`,
+    ...values.map((value) => `${indent}- ${yamlScalar(value)}`)
+  ];
+}
+
 function renderAppxBlock(packageIdentity, appx = {}, publisherOverride) {
-  const languageLines = packageIdentity.languages.map((language) => `    - ${language}`).join('\n');
   const lines = [
     'appx:',
     `  displayName: ${yamlScalar(packageIdentity.displayName)}`,
@@ -19,10 +29,11 @@ function renderAppxBlock(packageIdentity, appx = {}, publisherOverride) {
     `  publisher: ${yamlScalar(publisherOverride ?? packageIdentity.publisher)}`,
     `  identityName: ${yamlScalar(packageIdentity.identityName)}`,
     `  backgroundColor: ${yamlScalar(packageIdentity.backgroundColor)}`,
-    '  languages:',
-    languageLines,
+    ...renderYamlList('languages', packageIdentity.languages),
     `  addAutoLaunchExtension: ${yamlScalar(packageIdentity.addAutoLaunchExtension)}`
   ];
+
+  lines.push(...renderYamlList('capabilities', appx.capabilities));
 
   if (appx.minVersion) {
     lines.push(`  minVersion: ${yamlScalar(appx.minVersion)}`);
