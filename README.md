@@ -30,6 +30,7 @@ Defines the Store package identity metadata and packaging contract:
 - `packageIdentity.languages`
 - `appx.minVersion`
 - `appx.maxVersionTested`
+- `appx.capabilities`
 - `packageVersion.source`
 - `packageVersion.revision`
 - `signing.publisherSubjectEnvVar`
@@ -40,6 +41,17 @@ Defines the Store package identity metadata and packaging contract:
 - `desktop.electronBuilderConfigPath`
 - `desktop.buildScript`
 - `desktop.runtimeInjectionPath`
+
+### AppX/MSIX capability contract
+
+The Store overlay must preserve the Windows capability declarations required by Hagicode Desktop runtime behavior.
+
+- `runFullTrust`: required for the Electron desktop process.
+- `internetClient`: required for outbound HTTP/HTTPS access such as Hagicode package indices, runtime downloads, GitHub release assets, Azure-hosted metadata, and RSS feeds.
+- `internetClientServer`: required for torrent-first sharing acceleration because the packaged client can initiate and accept peer traffic while distributing package payloads.
+- `privateNetworkClientServer`: required because Desktop manages the bundled web service over loopback and also supports binding to private-network addresses such as `0.0.0.0` for LAN access.
+
+These capabilities are sourced from `config/store-package.json` and rendered into the generated `electron-builder.store.yml` overlay before the Desktop AppX/MSIX build runs.
 
 ### `config/workflow-defaults.json`
 
