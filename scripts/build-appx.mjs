@@ -89,7 +89,7 @@ async function findStoreOutputs(pkgDirectory) {
   return files
     .filter((filePath) => {
       const lowerPath = filePath.toLowerCase();
-      return lowerPath.endsWith('.appx') || lowerPath.endsWith('.msix');
+      return lowerPath.endsWith('.msix');
     })
     .sort((left, right) => {
       const leftLower = left.toLowerCase();
@@ -197,7 +197,7 @@ export async function buildAppx({
 
   const storeOutputs = await findStoreOutputs(pkgDirectory);
   if (storeOutputs.length === 0) {
-    throw new Error(`No Store package outputs (.appx or .msix) were produced under ${pkgDirectory}.`);
+    throw new Error(`No Store package outputs (.msix) were produced under ${pkgDirectory}.`);
   }
 
   const primaryOutput = storeOutputs[0];
