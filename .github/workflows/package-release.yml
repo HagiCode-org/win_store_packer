@@ -97,17 +97,65 @@ jobs:
           path: ${{ runner.temp }}/build-plan/build-plan.json
           if-no-files-found: error
 
-  build:
-    name: Build ${{ matrix.platform }}
+  prepare_release:
+    name: Prepare release
     needs: resolve_plan
+    if: needs.resolve_plan.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout win_store_packer
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Download resolved build plan
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.RESOLVED_BUILD_PLAN_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/build-plan
+
+      - name: Ensure GitHub release exists
+        if: needs.resolve_plan.outputs.dry_run != 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/ensure-release.mjs \
+            --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
+            --output-dir "$RUNNER_TEMP/release-bootstrap"
+
+      - name: Record dry-run skip
+        if: needs.resolve_plan.outputs.dry_run == 'true'
+        shell: bash
+        run: |
+          {
+            echo '## win_store_packer release preparation skipped'
+            echo
+            echo '- dry_run: true'
+            echo '- GitHub Release pre-creation is skipped in dry-run mode.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Build ${{ matrix.target.platform }} ${{ matrix.variant }}
+    needs:
+      - resolve_plan
+      - prepare_release
     if: needs.resolve_plan.outputs.should_build == 'true'
     permissions:
       contents: write
       actions: read
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.resolve_plan.outputs.platform_matrix) }}
-    runs-on: ${{ matrix.runner }}
+      matrix:
+        target: ${{ fromJson(needs.resolve_plan.outputs.platform_matrix).include }}
+        variant:
+          - unsigned
+          - signed
+    runs-on: ${{ matrix.target.runner }}
     steps:
       - name: Checkout win_store_packer
         uses: actions/checkout@v5
@@ -150,6 +198,19 @@ jobs:
           name: ${{ env.RESOLVED_BUILD_PLAN_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/build-plan
 
+      - name: Set build variables
+        shell: bash
+        run: |
+          if [ "${{ matrix.variant }}" = 'signed' ]; then
+            echo "STORE_WORKSPACE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-signed" >> "$GITHUB_ENV"
+            echo "STORE_SIGNING_MODE=required" >> "$GITHUB_ENV"
+            echo "STORE_REQUIRE_SIGNED=true" >> "$GITHUB_ENV"
+          else
+            echo "STORE_WORKSPACE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-unsigned" >> "$GITHUB_ENV"
+            echo "STORE_SIGNING_MODE=disabled" >> "$GITHUB_ENV"
+            echo "STORE_REQUIRE_SIGNED=false" >> "$GITHUB_ENV"
+          fi
+
 
 
       - name: Prepare tagged desktop workspace
@@ -157,8 +218,8 @@ jobs:
         run: |
           node scripts/prepare-packaging-workspace.mjs \
             --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
-            --platform "${{ matrix.platform }}" \
-            --workspace "$RUNNER_TEMP/store-release-${{ matrix.platform }}" \
+            --platform "${{ matrix.target.platform }}" \
+            --workspace "$STORE_WORKSPACE" \
             --desktop-source "$GITHUB_WORKSPACE/inputs/hagicode-desktop"
 
       - name: Download and inject server payload
@@ -168,35 +229,57 @@ jobs:
         run: |
           node scripts/stage-server-payload.mjs \
             --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
-            --platform "${{ matrix.platform }}" \
-            --workspace "$RUNNER_TEMP/store-release-${{ matrix.platform }}"
+            --platform "${{ matrix.target.platform }}" \
+            --workspace "$STORE_WORKSPACE"
 
       - name: Build AppX
         shell: bash
         run: |
           node scripts/build-appx.mjs \
             --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
-            --platform "${{ matrix.platform }}" \
-            --workspace "$RUNNER_TEMP/store-release-${{ matrix.platform }}" \
-            --signing-mode disabled
+            --platform "${{ matrix.target.platform }}" \
+            --workspace "$STORE_WORKSPACE" \
+            --artifact-variant "${{ matrix.variant }}" \
+            --signing-mode "$STORE_SIGNING_MODE"
 
       - name: Finalize AppX variant metadata
         shell: bash
         run: |
+          args=(
+            --workspace "$STORE_WORKSPACE"
+            --platform "${{ matrix.target.platform }}"
+            --artifact-variant "${{ matrix.variant }}"
+          )
+
+          if [ "$STORE_REQUIRE_SIGNED" = 'true' ]; then
+            args+=(--require-signed)
+          fi
+
           node scripts/finalize-appx-signing.mjs \
-            --workspace "$RUNNER_TEMP/store-release-${{ matrix.platform }}" \
-            --platform "${{ matrix.platform }}"
+            "${args[@]}"
+
+      - name: Upload variant assets to release
+        if: needs.resolve_plan.outputs.dry_run != 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/upload-release-assets.mjs \
+            --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
+            --artifacts-dir "$STORE_WORKSPACE" \
+            --output-dir "$RUNNER_TEMP/release-upload-${{ matrix.target.platform }}-${{ matrix.variant }}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: store-package-${{ matrix.platform }}
+          name: store-package-${{ matrix.target.platform }}-${{ matrix.variant }}
           path: |
-            ${{ runner.temp }}/store-release-${{ matrix.platform }}/artifact-inventory-${{ matrix.platform }}.json
-            ${{ runner.temp }}/store-release-${{ matrix.platform }}/build-metadata-${{ matrix.platform }}.json
-            ${{ runner.temp }}/store-release-${{ matrix.platform }}/payload-validation-${{ matrix.platform }}.json
-            ${{ runner.temp }}/store-release-${{ matrix.platform }}/workspace-validation-${{ matrix.platform }}.json
-            ${{ runner.temp }}/store-release-${{ matrix.platform }}/release-assets
+            ${{ env.STORE_WORKSPACE }}/artifact-inventory-${{ matrix.target.platform }}-${{ matrix.variant }}.json
+            ${{ env.STORE_WORKSPACE }}/build-metadata-${{ matrix.target.platform }}-${{ matrix.variant }}.json
+            ${{ env.STORE_WORKSPACE }}/payload-validation-${{ matrix.target.platform }}.json
+            ${{ env.STORE_WORKSPACE }}/workspace-validation-${{ matrix.target.platform }}.json
+            ${{ env.STORE_WORKSPACE }}/release-assets
+            ${{ runner.temp }}/release-upload-${{ matrix.target.platform }}-${{ matrix.variant }}
           if-no-files-found: error
 
   publish:
