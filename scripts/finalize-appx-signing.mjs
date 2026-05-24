@@ -19,19 +19,20 @@ async function verifySignedArtifact(verificationScriptPath, artifactPath) {
 export async function finalizeAppxSigning({
   workspacePath,
   platformId,
+  artifactVariant = 'signed',
   requireSigned = false
 }) {
   const resolvedWorkspacePath = path.resolve(workspacePath);
-  const buildMetadataPath = path.join(resolvedWorkspacePath, `build-metadata-${platformId}.json`);
-  const artifactInventoryPath = path.join(resolvedWorkspacePath, `artifact-inventory-${platformId}.json`);
+  const normalizedVariant = String(artifactVariant ?? 'signed').trim().toLowerCase();
+  const buildMetadataPath = path.join(resolvedWorkspacePath, `build-metadata-${platformId}-${normalizedVariant}.json`);
+  const artifactInventoryPath = path.join(resolvedWorkspacePath, `artifact-inventory-${platformId}-${normalizedVariant}.json`);
   const buildMetadata = await readJson(buildMetadataPath);
   const artifactInventory = await readJson(artifactInventoryPath);
 
-  if (!buildMetadata.signing?.enabled) {
+  if (normalizedVariant !== 'signed') {
     await appendSummary([
-      `### AppX signing skipped for ${platformId}`,
-      '- Signing mode: disabled',
-      `- Primary Store submission artifact: ${path.basename(buildMetadata.artifacts.unsigned)}`
+      `### AppX signing finalization skipped for ${platformId} (${normalizedVariant})`,
+      '- Variant does not require signature verification.'
     ]);
     return {
       signedArtifactPath: null,
@@ -40,7 +41,20 @@ export async function finalizeAppxSigning({
     };
   }
 
-  const signedArtifactPath = buildMetadata.signing.stagedSignedArtifactPath;
+  if (!buildMetadata.signing?.enabled) {
+    await appendSummary([
+      `### AppX signing skipped for ${platformId}`,
+      '- Signing mode: disabled',
+      `- Published artifact: ${path.basename(buildMetadata.publishedArtifactPath)}`
+    ]);
+    return {
+      signedArtifactPath: null,
+      buildMetadataPath,
+      artifactInventoryPath
+    };
+  }
+
+  const signedArtifactPath = buildMetadata.publishedArtifactPath;
   if (!signedArtifactPath || !(await pathExists(signedArtifactPath))) {
     if (requireSigned || buildMetadata.signing.required) {
       throw new Error(`Missing signed AppX artifact for ${platformId} at ${signedArtifactPath ?? '[unset]'}.`);
@@ -66,19 +80,18 @@ export async function finalizeAppxSigning({
       desktopRef: buildMetadata.desktopRef,
       serverVersion: buildMetadata.serverVersion,
       storePackageVersion: buildMetadata.storePackageVersion,
+      storePackageExtension: buildMetadata.storePackageExtension,
       variant: 'signed',
       signed: true,
       primaryForStoreSubmission: false
     }
   });
 
-  artifactInventory.artifacts = [
-    ...artifactInventory.artifacts.filter((artifact) => artifact.variant !== 'signed'),
-    signedArtifactRecord
-  ];
+  artifactInventory.artifacts = [signedArtifactRecord];
   artifactInventory.signing = {
     ...artifactInventory.signing,
-    finalized: true
+    finalized: true,
+    status: 'signed-verified'
   };
 
   buildMetadata.signing = {
@@ -92,7 +105,6 @@ export async function finalizeAppxSigning({
   await appendSummary([
     `### AppX signing finalized for ${platformId}`,
     `- Signed sideload artifact: ${path.basename(signedArtifactPath)}`,
-    `- Primary Store submission artifact: ${path.basename(buildMetadata.artifacts.unsigned)}`,
     `- Store package version: ${buildMetadata.storePackageVersion}`
   ]);
 
@@ -108,6 +120,7 @@ export async function main() {
     options: {
       workspace: { type: 'string' },
       platform: { type: 'string' },
+      'artifact-variant': { type: 'string' },
       'require-signed': { type: 'boolean' }
     }
   });
@@ -119,6 +132,7 @@ export async function main() {
   const result = await finalizeAppxSigning({
     workspacePath: values.workspace,
     platformId: values.platform,
+    artifactVariant: values['artifact-variant'] ?? 'signed',
     requireSigned: values['require-signed'] ?? false
   });
 

@@ -177,8 +177,8 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   const workspaceManifest = await readJson(path.join(workspacePath, 'workspace-manifest.json'));
   const workspaceReport = await readJson(path.join(workspacePath, 'workspace-validation-win-x64.json'));
   const payloadReport = await readJson(path.join(workspacePath, 'payload-validation-win-x64.json'));
-  const buildMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64.json'));
-  const inventory = await readJson(path.join(workspacePath, 'artifact-inventory-win-x64.json'));
+  const buildMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64-unsigned.json'));
+  const inventory = await readJson(path.join(workspacePath, 'artifact-inventory-win-x64-unsigned.json'));
   const dryRunReport = await readJson(path.join(publishOutputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.publish-dry-run.json'));
   const releaseMetadata = await readJson(path.join(publishOutputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json'));
 
@@ -188,12 +188,14 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(workspaceReport.buildStrategy.supported, true);
   assert.equal(payloadReport.validationPassed, true);
   assert.equal(buildMetadata.validationPassed, true);
+  assert.equal(buildMetadata.artifactVariant, 'unsigned');
   assert.equal(buildMetadata.distributionMode, 'steam');
   assert.equal(buildMetadata.runtimeSource, 'portable-fixed');
   assert.equal(buildMetadata.storePackageVersion, '0.3.0.0');
   assert.equal(buildMetadata.buildMode, 'desktop-build-pipeline');
   assert.equal(buildMetadata.signing.mode, 'disabled');
   assert.equal(inventory.artifacts.length, 1);
+  assert.equal(inventory.artifactVariant, 'unsigned');
   assert.equal(inventory.artifacts[0].distributionMode, 'steam');
   assert.equal(inventory.artifacts[0].runtimeSource, 'portable-fixed');
   assert.equal(inventory.artifacts[0].variant, 'unsigned');
@@ -214,7 +216,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(storePackageListing, /extra\/portable-fixed\/current\/lib\/PCode\.Web\.dll/);
   assert.match(storePackageListing, /AppxManifest\.xml|store-package-identity\.json/);
 
-  const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.yml'), 'utf8');
+  const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.unsigned.yml'), 'utf8');
   assert.match(overlayConfigText, /extends: electron-builder\.yml/);
   assert.match(overlayConfigText, /buildVersion: 0\.3\.0\.0/);
   assert.match(overlayConfigText, /identityName: newbe36524\.Hagicode/);
@@ -284,6 +286,7 @@ test('build-appx fails early when signed packaging is required but Azure signing
         planPath,
         workspacePath,
         platformId: 'win-x64',
+        artifactVariant: 'signed',
         signingMode: 'required'
       }),
     /Missing Store signing configuration/

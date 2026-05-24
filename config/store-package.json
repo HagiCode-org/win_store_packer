@@ -43,7 +43,7 @@
     "azure": {
       "clientIdEnvVar": "AZURE_CLIENT_ID",
       "tenantIdEnvVar": "AZURE_TENANT_ID",
-      "subscriptionIdEnvVar": "AZURE_SUBSCRIPTION_ID",
+      "clientSecretEnvVar": "AZURE_CLIENT_SECRET",
       "endpointEnvVar": "AZURE_CODESIGN_ENDPOINT",
       "accountNameEnvVar": "AZURE_CODESIGN_ACCOUNT_NAME",
       "certificateProfileNameEnvVar": "AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME"

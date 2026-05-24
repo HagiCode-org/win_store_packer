@@ -47,15 +47,33 @@ function renderAppxBlock(packageIdentity, appx = {}, publisherOverride) {
   return lines.join('\n');
 }
 
-function renderStoreOverlayConfig(sourceConfigPath, packageIdentity, appx, { packageVersion, publisherOverride }) {
+function renderWinBlock(signingConfig) {
+  if (!signingConfig?.enabled) {
+    return null;
+  }
+
+  return [
+    'win:',
+    '  azureSignOptions:',
+    `    publisherName: ${yamlScalar(signingConfig.publisherName)}`,
+    `    endpoint: ${yamlScalar(signingConfig.azure.endpoint)}`,
+    `    certificateProfileName: ${yamlScalar(signingConfig.azure.certificateProfileName)}`,
+    `    codeSigningAccountName: ${yamlScalar(signingConfig.azure.accountName)}`
+  ].join('\n');
+}
+
+function renderStoreOverlayConfig(sourceConfigPath, packageIdentity, appx, { packageVersion, publisherOverride, signingConfig }) {
   const packageJsonVersion = String(packageVersion).split('.').slice(0, 3).join('.');
   return [
     `extends: ${yamlScalar(sourceConfigPath)}`,
     `buildVersion: ${yamlScalar(packageVersion)}`,
     'extraMetadata:',
     `  version: ${yamlScalar(packageJsonVersion)}`,
-    renderAppxBlock(packageIdentity, appx, publisherOverride)
-  ].join('\n');
+    renderAppxBlock(packageIdentity, appx, publisherOverride),
+    renderWinBlock(signingConfig)
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 export async function writeStoreElectronBuilderConfig({
@@ -63,7 +81,8 @@ export async function writeStoreElectronBuilderConfig({
   sourceConfigPath,
   outputConfigPath,
   packageVersion,
-  publisherOverride
+  publisherOverride,
+  signingConfig
 }) {
   const config = await loadStorePackageConfig();
   const sourcePath = path.join(desktopWorkspace, sourceConfigPath);
@@ -75,7 +94,7 @@ export async function writeStoreElectronBuilderConfig({
 
   await writeFile(
     outputPath,
-    `${renderStoreOverlayConfig(sourceConfigPath, config.packageIdentity, config.appx, { packageVersion, publisherOverride })}\n`,
+    `${renderStoreOverlayConfig(sourceConfigPath, config.packageIdentity, config.appx, { packageVersion, publisherOverride, signingConfig })}\n`,
     'utf8'
   );
   return {
@@ -83,6 +102,7 @@ export async function writeStoreElectronBuilderConfig({
     sourcePath,
     outputPath,
     packageVersion,
-    publisherOverride: publisherOverride ?? null
+    publisherOverride: publisherOverride ?? null,
+    signingEnabled: Boolean(signingConfig?.enabled)
   };
 }

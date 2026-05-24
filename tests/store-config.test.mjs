@@ -47,7 +47,7 @@ test('resolveStoreSigningConfig accepts a publisher subject wrapped in quotes', 
       AZURE_CODESIGN_APPX_PUBLISHER: '"CN=Hagicode, O=HagiCode, C=US"',
       AZURE_CLIENT_ID: 'client-id',
       AZURE_TENANT_ID: 'tenant-id',
-      AZURE_SUBSCRIPTION_ID: 'subscription-id',
+      AZURE_CLIENT_SECRET: 'client-secret',
       AZURE_CODESIGN_ENDPOINT: 'https://example.test',
       AZURE_CODESIGN_ACCOUNT_NAME: 'account-name',
       AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: 'profile-name'
@@ -55,6 +55,7 @@ test('resolveStoreSigningConfig accepts a publisher subject wrapped in quotes', 
   });
 
   assert.equal(signingConfig.publisher, 'CN=Hagicode, O=HagiCode, C=US');
+  assert.equal(signingConfig.publisherName, 'Hagicode');
 });
 
 test('resolveStoreSigningConfig rejects a publisher that is not a valid distinguished name', async () => {
@@ -68,7 +69,7 @@ test('resolveStoreSigningConfig rejects a publisher that is not a valid distingu
           AZURE_CODESIGN_APPX_PUBLISHER: 'not-a-distinguished-name',
           AZURE_CLIENT_ID: 'client-id',
           AZURE_TENANT_ID: 'tenant-id',
-          AZURE_SUBSCRIPTION_ID: 'subscription-id',
+          AZURE_CLIENT_SECRET: 'client-secret',
           AZURE_CODESIGN_ENDPOINT: 'https://example.test',
           AZURE_CODESIGN_ACCOUNT_NAME: 'account-name',
           AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: 'profile-name'

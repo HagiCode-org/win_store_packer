@@ -4,7 +4,7 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { readdir } from 'node:fs/promises';
 import { upsertReleaseNotes, uploadReleaseAsset } from './lib/github.mjs';
-import { ensureDir, pathExists, readJson, writeJson } from './lib/fs-utils.mjs';
+import { ensureDir, listFilesRecursively, pathExists, readJson, writeJson } from './lib/fs-utils.mjs';
 import { loadReleasePlan } from './lib/release-plan.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 
@@ -36,18 +36,19 @@ async function resolveArtifactUploadPath(artifactsDir, artifact) {
 }
 
 async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
-  const entries = await readdir(artifactsDir);
-  const inventoryFiles = entries.filter((entry) => entry.startsWith('artifact-inventory-') && entry.endsWith('.json'));
+  const files = await listFilesRecursively(artifactsDir);
+  const inventoryFiles = files.filter((entry) => path.basename(entry).startsWith('artifact-inventory-') && entry.endsWith('.json'));
   if (inventoryFiles.length === 0) {
     throw new Error(`No artifact inventory files were found in ${artifactsDir}.`);
   }
 
-  const inventories = await Promise.all(inventoryFiles.sort().map((entry) => readJson(path.join(artifactsDir, entry))));
+  const inventories = await Promise.all(inventoryFiles.sort().map((entry) => readJson(entry)));
   const storePackageVersion = inventories.map((inventory) => inventory.storePackageVersion).find(Boolean) ?? null;
   const mergedInventory = {
     releaseTag: plan.release.tag,
     dryRun: Boolean(plan.build.dryRun),
-    platforms: inventories.map((inventory) => inventory.platform),
+    platforms: [...new Set(inventories.map((inventory) => inventory.platform))],
+    variants: inventories.map((inventory) => inventory.artifactVariant).filter(Boolean),
     storePackageVersion,
     artifacts: inventories.flatMap((inventory) => inventory.artifacts)
   };
@@ -86,19 +87,24 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
     releaseMetadata,
     metadataPath,
     inventoryPath,
-    uploads: [
-      ...releaseAssets.map((filePath, index) => ({
-        filePath,
-        fileName: mergedInventory.artifacts[index].fileName,
-        contentType: contentTypeFromPath(filePath)
-      })),
-      {
-        filePath: metadataPath,
-        fileName: path.basename(metadataPath),
-        contentType: contentTypeFromPath(metadataPath)
-      }
-    ]
+    releaseAssets,
+    metadataUpload: {
+      filePath: metadataPath,
+      fileName: path.basename(metadataPath),
+      contentType: contentTypeFromPath(metadataPath)
+    }
   };
+}
+
+async function loadPriorAssetUploads(artifactsDir) {
+  const files = await listFilesRecursively(artifactsDir);
+  const resultFiles = files.filter((entry) => entry.endsWith('.asset-upload-result.json')).sort();
+  if (resultFiles.length === 0) {
+    return [];
+  }
+
+  const results = await Promise.all(resultFiles.map((filePath) => readJson(filePath)));
+  return results.flatMap((result) => result.uploadedAssets ?? []);
 }
 
 function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubReleaseAssets }) {
@@ -152,10 +158,16 @@ export async function publishRelease({
       desktopTag: plan.upstream.desktop.tag,
       serverVersion: plan.upstream.server.version,
       storePackageVersion: publicationArtifacts.releaseMetadata.storePackageVersion,
-      uploads: publicationArtifacts.uploads.map((upload) => ({
-        fileName: upload.fileName,
-        filePath: upload.filePath
-      }))
+      uploads: [
+        ...publicationArtifacts.releaseAssets.map((filePath, index) => ({
+          fileName: publicationArtifacts.mergedInventory.artifacts[index].fileName,
+          filePath
+        })),
+        {
+          fileName: publicationArtifacts.metadataUpload.fileName,
+          filePath: publicationArtifacts.metadataUpload.filePath
+        }
+      ]
     };
     const dryRunReportPath = path.join(resolvedOutputDir, `${plan.release.tag}.publish-dry-run.json`);
     await writeJson(dryRunReportPath, dryRunReport);
@@ -167,7 +179,7 @@ export async function publishRelease({
       `- Store package version: ${publicationArtifacts.releaseMetadata.storePackageVersion ?? 'unavailable'}`,
       '- Distribution mode: steam',
       `- Primary Store submission package: ${publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.fileName ?? 'none'}`,
-      `- Assets prepared: ${publicationArtifacts.uploads.length}`
+      `- Assets prepared: ${publicationArtifacts.releaseAssets.length + 1}`
     ]);
 
     return {
@@ -187,35 +199,36 @@ export async function publishRelease({
       plan,
       publicationArtifacts,
       publishedAt,
-      githubReleaseAssets: publicationArtifacts.uploads.length
+      githubReleaseAssets: publicationArtifacts.releaseAssets.length + 1
     }),
     fetchImpl
   });
 
-  const uploadedAssets = [];
-  for (const upload of publicationArtifacts.uploads) {
-    uploadedAssets.push(
-      await uploadReleaseAsset({
-        release: releaseResult.release,
-        repository: plan.release.repository,
-        filePath: upload.filePath,
-        fileName: upload.fileName,
-        contentType: upload.contentType,
-        token,
-        fetchImpl
-      })
-    );
-  }
+  const metadataAsset = await uploadReleaseAsset({
+    release: releaseResult.release,
+    repository: plan.release.repository,
+    filePath: publicationArtifacts.metadataUpload.filePath,
+    fileName: publicationArtifacts.metadataUpload.fileName,
+    contentType: publicationArtifacts.metadataUpload.contentType,
+    token,
+    fetchImpl
+  });
+
+  const priorAssetUploads = await loadPriorAssetUploads(resolvedArtifactsDir);
+  const uploadedAssets = [
+    ...priorAssetUploads,
+    {
+      name: metadataAsset.name,
+      url: metadataAsset.browser_download_url ?? metadataAsset.url ?? null
+    }
+  ];
 
   const publicationResult = {
     dryRun: false,
     releaseTag: plan.release.tag,
     releaseAction: releaseResult.action,
     releaseUrl: releaseResult.release?.html_url ?? null,
-    uploadedAssets: uploadedAssets.map((asset) => ({
-      name: asset.name,
-      url: asset.browser_download_url ?? asset.url ?? null
-    })),
+    uploadedAssets,
     metadataPath: publicationArtifacts.metadataPath
   };
   const publicationResultPath = path.join(resolvedOutputDir, `${plan.release.tag}.publication-result.json`);

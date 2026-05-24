@@ -2,7 +2,7 @@
 
 `win_store_packer` builds and publishes Windows Store AppX packages that already contain the bundled Hagicode Server runtime.
 
-It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, prepares a tagged Desktop source workspace, stages the Server payload into `resources/portable-fixed/current`, builds the unsigned AppX package that Microsoft Store submission consumes, optionally stages and signs a second AppX variant for enterprise sideloading, and publishes the resulting artifacts plus release metadata from this repository.
+It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, pre-creates the GitHub Release, prepares tagged Desktop source workspaces, stages the Server payload into `resources/portable-fixed/current`, builds unsigned and signed AppX variants in parallel, uploads both variants to the same GitHub Release, and publishes the resulting metadata from this repository.
 
 The published AppX package is intentionally treated as **Steam mode by default**. Desktop switches into `distributionMode=steam` whenever the packaged `extra/portable-fixed/current` payload validates, so this Store flow ships that payload as the authoritative runtime source and records `distributionMode: "steam"` plus `runtimeSource: "portable-fixed"` in the emitted metadata.
 
@@ -41,7 +41,7 @@ Defines the Store package identity metadata and packaging contract:
 - `desktop.electronBuilderConfigPath`
 - `desktop.runtimeInjectionPath`
 
-The packer targets the current Desktop Windows packaging pipeline directly. It prepares runtime resources, runs Desktop production build steps, then invokes `scripts/run-electron-builder.js --win appx --config electron-builder.store.yml` inside the tagged Desktop workspace.
+The packer targets the current Desktop Windows packaging pipeline directly. It prepares runtime resources, runs Desktop production build steps, then invokes `scripts/run-electron-builder.js --win appx --config electron-builder.store.<variant>.yml` inside the tagged Desktop workspace.
 
 ### AppX capability contract
 
@@ -52,7 +52,7 @@ The Store overlay must preserve the Windows capability declarations required by 
 - `internetClientServer`: required for torrent-first sharing acceleration because the packaged client can initiate and accept peer traffic while distributing package payloads.
 - `privateNetworkClientServer`: required because Desktop manages the bundled web service over loopback and also supports binding to private-network addresses such as `0.0.0.0` for LAN access.
 
-These capabilities are sourced from `config/store-package.json` and rendered into the generated `electron-builder.store.yml` overlay before the Desktop AppX build runs.
+These capabilities are sourced from `config/store-package.json` and rendered into the generated `electron-builder.store.<variant>.yml` overlay before the Desktop AppX build runs.
 
 ### `config/workflow-defaults.json`
 
@@ -78,23 +78,23 @@ Scheduled runs use the latest eligible Windows Desktop and Server assets from th
 
 ## Microsoft Store publication
 
-`package-release.yml` publishes the built unsigned `.appx` package to GitHub Releases and then submits that same package to Microsoft Store in the same workflow run. The Store publish job is skipped when `dry_run` is enabled.
+`package-release.yml` first ensures the GitHub Release exists, then builds the `unsigned` and `signed` `.appx` variants in parallel and uploads both assets to the same release. The Store publish job still uses only the unsigned package and is skipped when `dry_run` is enabled.
 
 This follows the AppX guidance from electron-builder and Microsoft Store: Store submissions do not need to be manually signed in CI because Partner Center signs the package during Store processing. The workflow therefore uses the official `microsoft/store-submission@v1` action, builds the `product-update` payload from the public GitHub Release asset URLs, and submits the unsigned primary AppX package to Partner Center as a packaged app submission.
 
 ### Optional AppX sideload signing
 
-Azure Artifact Signing is no longer part of the default Store publication workflow. If you need a separately signed AppX for enterprise sideloading or internal validation, the scripts still support an optional signed variant. In that mode:
+The signed variant uses Azure Trusted Signing through `electron-builder` `win.azureSignOptions`. If you need a separately signed AppX for enterprise sideloading or internal validation, configure:
 
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
-- `AZURE_SUBSCRIPTION_ID`
+- `AZURE_CLIENT_SECRET`
 - `AZURE_CODESIGN_ENDPOINT`
 - `AZURE_CODESIGN_ACCOUNT_NAME`
 - `AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME`
 - `AZURE_CODESIGN_APPX_PUBLISHER`
 
-`AZURE_CODESIGN_APPX_PUBLISHER` must match the signing certificate subject because the signed sideload package rewrites `appx.publisher` before packaging.
+`AZURE_CODESIGN_APPX_PUBLISHER` must match the signing certificate subject. The `CN=` component is also used to derive `publisherName` for Azure Trusted Signing.
 
 Configure the repository with the Microsoft Store credentials required by `microsoft/store-submission@v1`:
 
@@ -152,15 +152,16 @@ Build the AppX artifact:
 node scripts/build-appx.mjs \
   --plan build/build-plan.json \
   --platform win-x64 \
-  --workspace build/store-win-x64
+  --workspace build/store-win-x64-unsigned \
+  --artifact-variant unsigned
 ```
 
-Build while staging an additional signed AppX variant for sideloading:
+Build the signed AppX variant:
 
 ```bash
 AZURE_CLIENT_ID=... \
 AZURE_TENANT_ID=... \
-AZURE_SUBSCRIPTION_ID=... \
+AZURE_CLIENT_SECRET=... \
 AZURE_CODESIGN_ENDPOINT=... \
 AZURE_CODESIGN_ACCOUNT_NAME=... \
 AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME=... \
@@ -168,7 +169,8 @@ AZURE_CODESIGN_APPX_PUBLISHER="CN=..." \
 node scripts/build-appx.mjs \
   --plan build/build-plan.json \
   --platform win-x64 \
-  --workspace build/store-win-x64 \
+  --workspace build/store-win-x64-signed \
+  --artifact-variant signed \
   --signing-mode required
 ```
 
@@ -189,10 +191,12 @@ Per-platform build outputs are written into the workspace root:
 - `workspace-manifest.json`
 - `workspace-validation-win-x64.json`
 - `payload-validation-win-x64.json`
-- `build-metadata-win-x64.json`
-- `artifact-inventory-win-x64.json`
+- `build-metadata-win-x64-unsigned.json`
+- `artifact-inventory-win-x64-unsigned.json`
+- `build-metadata-win-x64-signed.json`
+- `artifact-inventory-win-x64-signed.json`
 - `release-assets/hagicode-store-<release-tag>-win-x64-unsigned.appx`
-- `release-assets/hagicode-store-<release-tag>-win-x64-signed.appx` when optional sideload signing is enabled and finalized
+- `release-assets/hagicode-store-<release-tag>-win-x64-signed.appx`
 
 The build metadata and artifact inventory also record:
 
@@ -217,7 +221,7 @@ The release metadata and dry-run report also record:
 ## Signed vs unsigned artifacts
 
 - The unsigned AppX package is always preserved for inspection and troubleshooting.
-- The signed AppX package is staged from the unsigned output so both variants come from the same prepared workspace.
+- The signed AppX package is built as an independent variant with Azure Trusted Signing enabled.
 - The unsigned AppX package is always marked `primaryForStoreSubmission: true` and consumed by `build-store-submission-update.mjs`.
 - When optional signing is enabled, the signed artifact is preserved as an additional sideloading package and is not used for Microsoft Store submission.
 

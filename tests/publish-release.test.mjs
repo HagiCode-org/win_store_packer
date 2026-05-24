@@ -11,13 +11,17 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
   const artifactsDir = path.join(tempRoot, 'artifacts');
   const outputDir = path.join(tempRoot, 'output');
   const planPath = path.join(tempRoot, 'build-plan.json');
+  const signedArtifactsDir = path.join(artifactsDir, 'signed');
+  const unsignedArtifactsDir = path.join(artifactsDir, 'unsigned');
   const unsignedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx');
   const signedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx');
-  await mkdir(artifactsDir, { recursive: true });
+  await mkdir(signedArtifactsDir, { recursive: true });
+  await mkdir(unsignedArtifactsDir, { recursive: true });
   await writeFile(unsignedMsixPath, 'fixture-unsigned');
   await writeFile(signedMsixPath, 'fixture-signed');
-  await writeJson(path.join(artifactsDir, 'artifact-inventory-win-x64.json'), {
+  await writeJson(path.join(unsignedArtifactsDir, 'artifact-inventory-win-x64-unsigned.json'), {
     platform: 'win-x64',
+    artifactVariant: 'unsigned',
     storePackageVersion: '0.3.0.0',
     artifacts: [
       {
@@ -30,6 +34,13 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
         signed: false,
         primaryForStoreSubmission: true
       },
+    ]
+  });
+  await writeJson(path.join(signedArtifactsDir, 'artifact-inventory-win-x64-signed.json'), {
+    platform: 'win-x64',
+    artifactVariant: 'signed',
+    storePackageVersion: '0.3.0.0',
+    artifacts: [
       {
         platform: 'win-x64',
         fileName: path.basename(signedMsixPath),
@@ -39,6 +50,22 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
         variant: 'signed',
         signed: true,
         primaryForStoreSubmission: false
+      }
+    ]
+  });
+  await writeJson(path.join(unsignedArtifactsDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.asset-upload-result.json'), {
+    uploadedAssets: [
+      {
+        name: path.basename(unsignedMsixPath),
+        url: `https://example.test/${path.basename(unsignedMsixPath)}`
+      }
+    ]
+  });
+  await writeJson(path.join(signedArtifactsDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.asset-upload-result.json'), {
+    uploadedAssets: [
+      {
+        name: path.basename(signedMsixPath),
+        url: `https://example.test/${path.basename(signedMsixPath)}`
       }
     ]
   });
