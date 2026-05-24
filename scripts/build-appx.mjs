@@ -233,7 +233,7 @@ export async function buildAppx({
       storePackageExtension,
       variant: 'unsigned',
       signed: false,
-      primaryForStoreSubmission: false
+      primaryForStoreSubmission: true
     }
   });
   const artifactInventory = {
@@ -262,9 +262,9 @@ export async function buildAppx({
     `- Store package version: ${storePackageVersion}`,
     `- Store package extension: ${storePackageExtension}`,
     '- Distribution mode: steam',
-    `- Unsigned artifact: ${unsignedArtifactFileName}`,
+    `- Primary Store submission artifact: ${unsignedArtifactFileName}`,
     `- Signing mode: ${normalizedSigningMode}`,
-    ...(signedArtifactPath ? [`- Signed artifact staging path: ${path.basename(signedArtifactPath)}`] : []),
+    ...(signedArtifactPath ? [`- Optional signed sideload artifact staging path: ${path.basename(signedArtifactPath)}`] : []),
     `- Build mode: ${buildMetadata.buildMode}`
   ]);
 

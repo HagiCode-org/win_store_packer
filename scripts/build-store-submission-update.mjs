@@ -61,7 +61,7 @@ export async function buildStoreSubmissionUpdate({
 
   const packages = releaseMetadata.artifacts
     .filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName))
-    .filter((artifact) => artifact.primaryForStoreSubmission === true && artifact.signed === true)
+    .filter((artifact) => artifact.primaryForStoreSubmission === true)
     .map((artifact) => {
       const packageUrl = uploadedAssetUrls.get(artifact.fileName);
       if (!packageUrl) {
@@ -76,7 +76,7 @@ export async function buildStoreSubmissionUpdate({
     });
 
   if (packages.length === 0) {
-    throw new Error('No primary signed AppX package was found for Store submission.');
+    throw new Error('No primary AppX package was found for Store submission.');
   }
 
   const updatePayload = { packages };
@@ -89,7 +89,7 @@ export async function buildStoreSubmissionUpdate({
     `- Packages: ${packages.length}`,
     `- Languages: ${languages.join(', ')}`,
     `- Release tag: ${plan.release.tag}`,
-    `- Primary signed package: ${packages[0]?.packageUrl ?? 'none'}`
+    `- Primary package: ${packages[0]?.packageUrl ?? 'none'}`
   ]);
 
   return {

@@ -104,7 +104,6 @@ jobs:
     permissions:
       contents: write
       actions: read
-      id-token: write
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.resolve_plan.outputs.platform_matrix) }}
@@ -151,50 +150,7 @@ jobs:
           name: ${{ env.RESOLVED_BUILD_PLAN_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/build-plan
 
-      - name: Determine Store signing policy
-        id: signing_policy
-        shell: bash
-        run: |
-          if [ "${{ needs.resolve_plan.outputs.dry_run }}" = "true" ]; then
-            mode="disabled"
-            reason="dry-run verification keeps unsigned-only artifacts"
-          else
-            mode="required"
-            reason="release-capable CI build requires a signed Store submission package"
-          fi
 
-          echo "mode=${mode}" >> "$GITHUB_OUTPUT"
-          echo "reason=${reason}" >> "$GITHUB_OUTPUT"
-
-      - name: Validate Artifact Signing configuration
-        if: steps.signing_policy.outputs.mode == 'required'
-        shell: bash
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_CODESIGN_ENDPOINT: ${{ secrets.AZURE_CODESIGN_ENDPOINT }}
-          AZURE_CODESIGN_ACCOUNT_NAME: ${{ secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
-          AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
-          AZURE_CODESIGN_APPX_PUBLISHER: ${{ secrets.AZURE_CODESIGN_APPX_PUBLISHER }}
-        run: |
-          missing=()
-          for key in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_CODESIGN_ENDPOINT AZURE_CODESIGN_ACCOUNT_NAME AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME AZURE_CODESIGN_APPX_PUBLISHER; do
-            if [ -z "${!key:-}" ]; then
-              missing+=("${key}")
-            fi
-          done
-
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "Missing Artifact Signing configuration: ${missing[*]}" >&2
-            {
-              echo '## Windows Store signing configuration error'
-              echo
-              echo '- Signing mode: required'
-              echo '- Missing values: '"${missing[*]}"
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
 
       - name: Prepare tagged desktop workspace
         shell: bash
@@ -217,56 +173,19 @@ jobs:
 
       - name: Build AppX
         shell: bash
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_CODESIGN_ENDPOINT: ${{ secrets.AZURE_CODESIGN_ENDPOINT }}
-          AZURE_CODESIGN_ACCOUNT_NAME: ${{ secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
-          AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
-          AZURE_CODESIGN_APPX_PUBLISHER: ${{ secrets.AZURE_CODESIGN_APPX_PUBLISHER }}
         run: |
           node scripts/build-appx.mjs \
             --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
             --platform "${{ matrix.platform }}" \
             --workspace "$RUNNER_TEMP/store-release-${{ matrix.platform }}" \
-            --signing-mode "${{ steps.signing_policy.outputs.mode }}"
-
-      - name: Azure login
-        if: steps.signing_policy.outputs.mode == 'required'
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Sign staged Store package artifact
-        if: steps.signing_policy.outputs.mode == 'required'
-        uses: azure/artifact-signing-action@v1
-        with:
-          endpoint: ${{ secrets.AZURE_CODESIGN_ENDPOINT }}
-          signing-account-name: ${{ secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
-          certificate-profile-name: ${{ secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
-          files-folder: ${{ runner.temp }}/store-release-${{ matrix.platform }}/release-assets
-          files-folder-filter: '*-signed.*'
-          files-folder-recurse: false
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-          timeout: 600
+            --signing-mode disabled
 
       - name: Finalize AppX variant metadata
         shell: bash
         run: |
-          args=()
-          if [ "${{ steps.signing_policy.outputs.mode }}" = "required" ]; then
-            args+=(--require-signed)
-          fi
-
           node scripts/finalize-appx-signing.mjs \
             --workspace "$RUNNER_TEMP/store-release-${{ matrix.platform }}" \
-            --platform "${{ matrix.platform }}" \
-            "${args[@]}"
+            --platform "${{ matrix.platform }}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6

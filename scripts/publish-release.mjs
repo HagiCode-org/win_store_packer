@@ -103,7 +103,7 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
 
 function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubReleaseAssets }) {
   const primaryArtifact = publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission);
-  const unsignedArtifact = publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.variant === 'unsigned');
+  const signedArtifact = publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.variant === 'signed');
   return [
     `## Windows Store ${plan.release.tag}`,
     '',
@@ -115,7 +115,7 @@ function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubRelea
     '- Distribution mode: steam',
     `- AppX assets: ${publicationArtifacts.mergedInventory.artifacts.filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName)).length}`,
     `- Primary Store submission artifact: ${primaryArtifact?.fileName ?? 'none'}`,
-    `- Unsigned artifact: ${unsignedArtifact?.fileName ?? 'none'}`,
+    `- Optional signed sideload artifact: ${signedArtifact?.fileName ?? 'none'}`,
     `- Release metadata asset: ${path.basename(publicationArtifacts.metadataPath)}`,
     `- GitHub Release assets uploaded: ${githubReleaseAssets}`
   ].join('\n');
@@ -166,7 +166,7 @@ export async function publishRelease({
       `- Server version: ${plan.upstream.server.version}`,
       `- Store package version: ${publicationArtifacts.releaseMetadata.storePackageVersion ?? 'unavailable'}`,
       '- Distribution mode: steam',
-      `- Signed primary package: ${publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.fileName ?? 'none'}`,
+      `- Primary Store submission package: ${publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.fileName ?? 'none'}`,
       `- Assets prepared: ${publicationArtifacts.uploads.length}`
     ]);
 
@@ -229,7 +229,7 @@ export async function publishRelease({
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
     `- Server version: ${plan.upstream.server.version}`,
     `- Store package version: ${publicationArtifacts.releaseMetadata.storePackageVersion ?? 'unavailable'}`,
-    `- Signed primary package: ${publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.fileName ?? 'none'}`,
+    `- Primary Store submission package: ${publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.fileName ?? 'none'}`,
     '- Distribution mode: steam'
   ]);
 

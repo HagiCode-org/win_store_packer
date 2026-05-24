@@ -2,7 +2,7 @@
 
 `win_store_packer` builds and publishes Windows Store AppX packages that already contain the bundled Hagicode Server runtime.
 
-It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, prepares a tagged Desktop source workspace, stages the Server payload into `resources/portable-fixed/current`, builds an unsigned Store package, optionally stages and signs a second AppX variant for Microsoft Store submission, and publishes the resulting artifacts plus release metadata from this repository.
+It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, prepares a tagged Desktop source workspace, stages the Server payload into `resources/portable-fixed/current`, builds the unsigned AppX package that Microsoft Store submission consumes, optionally stages and signs a second AppX variant for enterprise sideloading, and publishes the resulting artifacts plus release metadata from this repository.
 
 The published AppX package is intentionally treated as **Steam mode by default**. Desktop switches into `distributionMode=steam` whenever the packaged `extra/portable-fixed/current` payload validates, so this Store flow ships that payload as the authoritative runtime source and records `distributionMode: "steam"` plus `runtimeSource: "portable-fixed"` in the emitted metadata.
 
@@ -78,13 +78,13 @@ Scheduled runs use the latest eligible Windows Desktop and Server assets from th
 
 ## Microsoft Store publication
 
-`package-release.yml` now publishes the built `.appx` variants to Microsoft Store in the same workflow run that publishes the GitHub Release. The Store publish job is skipped when `dry_run` is enabled.
+`package-release.yml` publishes the built unsigned `.appx` package to GitHub Releases and then submits that same package to Microsoft Store in the same workflow run. The Store publish job is skipped when `dry_run` is enabled.
 
-The workflow uses the official `microsoft/store-submission@v1` action instead of invoking the `msstore` CLI directly. It first publishes the `.appx` variants to the GitHub Release, then builds the `product-update` payload from the public release asset URLs and submits only the signed primary package to Partner Center as a packaged app submission.
+This follows the AppX guidance from electron-builder and Microsoft Store: Store submissions do not need to be manually signed in CI because Partner Center signs the package during Store processing. The workflow therefore uses the official `microsoft/store-submission@v1` action, builds the `product-update` payload from the public GitHub Release asset URLs, and submits the unsigned primary AppX package to Partner Center as a packaged app submission.
 
-### Signing requirements
+### Optional AppX sideload signing
 
-Release-capable CI runs require Azure Artifact Signing and fail before publication if any of these secrets are missing:
+Azure Artifact Signing is no longer part of the default Store publication workflow. If you need a separately signed AppX for enterprise sideloading or internal validation, the scripts still support an optional signed variant. In that mode:
 
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
@@ -94,9 +94,7 @@ Release-capable CI runs require Azure Artifact Signing and fail before publicati
 - `AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME`
 - `AZURE_CODESIGN_APPX_PUBLISHER`
 
-`AZURE_CODESIGN_APPX_PUBLISHER` must match the signing certificate subject because the workflow rewrites `appx.publisher` in the Store overlay before packaging.
-
-`dry_run` builds stay unsigned-only on purpose so local and fixture-style verification can run without Azure signing access.
+`AZURE_CODESIGN_APPX_PUBLISHER` must match the signing certificate subject because the signed sideload package rewrites `appx.publisher` before packaging.
 
 Configure the repository with the Microsoft Store credentials required by `microsoft/store-submission@v1`:
 
@@ -157,7 +155,7 @@ node scripts/build-appx.mjs \
   --workspace build/store-win-x64
 ```
 
-Build with required signing configuration validation:
+Build while staging an additional signed AppX variant for sideloading:
 
 ```bash
 AZURE_CLIENT_ID=... \
@@ -194,7 +192,7 @@ Per-platform build outputs are written into the workspace root:
 - `build-metadata-win-x64.json`
 - `artifact-inventory-win-x64.json`
 - `release-assets/hagicode-store-<release-tag>-win-x64-unsigned.appx`
-- `release-assets/hagicode-store-<release-tag>-win-x64-signed.appx` when signing is enabled and finalized
+- `release-assets/hagicode-store-<release-tag>-win-x64-signed.appx` when optional sideload signing is enabled and finalized
 
 The build metadata and artifact inventory also record:
 
@@ -220,11 +218,11 @@ The release metadata and dry-run report also record:
 
 - The unsigned AppX package is always preserved for inspection and troubleshooting.
 - The signed AppX package is staged from the unsigned output so both variants come from the same prepared workspace.
-- Only the signed artifact is marked `primaryForStoreSubmission: true` and consumed by `build-store-submission-update.mjs`.
-- Unsigned-only runs leave `primaryForStoreSubmission` unset and clearly report that no signed Store submission package was produced.
+- The unsigned AppX package is always marked `primaryForStoreSubmission: true` and consumed by `build-store-submission-update.mjs`.
+- When optional signing is enabled, the signed artifact is preserved as an additional sideloading package and is not used for Microsoft Store submission.
 
 ## Store-specific Differences From Desktop CI
 
 - The Store flow preserves Store identity metadata by generating a Store-specific electron-builder config overlay from `config/store-package.json`.
-- The workflow runs `azure/login@v2` plus `azure/artifact-signing-action@v1` for release-capable signed publication.
+- The default workflow submits the unsigned AppX package to Partner Center and does not require Azure Artifact Signing.
 - GitHub Releases receive the AppX artifact and release metadata JSON; Steam depot data and Azure Steam index updates are out of scope here.

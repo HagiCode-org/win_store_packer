@@ -28,7 +28,7 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
         sha256: 'abc',
         variant: 'unsigned',
         signed: false,
-        primaryForStoreSubmission: false
+        primaryForStoreSubmission: true
       },
       {
         platform: 'win-x64',
@@ -38,7 +38,7 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
         sha256: 'def',
         variant: 'signed',
         signed: true,
-        primaryForStoreSubmission: true
+        primaryForStoreSubmission: false
       }
     ]
   });
@@ -129,5 +129,5 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
   assert.equal(metadata.runtimeSource, 'portable-fixed');
   assert.equal(metadata.storePackageVersion, '0.3.0.0');
   assert.equal(metadata.artifacts.filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName)).length, 2);
-  assert.equal(metadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.variant, 'signed');
+  assert.equal(metadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.variant, 'unsigned');
 });

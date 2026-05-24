@@ -31,7 +31,7 @@ export async function finalizeAppxSigning({
     await appendSummary([
       `### AppX signing skipped for ${platformId}`,
       '- Signing mode: disabled',
-      `- Unsigned artifact remains the only published variant: ${path.basename(buildMetadata.artifacts.unsigned)}`
+      `- Primary Store submission artifact: ${path.basename(buildMetadata.artifacts.unsigned)}`
     ]);
     return {
       signedArtifactPath: null,
@@ -68,7 +68,7 @@ export async function finalizeAppxSigning({
       storePackageVersion: buildMetadata.storePackageVersion,
       variant: 'signed',
       signed: true,
-      primaryForStoreSubmission: true
+      primaryForStoreSubmission: false
     }
   });
 
@@ -91,8 +91,8 @@ export async function finalizeAppxSigning({
 
   await appendSummary([
     `### AppX signing finalized for ${platformId}`,
-    `- Signed artifact: ${path.basename(signedArtifactPath)}`,
-    `- Unsigned artifact: ${path.basename(buildMetadata.artifacts.unsigned)}`,
+    `- Signed sideload artifact: ${path.basename(signedArtifactPath)}`,
+    `- Primary Store submission artifact: ${path.basename(buildMetadata.artifacts.unsigned)}`,
     `- Store package version: ${buildMetadata.storePackageVersion}`
   ]);
 

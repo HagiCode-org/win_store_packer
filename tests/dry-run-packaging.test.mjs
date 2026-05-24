@@ -197,6 +197,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(inventory.artifacts[0].distributionMode, 'steam');
   assert.equal(inventory.artifacts[0].runtimeSource, 'portable-fixed');
   assert.equal(inventory.artifacts[0].variant, 'unsigned');
+  assert.equal(inventory.artifacts[0].primaryForStoreSubmission, true);
   assert.equal(inventory.artifacts[0].storePackageVersion, '0.3.0.0');
   assert.equal(dryRunReport.releaseTag, 'store-desktop-v0.3.0-server-v0.1.0-beta.34');
   assert.equal(dryRunReport.distributionMode, 'steam');

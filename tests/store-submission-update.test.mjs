@@ -79,14 +79,14 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
         fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx',
         variant: 'unsigned',
         signed: false,
-        primaryForStoreSubmission: false
+        primaryForStoreSubmission: true
       },
       {
         platform: 'win-x64',
         fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx',
         variant: 'signed',
         signed: true,
-        primaryForStoreSubmission: true
+        primaryForStoreSubmission: false
       },
       {
         platform: 'win-x64',
@@ -123,7 +123,7 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
   assert.deepEqual(result.payload, {
     packages: [
       {
-        packageUrl: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx',
+        packageUrl: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx',
         languages: ['en-US', 'zh-CN'],
         architectures: ['X64']
       }
