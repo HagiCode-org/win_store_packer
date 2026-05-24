@@ -24,6 +24,7 @@ function renderYamlList(key, values, indent = '    ') {
 function renderAppxBlock(packageIdentity, appx = {}, publisherOverride) {
   const lines = [
     'appx:',
+    '  artifactName: ${productName} ${version}.msix',
     `  displayName: ${yamlScalar(packageIdentity.displayName)}`,
     `  publisherDisplayName: ${yamlScalar(packageIdentity.publisherDisplayName)}`,
     `  publisher: ${yamlScalar(publisherOverride ?? packageIdentity.publisher)}`,
