@@ -120,7 +120,7 @@ function createPlan(tempRoot) {
   };
 }
 
-test('dry-run packaging assembles the tagged workspace, stages the server payload, builds an msix, and emits publication metadata', async () => {
+test('dry-run packaging assembles the tagged workspace, stages the server payload, builds a Store package, and emits publication metadata', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-packaging-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -207,11 +207,11 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(releaseMetadata.runtimeSource, 'portable-fixed');
   assert.equal(releaseMetadata.storePackageVersion, '0.3.0.0');
 
-  const msixPath = inventory.artifacts[0].outputPath;
-  const msixListing = (await validateZipPaths(msixPath)).join('\n');
-  assert.match(msixListing, /extra\/portable-fixed\/current\/manifest\.json/);
-  assert.match(msixListing, /extra\/portable-fixed\/current\/lib\/PCode\.Web\.dll/);
-  assert.match(msixListing, /AppxManifest\.xml|store-package-identity\.json/);
+  const storePackagePath = inventory.artifacts[0].outputPath;
+  const storePackageListing = (await validateZipPaths(storePackagePath)).join('\n');
+  assert.match(storePackageListing, /extra\/portable-fixed\/current\/manifest\.json/);
+  assert.match(storePackageListing, /extra\/portable-fixed\/current\/lib\/PCode\.Web\.dll/);
+  assert.match(storePackageListing, /AppxManifest\.xml|store-package-identity\.json/);
 
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.yml'), 'utf8');
   assert.match(overlayConfigText, /extends: electron-builder\.yml/);
@@ -221,7 +221,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(overlayConfigText, /    - internetClient/);
   assert.match(overlayConfigText, /    - internetClientServer/);
   assert.match(overlayConfigText, /    - privateNetworkClientServer/);
-  assert.match(msixPath, /-unsigned\.msix$/);
+  assert.match(storePackagePath, /-unsigned\.appx$/);
 });
 
 test('workspace preparation fails when the expected desktop tag is missing', async () => {

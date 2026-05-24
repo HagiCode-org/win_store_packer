@@ -24,6 +24,7 @@ import { appendSummary, annotateError } from './lib/summary.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
+const STORE_PACKAGE_EXTENSIONS = new Set(['.appx', '.msix']);
 
 function npmCommand() {
   return process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -64,13 +65,20 @@ async function findStoreOutputs(pkgDirectory) {
   return files
     .filter((filePath) => {
       const lowerPath = filePath.toLowerCase();
-      return lowerPath.endsWith('.msix');
+      return STORE_PACKAGE_EXTENSIONS.has(path.extname(lowerPath));
     })
     .sort((left, right) => {
       const leftLower = left.toLowerCase();
       const rightLower = right.toLowerCase();
-      if (leftLower.endsWith('.msix') !== rightLower.endsWith('.msix')) {
-        return leftLower.endsWith('.msix') ? -1 : 1;
+      const leftExtension = path.extname(leftLower);
+      const rightExtension = path.extname(rightLower);
+      if (leftExtension !== rightExtension) {
+        if (leftExtension === '.appx') {
+          return -1;
+        }
+        if (rightExtension === '.appx') {
+          return 1;
+        }
       }
       return leftLower.localeCompare(rightLower);
     });
@@ -148,11 +156,16 @@ export async function buildAppx({
 
   const storeOutputs = await findStoreOutputs(pkgDirectory);
   if (storeOutputs.length === 0) {
-    throw new Error(`No Store package outputs (.msix) were produced under ${pkgDirectory}.`);
+    throw new Error(`No Store package outputs (.appx/.msix) were produced under ${pkgDirectory}.`);
   }
 
   const primaryOutput = storeOutputs[0];
-  const unsignedArtifactFileName = buildStoreArtifactName(plan.release.tag, platformId, 'unsigned');
+  const storePackageExtension = path.extname(primaryOutput).toLowerCase();
+  if (!STORE_PACKAGE_EXTENSIONS.has(storePackageExtension)) {
+    throw new Error(`Unsupported Store package extension ${storePackageExtension || '[none]'} from ${primaryOutput}.`);
+  }
+
+  const unsignedArtifactFileName = buildStoreArtifactName(plan.release.tag, platformId, 'unsigned', storePackageExtension);
   const unsignedArtifactPath = path.join(workspaceManifest.outputDirectory, unsignedArtifactFileName);
   await ensureDir(workspaceManifest.outputDirectory);
   await copySingleFile(primaryOutput, unsignedArtifactPath);
@@ -161,7 +174,7 @@ export async function buildAppx({
   if (signingConfig.enabled) {
     signedArtifactPath = path.join(
       workspaceManifest.outputDirectory,
-      buildStoreArtifactName(plan.release.tag, platformId, 'signed')
+      buildStoreArtifactName(plan.release.tag, platformId, 'signed', storePackageExtension)
     );
     await copySingleFile(unsignedArtifactPath, signedArtifactPath);
   }
@@ -177,6 +190,7 @@ export async function buildAppx({
     serverVersion: workspaceManifest.serverVersion,
     releaseTag: workspaceManifest.releaseTag,
     storePackageVersion,
+    storePackageExtension,
     buildMode: syntheticDryRun
       ? 'synthetic-dry-run'
       : desktopBuildCommand
@@ -216,6 +230,7 @@ export async function buildAppx({
       desktopRef: workspaceManifest.desktopRef,
       serverVersion: workspaceManifest.serverVersion,
       storePackageVersion,
+      storePackageExtension,
       variant: 'unsigned',
       signed: false,
       primaryForStoreSubmission: false
@@ -240,11 +255,12 @@ export async function buildAppx({
   await writeJson(artifactInventoryPath, artifactInventory);
 
   await appendSummary([
-    `### MSIX build prepared for ${platformId}`,
+    `### Store package build prepared for ${platformId}`,
     `- Release tag: ${workspaceManifest.releaseTag}`,
     `- Desktop tag: ${workspaceManifest.desktopTag}`,
     `- Server version: ${workspaceManifest.serverVersion}`,
     `- Store package version: ${storePackageVersion}`,
+    `- Store package extension: ${storePackageExtension}`,
     '- Distribution mode: steam',
     `- Unsigned artifact: ${unsignedArtifactFileName}`,
     `- Signing mode: ${normalizedSigningMode}`,

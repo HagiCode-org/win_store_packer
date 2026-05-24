@@ -24,7 +24,7 @@ async function main() {
   const cwd = process.cwd();
   const pkgDir = path.join(cwd, 'pkg');
   const stagingDir = path.join(pkgDir, '.fixture-msix');
-  const msixPath = path.join(pkgDir, 'fixture-output.msix');
+  const msixPath = path.join(pkgDir, 'fixture-output.appx');
   await rm(stagingDir, { recursive: true, force: true });
   await mkdir(path.join(stagingDir, 'extra', 'portable-fixed'), { recursive: true });
   await cp(

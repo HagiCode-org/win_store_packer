@@ -6,7 +6,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { buildStoreSubmissionUpdate } from '../scripts/build-store-submission-update.mjs';
 import { writeJson } from '../scripts/lib/fs-utils.mjs';
 
-test('buildStoreSubmissionUpdate maps published msix assets into a Store submission payload', async () => {
+test('buildStoreSubmissionUpdate maps published store package assets into a Store submission payload', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-submission-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const releaseMetadataDir = path.join(tempRoot, 'release-metadata');
@@ -76,14 +76,14 @@ test('buildStoreSubmissionUpdate maps published msix assets into a Store submiss
     artifacts: [
       {
         platform: 'win-x64',
-        fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix',
+        fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx',
         variant: 'unsigned',
         signed: false,
         primaryForStoreSubmission: false
       },
       {
         platform: 'win-x64',
-        fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix',
+        fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx',
         variant: 'signed',
         signed: true,
         primaryForStoreSubmission: true
@@ -100,12 +100,12 @@ test('buildStoreSubmissionUpdate maps published msix assets into a Store submiss
     releaseTag: 'store-desktop-v0.3.0-server-v0.1.0-beta.34',
     uploadedAssets: [
       {
-        name: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix',
-        url: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix'
+        name: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx',
+        url: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx'
       },
       {
-        name: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix',
-        url: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix'
+        name: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx',
+        url: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx'
       },
       {
         name: 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json',
@@ -123,7 +123,7 @@ test('buildStoreSubmissionUpdate maps published msix assets into a Store submiss
   assert.deepEqual(result.payload, {
     packages: [
       {
-        packageUrl: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix',
+        packageUrl: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx',
         languages: ['en-US', 'zh-CN'],
         architectures: ['X64']
       }

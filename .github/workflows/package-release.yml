@@ -240,16 +240,20 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Sign staged MSIX artifact
+      - name: Sign staged Store package artifact
         if: steps.signing_policy.outputs.mode == 'required'
         uses: azure/artifact-signing-action@v1
         with:
           endpoint: ${{ secrets.AZURE_CODESIGN_ENDPOINT }}
-          trusted-signing-account-name: ${{ secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
+          signing-account-name: ${{ secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
           certificate-profile-name: ${{ secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
           files-folder: ${{ runner.temp }}/store-release-${{ matrix.platform }}/release-assets
-          files-folder-filter: '*-signed.msix'
+          files-folder-filter: '*-signed.*'
           files-folder-recurse: false
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          timeout: 600
 
       - name: Finalize MSIX variant metadata
         shell: bash

@@ -82,10 +82,13 @@ export function deriveStoreReleaseTag(desktopVersion, serverVersion) {
   return `store-desktop-${normalizeReleaseTagComponent(desktopVersion)}-server-${normalizeReleaseTagComponent(serverVersion)}`;
 }
 
-export function buildStoreArtifactName(releaseTag, platformId, variant = null) {
+export function buildStoreArtifactName(releaseTag, platformId, variant = null, extension = '.appx') {
   const safeReleaseTag = String(releaseTag).replace(/[^A-Za-z0-9._-]+/g, '-');
   const suffix = variant ? `-${String(variant).replace(/[^A-Za-z0-9._-]+/g, '-')}` : '';
-  return `hagicode-store-${safeReleaseTag}-${platformId}${suffix}.msix`;
+  const normalizedExtension = String(extension || '.appx').startsWith('.')
+    ? String(extension || '.appx').toLowerCase()
+    : `.${String(extension || 'appx').toLowerCase()}`;
+  return `hagicode-store-${safeReleaseTag}-${platformId}${suffix}${normalizedExtension}`;
 }
 
 export function matchDesktopAssetForPlatform(assets, platformId) {

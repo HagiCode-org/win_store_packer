@@ -60,7 +60,7 @@ export async function buildStoreSubmissionUpdate({
   const languages = [...plan.store.packageIdentity.languages];
 
   const packages = releaseMetadata.artifacts
-    .filter((artifact) => artifact.fileName.toLowerCase().endsWith('.msix'))
+    .filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName))
     .filter((artifact) => artifact.primaryForStoreSubmission === true && artifact.signed === true)
     .map((artifact) => {
       const packageUrl = uploadedAssetUrls.get(artifact.fileName);
@@ -76,7 +76,7 @@ export async function buildStoreSubmissionUpdate({
     });
 
   if (packages.length === 0) {
-    throw new Error('No primary signed .msix asset was found for Store submission.');
+    throw new Error('No primary signed Store package (.appx/.msix) was found for Store submission.');
   }
 
   const updatePayload = { packages };

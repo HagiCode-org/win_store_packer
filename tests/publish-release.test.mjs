@@ -6,13 +6,13 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { publishRelease } from '../scripts/publish-release.mjs';
 import { writeJson } from '../scripts/lib/fs-utils.mjs';
 
-test('publishRelease creates or updates a GitHub release and uploads the msix and metadata assets', async () => {
+test('publishRelease creates or updates a GitHub release and uploads the store package and metadata assets', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-publish-'));
   const artifactsDir = path.join(tempRoot, 'artifacts');
   const outputDir = path.join(tempRoot, 'output');
   const planPath = path.join(tempRoot, 'build-plan.json');
-  const unsignedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix');
-  const signedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix');
+  const unsignedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx');
+  const signedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx');
   await mkdir(artifactsDir, { recursive: true });
   await writeFile(unsignedMsixPath, 'fixture-unsigned');
   await writeFile(signedMsixPath, 'fixture-signed');
@@ -128,6 +128,6 @@ test('publishRelease creates or updates a GitHub release and uploads the msix an
   assert.equal(metadata.distributionMode, 'steam');
   assert.equal(metadata.runtimeSource, 'portable-fixed');
   assert.equal(metadata.storePackageVersion, '0.3.0.0');
-  assert.equal(metadata.artifacts.filter((artifact) => artifact.fileName.endsWith('.msix')).length, 2);
+  assert.equal(metadata.artifacts.filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName)).length, 2);
   assert.equal(metadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.variant, 'signed');
 });
