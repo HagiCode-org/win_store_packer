@@ -16,9 +16,6 @@ function contentTypeFromPath(filePath) {
   if (lowerPath.endsWith('.msix')) {
     return 'application/vnd.ms-appx';
   }
-  if (lowerPath.endsWith('.appx')) {
-    return 'application/vnd.ms-appx';
-  }
   return 'application/octet-stream';
 }
 

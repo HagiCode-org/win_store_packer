@@ -8,7 +8,6 @@ const PLATFORM_MAP = {
     desktopAssetPatterns: [
       /^hagicode\.desktop\..*-unpacked\.zip$/i,
       /^hagicode\.desktop\..*\.msix$/i,
-      /^hagicode\.desktop\..*\.appx$/i,
       /^hagicode\.desktop\..*\.exe$/i
     ]
   }
