@@ -52,7 +52,7 @@
   "desktop": {
     "submodulePath": "inputs/hagicode-desktop",
     "electronBuilderConfigPath": "electron-builder.yml",
-    "buildScript": "build:appx",
+    "buildScript": "build:msix",
     "runtimeInjectionPath": "resources/portable-fixed/current"
   }
 }
