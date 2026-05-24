@@ -184,11 +184,14 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
 
   assert.equal(workspaceManifest.desktopTag, 'v0.3.0');
   assert.equal(workspaceReport.validationPassed, true);
+  assert.equal(workspaceReport.checks.desktopBuildPipelineSupported, true);
+  assert.equal(workspaceReport.buildStrategy.supported, true);
   assert.equal(payloadReport.validationPassed, true);
   assert.equal(buildMetadata.validationPassed, true);
   assert.equal(buildMetadata.distributionMode, 'steam');
   assert.equal(buildMetadata.runtimeSource, 'portable-fixed');
   assert.equal(buildMetadata.storePackageVersion, '0.3.0.0');
+  assert.equal(buildMetadata.buildMode, 'desktop-build-pipeline');
   assert.equal(buildMetadata.signing.mode, 'disabled');
   assert.equal(inventory.artifacts.length, 1);
   assert.equal(inventory.artifacts[0].distributionMode, 'steam');

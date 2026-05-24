@@ -127,7 +127,6 @@ export function validateStorePackageConfig(config) {
   const desktop = requireObject(config.desktop, 'storePackageConfig.desktop');
   requireNonEmptyString(desktop.submodulePath, 'storePackageConfig.desktop.submodulePath');
   requireNonEmptyString(desktop.electronBuilderConfigPath, 'storePackageConfig.desktop.electronBuilderConfigPath');
-  requireNonEmptyString(desktop.buildScript, 'storePackageConfig.desktop.buildScript');
   requireNonEmptyString(desktop.runtimeInjectionPath, 'storePackageConfig.desktop.runtimeInjectionPath');
   requireArray(config.supportedWindowsTargets, 'storePackageConfig.supportedWindowsTargets');
   const appx = config.appx ? requireObject(config.appx, 'storePackageConfig.appx') : undefined;

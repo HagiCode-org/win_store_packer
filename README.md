@@ -39,8 +39,9 @@ Defines the Store package identity metadata and packaging contract:
 - `supportedWindowsTargets`
 - `desktop.submodulePath`
 - `desktop.electronBuilderConfigPath`
-- `desktop.buildScript`
 - `desktop.runtimeInjectionPath`
+
+The packer targets the current Desktop Windows packaging pipeline directly. It prepares runtime resources, runs Desktop production build steps, then invokes `scripts/run-electron-builder.js --win appx --config electron-builder.store.yml` inside the tagged Desktop workspace.
 
 ### AppX/MSIX capability contract
 

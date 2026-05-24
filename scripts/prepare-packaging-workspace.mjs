@@ -7,6 +7,7 @@ import { cleanDir, ensureDir, pathExists, readJson, writeJson } from './lib/fs-u
 import { runCommand, runCommandResult } from './lib/command.mjs';
 import { loadReleasePlan } from './lib/release-plan.mjs';
 import { loadStorePackageConfig, loadWorkflowDefaults } from './lib/store-config.mjs';
+import { resolveDesktopStoreBuildStrategy } from './lib/desktop-build.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 
 async function writeGithubOutputs(outputs) {
@@ -47,10 +48,13 @@ async function validateDesktopWorkspace({ desktopWorkspace, storePackageConfig }
     throw new Error(`Desktop workspace is missing ${storePackageConfig.desktop.electronBuilderConfigPath}.`);
   }
 
-  const packageJson = await readJson(packageJsonPath);
-  const buildScript = packageJson?.scripts?.[storePackageConfig.desktop.buildScript];
-  if (!buildScript) {
-    throw new Error(`Desktop workspace package.json is missing the "${storePackageConfig.desktop.buildScript}" script required for Store packaging.`);
+  const buildStrategy = await resolveDesktopStoreBuildStrategy({
+    desktopWorkspace
+  });
+  if (!buildStrategy.isCompatible) {
+    throw new Error(
+      'Desktop workspace is missing the current Store packaging pipeline required for MSIX packaging.'
+    );
   }
 
   await ensureDir(runtimeRoot);
@@ -59,7 +63,7 @@ async function validateDesktopWorkspace({ desktopWorkspace, storePackageConfig }
     packageJsonPath,
     electronBuilderPath,
     runtimeRoot,
-    buildScript
+    buildStrategy
   };
 }
 
@@ -146,7 +150,11 @@ export async function preparePackagingWorkspace({
       tagResolved: true,
       packageJsonPresent: true,
       electronBuilderPresent: true,
-      buildScriptPresent: true
+      desktopBuildPipelineSupported: validation.buildStrategy.canBuild
+    },
+    buildStrategy: {
+      supported: validation.buildStrategy.canBuild,
+      hasElectronBuilderRunner: validation.buildStrategy.hasElectronBuilderRunner
     }
   };
   const workspaceReportPath = path.join(resolvedWorkspacePath, `workspace-validation-${platformId}.json`);

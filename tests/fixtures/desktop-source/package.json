@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:msix": "node scripts/build-fixture-appx.mjs"
+    "prepare:runtime": "node -e \"process.exit(0)\"",
+    "prepare:bundled-toolchain": "node -e \"process.exit(0)\"",
+    "prepare:code-server-runtime": "node -e \"process.exit(0)\"",
+    "prepare:omniroute-runtime": "node -e \"process.exit(0)\"",
+    "build:prod": "node -e \"process.exit(0)\"",
+    "package:smoke-test": "node -e \"process.exit(0)\""
   }
 }

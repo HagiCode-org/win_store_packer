@@ -9,6 +9,11 @@ import { runCommand } from './lib/command.mjs';
 import { loadReleasePlan } from './lib/release-plan.mjs';
 import { buildStoreArtifactName } from './lib/platforms.mjs';
 import {
+  buildDesktopStoreCommand,
+  resolveDesktopStoreBuildStrategy,
+  shouldUseSyntheticDryRunBuild
+} from './lib/desktop-build.mjs';
+import {
   loadStorePackageConfig,
   normalizeStorePackageVersion,
   normalizeStoreSigningMode,
@@ -31,36 +36,6 @@ async function runShellCommand(commandText, cwd) {
   }
 
   await runCommand('/bin/bash', ['-lc', commandText], { cwd });
-}
-
-function selectAvailableScript(scripts, candidates) {
-  return candidates.find((scriptName) => typeof scripts?.[scriptName] === 'string') ?? null;
-}
-
-function buildDesktopStoreCommand(overlayConfigPath, scripts) {
-  const overlayConfigName = path.basename(overlayConfigPath);
-  const commands = [];
-
-  const runtimeScript = selectAvailableScript(scripts, ['prepare:runtime', 'prepare:runtime:optional']);
-  const toolchainScript = selectAvailableScript(scripts, ['prepare:bundled-toolchain', 'prepare:bundled-toolchain:optional']);
-  const codeServerScript = selectAvailableScript(scripts, ['prepare:code-server-runtime', 'prepare:code-server-runtime:optional']);
-  const omnirouteScript = selectAvailableScript(scripts, ['prepare:omniroute-runtime', 'prepare:omniroute-runtime:optional']);
-  const buildProdScript = selectAvailableScript(scripts, ['build:prod', 'build:all', 'build']);
-  const smokeTestScript = selectAvailableScript(scripts, ['package:smoke-test', 'smoke-test']);
-
-  for (const scriptName of [runtimeScript, toolchainScript, codeServerScript, omnirouteScript, buildProdScript]) {
-    if (scriptName) {
-      commands.push(`npm run ${scriptName}`);
-    }
-  }
-
-  commands.push(`node scripts/run-electron-builder.js --win appx --publish never --config ${overlayConfigName}`);
-
-  if (smokeTestScript) {
-    commands.push(`npm run ${smokeTestScript}`);
-  }
-
-  return commands.join(' && ');
 }
 
 async function createSyntheticStorePackage({
@@ -99,34 +74,6 @@ async function findStoreOutputs(pkgDirectory) {
       }
       return leftLower.localeCompare(rightLower);
     });
-}
-
-async function shouldUseSyntheticDryRunBuild(desktopWorkspace, planDryRun) {
-  if (!planDryRun) {
-    return false;
-  }
-
-  const packageJsonPath = path.join(desktopWorkspace, 'package.json');
-  if (!(await pathExists(packageJsonPath))) {
-    return true;
-  }
-
-  const packageJson = await readJson(packageJsonPath);
-  const scripts = packageJson?.scripts ?? {};
-  const requiredScripts = [
-    'prepare:runtime',
-    'prepare:bundled-toolchain',
-    'prepare:code-server-runtime',
-    'prepare:omniroute-runtime',
-    'build:prod',
-    'package:smoke-test'
-  ];
-
-  if (requiredScripts.some((scriptName) => typeof scripts[scriptName] !== 'string')) {
-    return true;
-  }
-
-  return !(await pathExists(path.join(desktopWorkspace, 'scripts', 'run-electron-builder.js')));
 }
 
 export async function buildAppx({
@@ -175,9 +122,13 @@ export async function buildAppx({
     await runCommand(npmCommand(), ['ci'], { cwd: workspaceManifest.desktopWorkspace });
   }
 
-  const desktopPackageJson = await readJson(path.join(workspaceManifest.desktopWorkspace, 'package.json'));
-  const desktopScripts = desktopPackageJson?.scripts ?? {};
-  const syntheticDryRun = forceDryRun || (await shouldUseSyntheticDryRunBuild(workspaceManifest.desktopWorkspace, plan.build.dryRun));
+  const desktopBuildStrategy = await resolveDesktopStoreBuildStrategy({
+    desktopWorkspace: workspaceManifest.desktopWorkspace
+  });
+  const syntheticDryRun = forceDryRun || (await shouldUseSyntheticDryRunBuild({
+    desktopWorkspace: workspaceManifest.desktopWorkspace,
+    planDryRun: plan.build.dryRun
+  }));
 
   if (syntheticDryRun) {
     await createSyntheticStorePackage({
@@ -190,7 +141,7 @@ export async function buildAppx({
     await runShellCommand(desktopBuildCommand, workspaceManifest.desktopWorkspace);
   } else {
     await runShellCommand(
-      buildDesktopStoreCommand(overlayConfig.outputPath, desktopScripts),
+      buildDesktopStoreCommand(overlayConfig.outputPath, desktopBuildStrategy),
       workspaceManifest.desktopWorkspace
     );
   }
@@ -226,7 +177,11 @@ export async function buildAppx({
     serverVersion: workspaceManifest.serverVersion,
     releaseTag: workspaceManifest.releaseTag,
     storePackageVersion,
-    buildMode: syntheticDryRun ? 'synthetic-dry-run' : 'desktop-build-script',
+    buildMode: syntheticDryRun
+      ? 'synthetic-dry-run'
+      : desktopBuildCommand
+        ? 'custom-desktop-build-command'
+        : 'desktop-build-pipeline',
     sourceElectronBuilderConfigPath: overlayConfig.sourcePath,
     outputElectronBuilderConfigPath: overlayConfig.outputPath,
     outputElectronBuilderBuildVersion: overlayConfig.packageVersion,
