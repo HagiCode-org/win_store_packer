@@ -76,7 +76,7 @@ export async function buildStoreSubmissionUpdate({
     });
 
   if (packages.length === 0) {
-    throw new Error('No primary signed Store package (.appx/.msix) was found for Store submission.');
+    throw new Error('No primary signed AppX package was found for Store submission.');
   }
 
   const updatePayload = { packages };

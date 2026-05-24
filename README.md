@@ -1,10 +1,10 @@
 # win_store_packer
 
-`win_store_packer` builds and publishes Windows Store MSIX packages that already contain the bundled Hagicode Server runtime.
+`win_store_packer` builds and publishes Windows Store AppX packages that already contain the bundled Hagicode Server runtime.
 
-It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, prepares a tagged Desktop source workspace, stages the Server payload into `resources/portable-fixed/current`, builds an unsigned Store package, optionally stages and signs a second MSIX variant for Microsoft Store submission, and publishes the resulting artifacts plus release metadata from this repository.
+It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, prepares a tagged Desktop source workspace, stages the Server payload into `resources/portable-fixed/current`, builds an unsigned Store package, optionally stages and signs a second AppX variant for Microsoft Store submission, and publishes the resulting artifacts plus release metadata from this repository.
 
-The published MSIX is intentionally treated as **Steam mode by default**. Desktop switches into `distributionMode=steam` whenever the packaged `extra/portable-fixed/current` payload validates, so this Store flow ships that payload as the authoritative runtime source and records `distributionMode: "steam"` plus `runtimeSource: "portable-fixed"` in the emitted metadata.
+The published AppX package is intentionally treated as **Steam mode by default**. Desktop switches into `distributionMode=steam` whenever the packaged `extra/portable-fixed/current` payload validates, so this Store flow ships that payload as the authoritative runtime source and records `distributionMode: "steam"` plus `runtimeSource: "portable-fixed"` in the emitted metadata.
 
 ## Repository Contract
 
@@ -43,7 +43,7 @@ Defines the Store package identity metadata and packaging contract:
 
 The packer targets the current Desktop Windows packaging pipeline directly. It prepares runtime resources, runs Desktop production build steps, then invokes `scripts/run-electron-builder.js --win appx --config electron-builder.store.yml` inside the tagged Desktop workspace.
 
-### AppX/MSIX capability contract
+### AppX capability contract
 
 The Store overlay must preserve the Windows capability declarations required by Hagicode Desktop runtime behavior.
 
@@ -52,7 +52,7 @@ The Store overlay must preserve the Windows capability declarations required by 
 - `internetClientServer`: required for torrent-first sharing acceleration because the packaged client can initiate and accept peer traffic while distributing package payloads.
 - `privateNetworkClientServer`: required because Desktop manages the bundled web service over loopback and also supports binding to private-network addresses such as `0.0.0.0` for LAN access.
 
-These capabilities are sourced from `config/store-package.json` and rendered into the generated `electron-builder.store.yml` overlay before the Desktop AppX/MSIX build runs.
+These capabilities are sourced from `config/store-package.json` and rendered into the generated `electron-builder.store.yml` overlay before the Desktop AppX build runs.
 
 ### `config/workflow-defaults.json`
 
@@ -78,9 +78,9 @@ Scheduled runs use the latest eligible Windows Desktop and Server assets from th
 
 ## Microsoft Store publication
 
-`package-release.yml` now publishes the built `.msix` variants to Microsoft Store in the same workflow run that publishes the GitHub Release. The Store publish job is skipped when `dry_run` is enabled.
+`package-release.yml` now publishes the built `.appx` variants to Microsoft Store in the same workflow run that publishes the GitHub Release. The Store publish job is skipped when `dry_run` is enabled.
 
-The workflow uses the official `microsoft/store-submission@v1` action instead of invoking the `msstore` CLI directly. It first publishes the `.msix` variants to the GitHub Release, then builds the `product-update` payload from the public release asset URLs and submits only the signed primary package to Partner Center as a packaged app submission.
+The workflow uses the official `microsoft/store-submission@v1` action instead of invoking the `msstore` CLI directly. It first publishes the `.appx` variants to the GitHub Release, then builds the `product-update` payload from the public release asset URLs and submits only the signed primary package to Partner Center as a packaged app submission.
 
 ### Signing requirements
 
@@ -148,7 +148,7 @@ node scripts/stage-server-payload.mjs \
   --workspace build/store-win-x64
 ```
 
-Build the MSIX artifact:
+Build the AppX artifact:
 
 ```bash
 node scripts/build-appx.mjs \
@@ -193,8 +193,8 @@ Per-platform build outputs are written into the workspace root:
 - `payload-validation-win-x64.json`
 - `build-metadata-win-x64.json`
 - `artifact-inventory-win-x64.json`
-- `release-assets/hagicode-store-<release-tag>-win-x64-unsigned.msix`
-- `release-assets/hagicode-store-<release-tag>-win-x64-signed.msix` when signing is enabled and finalized
+- `release-assets/hagicode-store-<release-tag>-win-x64-unsigned.appx`
+- `release-assets/hagicode-store-<release-tag>-win-x64-signed.appx` when signing is enabled and finalized
 
 The build metadata and artifact inventory also record:
 
@@ -218,8 +218,8 @@ The release metadata and dry-run report also record:
 
 ## Signed vs unsigned artifacts
 
-- The unsigned MSIX is always preserved for inspection and troubleshooting.
-- The signed MSIX is staged from the unsigned output so both variants come from the same prepared workspace.
+- The unsigned AppX package is always preserved for inspection and troubleshooting.
+- The signed AppX package is staged from the unsigned output so both variants come from the same prepared workspace.
 - Only the signed artifact is marked `primaryForStoreSubmission: true` and consumed by `build-store-submission-update.mjs`.
 - Unsigned-only runs leave `primaryForStoreSubmission` unset and clearly report that no signed Store submission package was produced.
 
@@ -227,4 +227,4 @@ The release metadata and dry-run report also record:
 
 - The Store flow preserves Store identity metadata by generating a Store-specific electron-builder config overlay from `config/store-package.json`.
 - The workflow runs `azure/login@v2` plus `azure/artifact-signing-action@v1` for release-capable signed publication.
-- GitHub Releases receive the MSIX artifact and release metadata JSON; Steam depot data and Azure Steam index updates are out of scope here.
+- GitHub Releases receive the AppX artifact and release metadata JSON; Steam depot data and Azure Steam index updates are out of scope here.

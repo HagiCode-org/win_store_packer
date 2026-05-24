@@ -215,7 +215,7 @@ jobs:
             --platform "${{ matrix.platform }}" \
             --workspace "$RUNNER_TEMP/store-release-${{ matrix.platform }}"
 
-      - name: Build MSIX
+      - name: Build AppX
         shell: bash
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -255,7 +255,7 @@ jobs:
           timestamp-digest: SHA256
           timeout: 600
 
-      - name: Finalize MSIX variant metadata
+      - name: Finalize AppX variant metadata
         shell: bash
         run: |
           args=()

@@ -29,7 +29,7 @@ export async function finalizeAppxSigning({
 
   if (!buildMetadata.signing?.enabled) {
     await appendSummary([
-      `### MSIX signing skipped for ${platformId}`,
+      `### AppX signing skipped for ${platformId}`,
       '- Signing mode: disabled',
       `- Unsigned artifact remains the only published variant: ${path.basename(buildMetadata.artifacts.unsigned)}`
     ]);
@@ -43,7 +43,7 @@ export async function finalizeAppxSigning({
   const signedArtifactPath = buildMetadata.signing.stagedSignedArtifactPath;
   if (!signedArtifactPath || !(await pathExists(signedArtifactPath))) {
     if (requireSigned || buildMetadata.signing.required) {
-      throw new Error(`Missing signed MSIX artifact for ${platformId} at ${signedArtifactPath ?? '[unset]'}.`);
+      throw new Error(`Missing signed AppX artifact for ${platformId} at ${signedArtifactPath ?? '[unset]'}.`);
     }
 
     return {
@@ -90,7 +90,7 @@ export async function finalizeAppxSigning({
   await writeJson(artifactInventoryPath, artifactInventory);
 
   await appendSummary([
-    `### MSIX signing finalized for ${platformId}`,
+    `### AppX signing finalized for ${platformId}`,
     `- Signed artifact: ${path.basename(signedArtifactPath)}`,
     `- Unsigned artifact: ${path.basename(buildMetadata.artifacts.unsigned)}`,
     `- Store package version: ${buildMetadata.storePackageVersion}`
@@ -131,7 +131,7 @@ if (isDirectExecution) {
   main().catch(async (error) => {
     annotateError(error.message);
     await appendSummary([
-      '## MSIX signing finalization failed',
+      '## AppX signing finalization failed',
       `- ${error.message}`
     ]);
     console.error(error);

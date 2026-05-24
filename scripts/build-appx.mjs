@@ -311,7 +311,7 @@ if (isDirectExecution) {
   main().catch(async (error) => {
     annotateError(error.message);
     await appendSummary([
-      '## MSIX build failed',
+      '## AppX build failed',
       `- ${error.message}`
     ]);
     console.error(error);
