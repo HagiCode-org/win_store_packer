@@ -33,6 +33,7 @@ env:
   DESKTOP_AZURE_SAS_URL: ${{ secrets.desktop_azure_sas_url || secrets.WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL || secrets.DESKTOP_AZURE_SAS_URL }}
   SERVER_AZURE_SAS_URL: ${{ secrets.server_azure_sas_url || secrets.WIN_STORE_PACKER_SERVER_AZURE_SAS_URL || secrets.SERVER_AZURE_SAS_URL || secrets.SERVICE_AZURE_SAS_URL }}
   MICROSOFT_STORE_PRODUCT_ID: ${{ vars.MICROSOFT_STORE_PRODUCT_ID || secrets.MICROSOFT_STORE_PRODUCT_ID }}
+  HAGISCRIPT_INSTALL_SPEC: '@hagicode/hagiscript@0.2.3'
 
 jobs:
   resolve_plan:
@@ -52,6 +53,22 @@ jobs:
         with:
           node-version: '22'
           package-manager-cache: false
+
+      - name: Install global hagiscript
+        shell: bash
+        run: |
+          npm install -g "$HAGISCRIPT_INSTALL_SPEC"
+
+          npm_prefix="$(npm config get prefix)"
+          if [ "$RUNNER_OS" = 'Windows' ]; then
+            echo "$npm_prefix" >> "$GITHUB_PATH"
+            export PATH="$npm_prefix:$PATH"
+          else
+            echo "$npm_prefix/bin" >> "$GITHUB_PATH"
+            export PATH="$npm_prefix/bin:$PATH"
+          fi
+
+          hagiscript --version
 
       - name: Resolve build plan
         shell: bash
