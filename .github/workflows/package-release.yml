@@ -129,6 +129,22 @@ jobs:
           node-version: '22'
           package-manager-cache: false
 
+      - name: Install global hagiscript
+        shell: bash
+        run: |
+          npm install -g "$HAGISCRIPT_INSTALL_SPEC"
+
+          npm_prefix="$(npm config get prefix)"
+          if [ "$RUNNER_OS" = 'Windows' ]; then
+            echo "$npm_prefix" >> "$GITHUB_PATH"
+            export PATH="$npm_prefix:$PATH"
+          else
+            echo "$npm_prefix/bin" >> "$GITHUB_PATH"
+            export PATH="$npm_prefix/bin:$PATH"
+          fi
+
+          hagiscript --version
+
       - name: Download resolved build plan
         uses: actions/download-artifact@v8
         with:
