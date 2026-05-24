@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:appx": "node scripts/build-fixture-appx.mjs"
+    "build:msix": "node scripts/build-fixture-appx.mjs"
   }
 }
