@@ -15,6 +15,7 @@ test('loadStorePackageConfig exposes the AppX capabilities required by Hagicode 
     'internetClientServer',
     'privateNetworkClientServer'
   ]);
+  assert.equal(storePackageConfig.signing.skipFinalAppxSigning, true);
 });
 
 test('normalizeStorePackageVersion rejects non-stable Desktop tags', async () => {

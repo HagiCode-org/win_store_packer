@@ -292,3 +292,77 @@ test('build-appx fails early when signed packaging is required but Azure signing
     /Missing Store signing configuration/
   );
 });
+
+test('signed Store overlay excludes final appx signing while preserving Trusted Signing for embedded binaries', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-signed-overlay-'));
+  const planPath = path.join(tempRoot, 'build-plan.json');
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const desktopRepoPath = await createTaggedDesktopRepo(tempRoot);
+  const serverArchivePath = await createServerArchive(tempRoot);
+  await writeJson(planPath, createPlan(tempRoot));
+
+  await runCommand('node', [
+    path.join(repoRoot, 'scripts', 'prepare-packaging-workspace.mjs'),
+    '--plan',
+    planPath,
+    '--platform',
+    'win-x64',
+    '--workspace',
+    workspacePath,
+    '--desktop-source',
+    desktopRepoPath
+  ]);
+
+  await runCommand('node', [
+    path.join(repoRoot, 'scripts', 'stage-server-payload.mjs'),
+    '--plan',
+    planPath,
+    '--platform',
+    'win-x64',
+    '--workspace',
+    workspacePath,
+    '--server-asset-source',
+    serverArchivePath
+  ]);
+
+  const previousAzureClientId = process.env.AZURE_CLIENT_ID;
+  const previousAzureTenantId = process.env.AZURE_TENANT_ID;
+  const previousAzureClientSecret = process.env.AZURE_CLIENT_SECRET;
+  const previousAzureEndpoint = process.env.AZURE_CODESIGN_ENDPOINT;
+  const previousAzureAccountName = process.env.AZURE_CODESIGN_ACCOUNT_NAME;
+  const previousAzureProfileName = process.env.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME;
+
+  process.env.AZURE_CLIENT_ID = 'client-id';
+  process.env.AZURE_TENANT_ID = 'tenant-id';
+  process.env.AZURE_CLIENT_SECRET = 'client-secret';
+  process.env.AZURE_CODESIGN_ENDPOINT = 'https://example.test';
+  process.env.AZURE_CODESIGN_ACCOUNT_NAME = 'account-name';
+  process.env.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME = 'profile-name';
+
+  try {
+    await buildAppx({
+      planPath,
+      workspacePath,
+      platformId: 'win-x64',
+      artifactVariant: 'signed',
+      signingMode: 'required',
+      forceDryRun: true
+    });
+  } finally {
+    process.env.AZURE_CLIENT_ID = previousAzureClientId;
+    process.env.AZURE_TENANT_ID = previousAzureTenantId;
+    process.env.AZURE_CLIENT_SECRET = previousAzureClientSecret;
+    process.env.AZURE_CODESIGN_ENDPOINT = previousAzureEndpoint;
+    process.env.AZURE_CODESIGN_ACCOUNT_NAME = previousAzureAccountName;
+    process.env.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME = previousAzureProfileName;
+  }
+
+  const workspaceManifest = await readJson(path.join(workspacePath, 'workspace-manifest.json'));
+  const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.signed.yml'), 'utf8');
+  const buildMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64-signed.json'));
+
+  assert.match(overlayConfigText, /signExts:\n\s+- "!\.appx"/);
+  assert.match(overlayConfigText, /azureSignOptions:/);
+  assert.equal(buildMetadata.signing.skipFinalAppxSigning, true);
+  assert.equal(buildMetadata.signing.finalArtifactSigningExpected, false);
+});

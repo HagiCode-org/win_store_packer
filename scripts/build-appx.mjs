@@ -198,8 +198,13 @@ export async function buildAppx({
 
   const primaryForStoreSubmission = normalizedArtifactVariant === 'unsigned';
   const artifactSigned = normalizedArtifactVariant === 'signed';
+  const finalArtifactSigningExpected = signingConfig.enabled && !signingConfig.skipFinalAppxSigning;
   const verificationStatus = normalizedArtifactVariant === 'signed'
-    ? (syntheticDryRun ? 'synthetic' : 'pending-verification')
+    ? (syntheticDryRun
+        ? 'synthetic'
+        : finalArtifactSigningExpected
+          ? 'pending-verification'
+          : 'pending-finalization')
     : 'not-applicable';
 
   const buildMetadata = {
@@ -230,6 +235,8 @@ export async function buildAppx({
       mode: normalizedSigningMode,
       enabled: signingConfig.enabled,
       required: signingConfig.required,
+      skipFinalAppxSigning: signingConfig.skipFinalAppxSigning,
+      finalArtifactSigningExpected,
       status: signingConfig.enabled ? verificationStatus : 'disabled',
       publisher: signingConfig.publisher,
       publisherName: signingConfig.publisherName,
@@ -254,6 +261,8 @@ export async function buildAppx({
       storePackageExtension,
       variant: normalizedArtifactVariant,
       signed: artifactSigned,
+      contentSigned: artifactSigned,
+      finalArtifactSigned: artifactSigned && finalArtifactSigningExpected,
       primaryForStoreSubmission
     }
   });

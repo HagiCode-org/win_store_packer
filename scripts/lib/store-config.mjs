@@ -103,6 +103,9 @@ function validateSigningConfig(config) {
       'storePackageConfig.signing.publisherSubjectEnvVar'
     ),
     publisherSubject: optionalNonEmptyString(signing.publisherSubject, 'storePackageConfig.signing.publisherSubject'),
+    skipFinalAppxSigning: signing.skipFinalAppxSigning === undefined
+      ? false
+      : requireBoolean(signing.skipFinalAppxSigning, 'storePackageConfig.signing.skipFinalAppxSigning'),
     verificationScriptRelativePath: requireNonEmptyString(
       signing.verificationScriptRelativePath,
       'storePackageConfig.signing.verificationScriptRelativePath'
@@ -253,6 +256,7 @@ export function resolveStoreSigningConfig({
     publisher: normalizedPublisher,
     publisherName,
     publisherSubjectEnvVar: signing.publisherSubjectEnvVar ?? null,
+    skipFinalAppxSigning: signing.skipFinalAppxSigning,
     verificationScriptRelativePath: signing.verificationScriptRelativePath,
     azure: {
       clientId: env[signing.azure.clientIdEnvVar]?.trim() || null,

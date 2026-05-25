@@ -7,7 +7,25 @@ function yamlScalar(value) {
   if (typeof value === 'boolean') {
     return value ? 'true' : 'false';
   }
-  return String(value);
+
+  const normalized = String(value);
+  if (
+    normalized.length === 0 ||
+    normalized.startsWith('!') ||
+    normalized.startsWith('&') ||
+    normalized.startsWith('*') ||
+    normalized.startsWith('[') ||
+    normalized.startsWith('{') ||
+    normalized.startsWith('#') ||
+    normalized.startsWith('|') ||
+    normalized.startsWith('>') ||
+    /^[-?:](?:\s|$)/.test(normalized) ||
+    /^\s|\s$/.test(normalized)
+  ) {
+    return JSON.stringify(normalized);
+  }
+
+  return normalized;
 }
 
 function renderYamlList(key, values, indent = '    ') {
@@ -69,6 +87,12 @@ function renderWinBlock(signingConfig) {
     );
   }
 
+  const lines = ['win:'];
+
+  if (signingConfig.skipFinalAppxSigning) {
+    lines.push(...renderYamlList('signExts', ['!.appx']));
+  }
+
   const azureSignOptionLines = [
     signingConfig.publisherName ? `    publisherName: ${yamlScalar(signingConfig.publisherName)}` : null,
     signingConfig.azure.endpoint ? `    endpoint: ${yamlScalar(signingConfig.azure.endpoint)}` : null,
@@ -76,15 +100,18 @@ function renderWinBlock(signingConfig) {
     signingConfig.azure.codeSigningAccountName ? `    codeSigningAccountName: ${yamlScalar(signingConfig.azure.codeSigningAccountName)}` : null
   ].filter(Boolean);
 
-  if (azureSignOptionLines.length === 0) {
+  if (azureSignOptionLines.length === 0 && lines.length === 1) {
     return null;
   }
 
-  return [
-    'win:',
-    '  azureSignOptions:',
-    ...azureSignOptionLines
-  ].join('\n');
+  if (azureSignOptionLines.length > 0) {
+    lines.push(
+      '  azureSignOptions:',
+      ...azureSignOptionLines
+    );
+  }
+
+  return lines.join('\n');
 }
 
 function renderStoreOverlayConfig(sourceConfigPath, packageIdentity, appx, { packageVersion, publisherOverride, signingConfig }) {

@@ -86,6 +86,8 @@ This follows the AppX guidance from electron-builder and Microsoft Store: Store 
 
 The signed variant uses Azure Trusted Signing through `electron-builder` `win.azureSignOptions`.
 
+Important: with the current `electron-builder` + Azure Trusted Signing flow, the embedded Windows binaries can be signed, but the final `.appx` itself should not be Authenticode-signed through Azure Trusted Signing. In practice this repository now renders `win.signExts: ["!.appx"]` for the signed Store overlay so the final package stays unsigned while the packaged Windows binaries still go through Trusted Signing. This avoids the known `SignTool Error: SignedCode::Sign returned error: 0x800700C1` failure on the final `.appx` signing step.
+
 For authentication, only these environment variables are required:
 
 - `AZURE_CLIENT_ID`

@@ -67,7 +67,14 @@ export async function finalizeAppxSigning({
     };
   }
 
-  await verifySignedArtifact(buildMetadata.signing.verificationScriptPath, signedArtifactPath);
+  const finalArtifactSigningExpected = buildMetadata.signing?.finalArtifactSigningExpected !== false;
+  const signingStatus = finalArtifactSigningExpected
+    ? 'signed-verified'
+    : 'content-signed-appx-unsigned';
+
+  if (finalArtifactSigningExpected) {
+    await verifySignedArtifact(buildMetadata.signing.verificationScriptPath, signedArtifactPath);
+  }
 
   const signedArtifactRecord = await createArtifactRecord({
     artifactPath: signedArtifactPath,
@@ -83,6 +90,8 @@ export async function finalizeAppxSigning({
       storePackageExtension: buildMetadata.storePackageExtension,
       variant: 'signed',
       signed: true,
+      contentSigned: true,
+      finalArtifactSigned: finalArtifactSigningExpected,
       primaryForStoreSubmission: false
     }
   });
@@ -91,22 +100,31 @@ export async function finalizeAppxSigning({
   artifactInventory.signing = {
     ...artifactInventory.signing,
     finalized: true,
-    status: 'signed-verified'
+    status: signingStatus
   };
 
   buildMetadata.signing = {
     ...buildMetadata.signing,
-    status: 'signed-verified'
+    status: signingStatus
   };
 
   await writeJson(buildMetadataPath, buildMetadata);
   await writeJson(artifactInventoryPath, artifactInventory);
 
-  await appendSummary([
-    `### AppX signing finalized for ${platformId}`,
-    `- Signed sideload artifact: ${path.basename(signedArtifactPath)}`,
-    `- Store package version: ${buildMetadata.storePackageVersion}`
-  ]);
+  await appendSummary(
+    finalArtifactSigningExpected
+      ? [
+          `### AppX signing finalized for ${platformId}`,
+          `- Signed sideload artifact: ${path.basename(signedArtifactPath)}`,
+          `- Store package version: ${buildMetadata.storePackageVersion}`
+        ]
+      : [
+          `### AppX signing finalized for ${platformId}`,
+          `- Signed-content artifact: ${path.basename(signedArtifactPath)}`,
+          '- Final AppX Authenticode signing intentionally skipped.',
+          '- Electron Builder still signed embedded Windows binaries before packaging.'
+        ]
+  );
 
   return {
     signedArtifactPath,
