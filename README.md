@@ -92,7 +92,13 @@ For authentication, only these environment variables are required:
 - `AZURE_TENANT_ID`
 - `AZURE_CLIENT_SECRET`
 
-The remaining Trusted Signing fields such as `publisherName`, `endpoint`, `certificateProfileName`, and `codeSigningAccountName` belong in your electron-builder configuration path, not in environment variables. `win_store_packer` will pass through any configured `win.azureSignOptions` values and will no longer fail early because those values are not present in the environment.
+The actual Trusted Signing config still needs `publisherName`, `endpoint`, `certificateProfileName`, and `codeSigningAccountName` in `win.azureSignOptions`. In this repository, `publisherName` is derived from `signing.publisherSubject`, while the other three values can come from `config/store-package.json` or from the declared fallback environment variables:
+
+- `AZURE_CODESIGN_ENDPOINT`
+- `AZURE_CODESIGN_ACCOUNT_NAME`
+- `AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME`
+
+Those fallback variables are not part of the Azure authentication contract, so `win_store_packer` no longer treats them as the primary required auth inputs. They are only used to finish rendering `win.azureSignOptions` for the signed AppX build.
 
 Configure the repository with the Microsoft Store credentials required by `microsoft/store-submission@v1`:
 

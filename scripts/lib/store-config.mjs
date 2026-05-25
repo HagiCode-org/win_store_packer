@@ -289,5 +289,22 @@ export function resolveStoreSigningConfig({
     );
   }
 
+  const missingTrustedSigningOptions = [];
+  if (!resolved.azure.endpoint) {
+    missingTrustedSigningOptions.push('endpoint');
+  }
+  if (!resolved.azure.codeSigningAccountName) {
+    missingTrustedSigningOptions.push('codeSigningAccountName');
+  }
+  if (!resolved.azure.certificateProfileName) {
+    missingTrustedSigningOptions.push('certificateProfileName');
+  }
+
+  if (missingTrustedSigningOptions.length > 0) {
+    throw new Error(
+      `Missing Azure Trusted Signing options: ${missingTrustedSigningOptions.join(', ')}. Configure them in storePackageConfig.signing.azure or via the declared fallback environment variables.`
+    );
+  }
+
   return resolved;
 }

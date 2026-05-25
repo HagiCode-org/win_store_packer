@@ -43,7 +43,10 @@
     "azure": {
       "clientIdEnvVar": "AZURE_CLIENT_ID",
       "tenantIdEnvVar": "AZURE_TENANT_ID",
-      "clientSecretEnvVar": "AZURE_CLIENT_SECRET"
+      "clientSecretEnvVar": "AZURE_CLIENT_SECRET",
+      "endpointEnvVar": "AZURE_CODESIGN_ENDPOINT",
+      "codeSigningAccountNameEnvVar": "AZURE_CODESIGN_ACCOUNT_NAME",
+      "certificateProfileNameEnvVar": "AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME"
     }
   },
   "desktop": {

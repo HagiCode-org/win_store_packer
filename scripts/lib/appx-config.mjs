@@ -52,14 +52,21 @@ function renderWinBlock(signingConfig) {
     return null;
   }
 
-  const hasAzureSigningOptions = Boolean(
-    signingConfig.azure.endpoint ||
-    signingConfig.azure.certificateProfileName ||
-    signingConfig.azure.codeSigningAccountName
-  );
+  const missingOptions = [];
+  if (!signingConfig.azure.endpoint) {
+    missingOptions.push('endpoint');
+  }
+  if (!signingConfig.azure.certificateProfileName) {
+    missingOptions.push('certificateProfileName');
+  }
+  if (!signingConfig.azure.codeSigningAccountName) {
+    missingOptions.push('codeSigningAccountName');
+  }
 
-  if (!hasAzureSigningOptions) {
-    return null;
+  if (missingOptions.length > 0) {
+    throw new Error(
+      `Cannot render win.azureSignOptions for a signed Store build because these Azure Trusted Signing values are missing: ${missingOptions.join(', ')}.`
+    );
   }
 
   const azureSignOptionLines = [

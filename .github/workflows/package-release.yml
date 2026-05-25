@@ -234,6 +234,13 @@ jobs:
 
       - name: Build AppX
         shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || secrets.CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || secrets.TENANT_ID || secrets.AZURE_AD_TENANT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET || secrets.CLIENT_SECRET || secrets.AZURE_AD_APPLICATION_SECRET }}
+          AZURE_CODESIGN_ENDPOINT: ${{ vars.AZURE_CODESIGN_ENDPOINT || secrets.AZURE_CODESIGN_ENDPOINT }}
+          AZURE_CODESIGN_ACCOUNT_NAME: ${{ vars.AZURE_CODESIGN_ACCOUNT_NAME || secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
+          AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME || secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
         run: |
           node scripts/build-appx.mjs \
             --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
