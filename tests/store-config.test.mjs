@@ -44,6 +44,7 @@ test('resolveStoreSigningConfig only requires Azure authentication environment v
     storePackageConfig,
     signingMode: 'required',
     env: {
+      AZURE_CODESIGN_APPX_PUBLISHER: 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F',
       AZURE_CLIENT_ID: 'client-id',
       AZURE_TENANT_ID: 'tenant-id',
       AZURE_CLIENT_SECRET: 'client-secret',
@@ -54,10 +55,30 @@ test('resolveStoreSigningConfig only requires Azure authentication environment v
   });
 
   assert.equal(signingConfig.publisher, storePackageConfig.signing.publisherSubject);
-  assert.equal(signingConfig.publisherName, '8B6C8A94-AAE5-4C8B-9202-A29EA42B042F');
+  assert.equal(signingConfig.publisherName, 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F');
   assert.equal(signingConfig.azure.endpoint, 'https://example.test');
   assert.equal(signingConfig.azure.codeSigningAccountName, 'account-name');
   assert.equal(signingConfig.azure.certificateProfileName, 'profile-name');
+});
+
+test('resolveStoreSigningConfig prefers AZURE_CODESIGN_APPX_PUBLISHER for the AppX publisher subject', async () => {
+  const storePackageConfig = await loadStorePackageConfig();
+  const signingConfig = resolveStoreSigningConfig({
+    storePackageConfig,
+    signingMode: 'required',
+    env: {
+      AZURE_CODESIGN_APPX_PUBLISHER: 'CN=Hagicode Publisher, O=HagiCode, C=US',
+      AZURE_CLIENT_ID: 'client-id',
+      AZURE_TENANT_ID: 'tenant-id',
+      AZURE_CLIENT_SECRET: 'client-secret',
+      AZURE_CODESIGN_ENDPOINT: 'https://example.test',
+      AZURE_CODESIGN_ACCOUNT_NAME: 'account-name',
+      AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: 'profile-name'
+    }
+  });
+
+  assert.equal(signingConfig.publisher, 'CN=Hagicode Publisher, O=HagiCode, C=US');
+  assert.equal(signingConfig.publisherName, 'CN=Hagicode Publisher, O=HagiCode, C=US');
 });
 
 test('resolveStoreSigningConfig reports missing Azure Trusted Signing options separately from auth envs', async () => {

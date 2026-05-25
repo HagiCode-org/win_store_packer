@@ -98,6 +98,10 @@ function validateSigningConfig(config) {
   const signing = requireObject(config, 'storePackageConfig.signing');
   const azure = requireObject(signing.azure, 'storePackageConfig.signing.azure');
   return {
+    publisherSubjectEnvVar: optionalNonEmptyString(
+      signing.publisherSubjectEnvVar,
+      'storePackageConfig.signing.publisherSubjectEnvVar'
+    ),
     publisherSubject: optionalNonEmptyString(signing.publisherSubject, 'storePackageConfig.signing.publisherSubject'),
     verificationScriptRelativePath: requireNonEmptyString(
       signing.verificationScriptRelativePath,
@@ -235,9 +239,12 @@ export function resolveStoreSigningConfig({
   const signing = validateSigningConfig(storePackageConfig.signing);
   const enabled = mode !== 'disabled';
   const required = mode === 'required';
-  const defaultPublisher = signing.publisherSubject ?? storePackageConfig.packageIdentity?.publisher ?? null;
+  const configuredPublisher = signing.publisherSubjectEnvVar
+    ? (env[signing.publisherSubjectEnvVar]?.trim() || null)
+    : null;
+  const defaultPublisher = configuredPublisher ?? signing.publisherSubject ?? storePackageConfig.packageIdentity?.publisher ?? null;
   const normalizedPublisher = defaultPublisher ? stripOptionalWrappingQuotes(defaultPublisher) : null;
-  const publisherName = signing.azure.publisherName ?? (normalizedPublisher ? extractCommonName(normalizedPublisher) : null);
+  const publisherName = signing.azure.publisherName ?? normalizedPublisher;
 
   const resolved = {
     mode,
@@ -245,6 +252,7 @@ export function resolveStoreSigningConfig({
     required,
     publisher: normalizedPublisher,
     publisherName,
+    publisherSubjectEnvVar: signing.publisherSubjectEnvVar ?? null,
     verificationScriptRelativePath: signing.verificationScriptRelativePath,
     azure: {
       clientId: env[signing.azure.clientIdEnvVar]?.trim() || null,

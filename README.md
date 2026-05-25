@@ -92,7 +92,11 @@ For authentication, only these environment variables are required:
 - `AZURE_TENANT_ID`
 - `AZURE_CLIENT_SECRET`
 
-The actual Trusted Signing config still needs `publisherName`, `endpoint`, `certificateProfileName`, and `codeSigningAccountName` in `win.azureSignOptions`. In this repository, `publisherName` is derived from `signing.publisherSubject`, while the other three values can come from `config/store-package.json` or from the declared fallback environment variables:
+The actual Trusted Signing config still needs `publisherName`, `endpoint`, `certificateProfileName`, and `codeSigningAccountName` in `win.azureSignOptions`. In this repository, AppX signing uses the full X.500 publisher subject for `publisherName`, because `electron-builder` reuses that field when it generates the AppX manifest for Azure Trusted Signing.
+
+By default the repository falls back to `signing.publisherSubject`, but if `AZURE_CODESIGN_APPX_PUBLISHER` is present it takes precedence and should contain the full subject string such as `CN=Example Publisher, O=Example Corp, C=US`.
+
+The remaining Trusted Signing fields can come from `config/store-package.json` or from the declared fallback environment variables:
 
 - `AZURE_CODESIGN_ENDPOINT`
 - `AZURE_CODESIGN_ACCOUNT_NAME`
