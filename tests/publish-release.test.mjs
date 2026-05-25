@@ -158,3 +158,113 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
   assert.equal(metadata.artifacts.filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName)).length, 2);
   assert.equal(metadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.variant, 'unsigned');
 });
+
+
+test('publishRelease resolves AppX artifacts from merged workflow artifact directories', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-publish-merged-'));
+  const artifactsDir = path.join(tempRoot, 'artifacts');
+  const outputDir = path.join(tempRoot, 'output');
+  const planPath = path.join(tempRoot, 'build-plan.json');
+  const signedArtifactDir = path.join(artifactsDir, 'store-package-win-x64-signed', 'release-assets');
+  const unsignedArtifactDir = path.join(artifactsDir, 'store-package-win-x64-unsigned', 'release-assets');
+  const signedInventoryDir = path.join(artifactsDir, 'store-package-win-x64-signed');
+  const unsignedInventoryDir = path.join(artifactsDir, 'store-package-win-x64-unsigned');
+  const signedFileName = 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx';
+  const unsignedFileName = 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx';
+  const signedMsixPath = path.join(signedArtifactDir, signedFileName);
+  const unsignedMsixPath = path.join(unsignedArtifactDir, unsignedFileName);
+
+  await mkdir(signedArtifactDir, { recursive: true });
+  await mkdir(unsignedArtifactDir, { recursive: true });
+  await writeFile(unsignedMsixPath, 'fixture-unsigned');
+  await writeFile(signedMsixPath, 'fixture-signed');
+  await writeJson(path.join(unsignedInventoryDir, 'artifact-inventory-win-x64-unsigned.json'), {
+    platform: 'win-x64',
+    artifactVariant: 'unsigned',
+    storePackageVersion: '0.3.0.0',
+    artifacts: [
+      {
+        platform: 'win-x64',
+        fileName: unsignedFileName,
+        outputPath: 'D:\\a\\_temp\\store-release-win-x64-unsigned\\release-assets\\' + unsignedFileName,
+        sizeBytes: 16,
+        sha256: 'abc',
+        variant: 'unsigned',
+        signed: false,
+        primaryForStoreSubmission: true
+      }
+    ]
+  });
+  await writeJson(path.join(signedInventoryDir, 'artifact-inventory-win-x64-signed.json'), {
+    platform: 'win-x64',
+    artifactVariant: 'signed',
+    storePackageVersion: '0.3.0.0',
+    artifacts: [
+      {
+        platform: 'win-x64',
+        fileName: signedFileName,
+        outputPath: 'D:\\a\\_temp\\store-release-win-x64-signed\\release-assets\\' + signedFileName,
+        sizeBytes: 14,
+        sha256: 'def',
+        variant: 'signed',
+        signed: true,
+        primaryForStoreSubmission: false
+      }
+    ]
+  });
+  await writeJson(planPath, {
+    platforms: ['win-x64'],
+    downloads: {
+      desktop: {},
+      server: {}
+    },
+    upstream: {
+      desktop: { version: 'v0.3.0', tag: 'v0.3.0', manifestUrl: 'https://index.hagicode.com/desktop/index.json', assetsByPlatform: { 'win-x64': { name: 'desktop.zip', path: 'desktop.zip' } } },
+      server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } }
+    },
+    store: {
+      packageIdentity: {
+        displayName: 'Hagicode',
+        publisherDisplayName: 'newbe36524',
+        publisher: 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F',
+        identityName: 'newbe36524.Hagicode',
+        backgroundColor: 'transparent',
+        languages: ['en-US'],
+        addAutoLaunchExtension: false
+      },
+      supportedWindowsTargets: ['win-x64']
+    },
+    release: {
+      repository: 'HagiCode-org/win_store_packer',
+      tag: 'store-desktop-v0.3.0-server-v0.1.0-beta.34',
+      name: 'Windows Store store-desktop-v0.3.0-server-v0.1.0-beta.34'
+    },
+    build: {
+      shouldBuild: true,
+      forceRebuild: false,
+      dryRun: true
+    },
+    handoff: {
+      schema: 'win-store-packer-handoff/v1',
+      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
+      consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' }
+    }
+  });
+
+  const result = await publishRelease({
+    planPath,
+    artifactsDir,
+    outputDir
+  });
+
+  assert.equal(result.dryRun, true);
+  const dryRunReportPath = path.join(outputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.publish-dry-run.json');
+  const dryRunReport = JSON.parse(await readFile(dryRunReportPath, 'utf8'));
+  assert.equal(dryRunReport.uploads.find((upload) => upload.fileName === signedFileName)?.filePath, signedMsixPath);
+  assert.equal(dryRunReport.uploads.find((upload) => upload.fileName === unsignedFileName)?.filePath, unsignedMsixPath);
+
+  const metadataPath = path.join(outputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json');
+  const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
+  assert.equal(metadata.artifacts.find((artifact) => artifact.fileName === signedFileName)?.uploadPath, signedMsixPath);
+  assert.equal(metadata.artifacts.find((artifact) => artifact.fileName === unsignedFileName)?.uploadPath, unsignedMsixPath);
+});

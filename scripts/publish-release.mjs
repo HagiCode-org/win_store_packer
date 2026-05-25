@@ -19,7 +19,35 @@ function contentTypeFromPath(filePath) {
   return 'application/octet-stream';
 }
 
-async function resolveArtifactUploadPath(artifactsDir, artifact) {
+function resolveArtifactFileNames(artifact) {
+  return [...new Set([
+    artifact.fileName,
+    artifact.outputPath ? path.basename(artifact.outputPath) : null,
+    artifact.outputPath ? path.posix.basename(artifact.outputPath) : null,
+    artifact.outputPath ? path.win32.basename(artifact.outputPath) : null
+  ].filter(Boolean))];
+}
+
+function scoreResolvedArtifactPath(filePath, fileNames) {
+  const basename = path.basename(filePath);
+  const win32Basename = path.win32.basename(filePath);
+  const posixBasename = path.posix.basename(filePath);
+  const normalizedPath = filePath.replaceAll('\\', '/');
+  const matchesRequestedName = fileNames.some((fileName) => fileName === basename || fileName === win32Basename || fileName === posixBasename);
+
+  if (matchesRequestedName && /(^|\/)release-assets\//.test(normalizedPath)) {
+    return 0;
+  }
+
+  if (matchesRequestedName) {
+    return 1;
+  }
+
+  return 2;
+}
+
+async function resolveArtifactUploadPath(artifactsDir, artifact, availableFiles = []) {
+  const fileNames = resolveArtifactFileNames(artifact);
   const candidates = [
     artifact.outputPath,
     path.join(artifactsDir, artifact.fileName),
@@ -30,6 +58,23 @@ async function resolveArtifactUploadPath(artifactsDir, artifact) {
     if (await pathExists(candidate)) {
       return candidate;
     }
+  }
+
+  const recursiveMatches = availableFiles
+    .filter((entry) => fileNames.some((fileName) => fileName === path.basename(entry) || fileName === path.win32.basename(entry) || fileName === path.posix.basename(entry)))
+    .sort((left, right) => {
+      const scoreDifference = scoreResolvedArtifactPath(left, fileNames) - scoreResolvedArtifactPath(right, fileNames);
+      if (scoreDifference !== 0) {
+        return scoreDifference;
+      }
+      if (left.length !== right.length) {
+        return left.length - right.length;
+      }
+      return left.localeCompare(right);
+    });
+
+  if (recursiveMatches.length > 0) {
+    return recursiveMatches[0];
   }
 
   throw new Error(`Unable to find uploaded artifact ${artifact.fileName}. Checked: ${candidates.join(', ')}`);
@@ -43,6 +88,7 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
   }
 
   const inventories = await Promise.all(inventoryFiles.sort().map((entry) => readJson(entry)));
+  const availableFiles = files.filter((entry) => !inventoryFiles.includes(entry));
   const storePackageVersion = inventories.map((inventory) => inventory.storePackageVersion).find(Boolean) ?? null;
   const mergedInventory = {
     releaseTag: plan.release.tag,
@@ -54,7 +100,7 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
   };
 
   const releaseAssets = await Promise.all(
-    mergedInventory.artifacts.map((artifact) => resolveArtifactUploadPath(artifactsDir, artifact))
+    mergedInventory.artifacts.map((artifact) => resolveArtifactUploadPath(artifactsDir, artifact, availableFiles))
   );
 
   const releaseMetadata = {
