@@ -98,7 +98,7 @@ function validateSigningConfig(config) {
   const signing = requireObject(config, 'storePackageConfig.signing');
   const azure = requireObject(signing.azure, 'storePackageConfig.signing.azure');
   return {
-    publisherSubjectEnvVar: requireNonEmptyString(signing.publisherSubjectEnvVar, 'storePackageConfig.signing.publisherSubjectEnvVar'),
+    publisherSubject: optionalNonEmptyString(signing.publisherSubject, 'storePackageConfig.signing.publisherSubject'),
     verificationScriptRelativePath: requireNonEmptyString(
       signing.verificationScriptRelativePath,
       'storePackageConfig.signing.verificationScriptRelativePath'
@@ -110,9 +110,22 @@ function validateSigningConfig(config) {
         azure.clientSecretEnvVar,
         'storePackageConfig.signing.azure.clientSecretEnvVar'
       ),
-      endpointEnvVar: requireNonEmptyString(azure.endpointEnvVar, 'storePackageConfig.signing.azure.endpointEnvVar'),
-      accountNameEnvVar: requireNonEmptyString(azure.accountNameEnvVar, 'storePackageConfig.signing.azure.accountNameEnvVar'),
-      certificateProfileNameEnvVar: requireNonEmptyString(
+      publisherName: optionalNonEmptyString(azure.publisherName, 'storePackageConfig.signing.azure.publisherName'),
+      endpoint: optionalNonEmptyString(azure.endpoint, 'storePackageConfig.signing.azure.endpoint'),
+      codeSigningAccountName: optionalNonEmptyString(
+        azure.codeSigningAccountName,
+        'storePackageConfig.signing.azure.codeSigningAccountName'
+      ),
+      certificateProfileName: optionalNonEmptyString(
+        azure.certificateProfileName,
+        'storePackageConfig.signing.azure.certificateProfileName'
+      ),
+      endpointEnvVar: optionalNonEmptyString(azure.endpointEnvVar, 'storePackageConfig.signing.azure.endpointEnvVar'),
+      codeSigningAccountNameEnvVar: optionalNonEmptyString(
+        azure.codeSigningAccountNameEnvVar,
+        'storePackageConfig.signing.azure.codeSigningAccountNameEnvVar'
+      ),
+      certificateProfileNameEnvVar: optionalNonEmptyString(
         azure.certificateProfileNameEnvVar,
         'storePackageConfig.signing.azure.certificateProfileNameEnvVar'
       )
@@ -207,13 +220,9 @@ export function normalizeStoreSigningMode(value) {
 export function getStoreSigningEnvironmentVariableNames(storePackageConfig) {
   const signing = validateSigningConfig(storePackageConfig.signing);
   return [
-    signing.publisherSubjectEnvVar,
     signing.azure.clientIdEnvVar,
     signing.azure.tenantIdEnvVar,
-    signing.azure.clientSecretEnvVar,
-    signing.azure.endpointEnvVar,
-    signing.azure.accountNameEnvVar,
-    signing.azure.certificateProfileNameEnvVar
+    signing.azure.clientSecretEnvVar
   ];
 }
 
@@ -226,9 +235,9 @@ export function resolveStoreSigningConfig({
   const signing = validateSigningConfig(storePackageConfig.signing);
   const enabled = mode !== 'disabled';
   const required = mode === 'required';
-  const rawPublisher = env[signing.publisherSubjectEnvVar]?.trim() || null;
-  const normalizedPublisher = rawPublisher ? stripOptionalWrappingQuotes(rawPublisher) : null;
-  const publisherName = normalizedPublisher ? extractCommonName(normalizedPublisher) : null;
+  const defaultPublisher = signing.publisherSubject ?? storePackageConfig.packageIdentity?.publisher ?? null;
+  const normalizedPublisher = defaultPublisher ? stripOptionalWrappingQuotes(defaultPublisher) : null;
+  const publisherName = signing.azure.publisherName ?? (normalizedPublisher ? extractCommonName(normalizedPublisher) : null);
 
   const resolved = {
     mode,
@@ -236,24 +245,19 @@ export function resolveStoreSigningConfig({
     required,
     publisher: normalizedPublisher,
     publisherName,
-    publisherSubjectEnvVar: signing.publisherSubjectEnvVar,
     verificationScriptRelativePath: signing.verificationScriptRelativePath,
     azure: {
       clientId: env[signing.azure.clientIdEnvVar]?.trim() || null,
       tenantId: env[signing.azure.tenantIdEnvVar]?.trim() || null,
       clientSecret: env[signing.azure.clientSecretEnvVar]?.trim() || null,
-      endpoint: env[signing.azure.endpointEnvVar]?.trim() || null,
-      accountName: env[signing.azure.accountNameEnvVar]?.trim() || null,
-      certificateProfileName: env[signing.azure.certificateProfileNameEnvVar]?.trim() || null
+      endpoint: signing.azure.endpoint ?? (env[signing.azure.endpointEnvVar]?.trim() || null),
+      codeSigningAccountName: signing.azure.codeSigningAccountName ?? (env[signing.azure.codeSigningAccountNameEnvVar]?.trim() || null),
+      certificateProfileName: signing.azure.certificateProfileName ?? (env[signing.azure.certificateProfileNameEnvVar]?.trim() || null)
     },
     envVarNames: {
-      publisher: signing.publisherSubjectEnvVar,
       clientId: signing.azure.clientIdEnvVar,
       tenantId: signing.azure.tenantIdEnvVar,
-      clientSecret: signing.azure.clientSecretEnvVar,
-      endpoint: signing.azure.endpointEnvVar,
-      accountName: signing.azure.accountNameEnvVar,
-      certificateProfileName: signing.azure.certificateProfileNameEnvVar
+      clientSecret: signing.azure.clientSecretEnvVar
     },
     missing: []
   };
@@ -263,7 +267,7 @@ export function resolveStoreSigningConfig({
   }
 
   for (const [key, envVarName] of Object.entries(resolved.envVarNames)) {
-    const value = key === 'publisher' ? resolved.publisher : resolved.azure[key];
+    const value = resolved.azure[key];
     if (!value) {
       resolved.missing.push(envVarName);
     }
@@ -275,13 +279,13 @@ export function resolveStoreSigningConfig({
 
   if (!isValidDistinguishedName(resolved.publisher)) {
     throw new Error(
-      `Invalid Store signing publisher in ${resolved.publisherSubjectEnvVar}. Expected an X.500 subject like CN=Example, O=Example Corp, C=US.`
+      'Invalid Store signing publisher. Expected an X.500 subject like CN=Example, O=Example Corp, C=US.'
     );
   }
 
   if (!resolved.publisherName) {
     throw new Error(
-      `Unable to derive Azure Trusted Signing publisherName from ${resolved.publisherSubjectEnvVar}. Expected the certificate subject to include a CN component.`
+      'Unable to derive Azure Trusted Signing publisherName from storePackageConfig.signing.publisherSubject. Expected the certificate subject to include a CN component.'
     );
   }
 

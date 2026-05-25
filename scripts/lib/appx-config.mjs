@@ -52,13 +52,31 @@ function renderWinBlock(signingConfig) {
     return null;
   }
 
+  const hasAzureSigningOptions = Boolean(
+    signingConfig.azure.endpoint ||
+    signingConfig.azure.certificateProfileName ||
+    signingConfig.azure.codeSigningAccountName
+  );
+
+  if (!hasAzureSigningOptions) {
+    return null;
+  }
+
+  const azureSignOptionLines = [
+    signingConfig.publisherName ? `    publisherName: ${yamlScalar(signingConfig.publisherName)}` : null,
+    signingConfig.azure.endpoint ? `    endpoint: ${yamlScalar(signingConfig.azure.endpoint)}` : null,
+    signingConfig.azure.certificateProfileName ? `    certificateProfileName: ${yamlScalar(signingConfig.azure.certificateProfileName)}` : null,
+    signingConfig.azure.codeSigningAccountName ? `    codeSigningAccountName: ${yamlScalar(signingConfig.azure.codeSigningAccountName)}` : null
+  ].filter(Boolean);
+
+  if (azureSignOptionLines.length === 0) {
+    return null;
+  }
+
   return [
     'win:',
     '  azureSignOptions:',
-    `    publisherName: ${yamlScalar(signingConfig.publisherName)}`,
-    `    endpoint: ${yamlScalar(signingConfig.azure.endpoint)}`,
-    `    certificateProfileName: ${yamlScalar(signingConfig.azure.certificateProfileName)}`,
-    `    codeSigningAccountName: ${yamlScalar(signingConfig.azure.accountName)}`
+    ...azureSignOptionLines
   ].join('\n');
 }
 

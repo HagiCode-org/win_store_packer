@@ -34,17 +34,32 @@ test('resolveStoreSigningConfig reports missing Azure signing inputs when signin
         signingMode: 'required',
         env: {}
       }),
-    /Missing Store signing configuration/
+    /Missing Store signing configuration: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_CLIENT_SECRET/
   );
 });
 
-test('resolveStoreSigningConfig accepts a publisher subject wrapped in quotes', async () => {
+test('resolveStoreSigningConfig only requires Azure authentication environment variables', async () => {
   const storePackageConfig = await loadStorePackageConfig();
   const signingConfig = resolveStoreSigningConfig({
     storePackageConfig,
     signingMode: 'required',
     env: {
-      AZURE_CODESIGN_APPX_PUBLISHER: '"CN=Hagicode, O=HagiCode, C=US"',
+      AZURE_CLIENT_ID: 'client-id',
+      AZURE_TENANT_ID: 'tenant-id',
+      AZURE_CLIENT_SECRET: 'client-secret'
+    }
+  });
+
+  assert.equal(signingConfig.publisher, storePackageConfig.signing.publisherSubject);
+  assert.equal(signingConfig.publisherName, '8B6C8A94-AAE5-4C8B-9202-A29EA42B042F');
+});
+
+test('resolveStoreSigningConfig ignores optional Azure Trusted Signing environment variables when they are not declared in config', async () => {
+  const storePackageConfig = await loadStorePackageConfig();
+  const signingConfig = resolveStoreSigningConfig({
+    storePackageConfig,
+    signingMode: 'required',
+    env: {
       AZURE_CLIENT_ID: 'client-id',
       AZURE_TENANT_ID: 'tenant-id',
       AZURE_CLIENT_SECRET: 'client-secret',
@@ -54,25 +69,30 @@ test('resolveStoreSigningConfig accepts a publisher subject wrapped in quotes', 
     }
   });
 
-  assert.equal(signingConfig.publisher, 'CN=Hagicode, O=HagiCode, C=US');
-  assert.equal(signingConfig.publisherName, 'Hagicode');
+  assert.equal(signingConfig.azure.endpoint, null);
+  assert.equal(signingConfig.azure.codeSigningAccountName, null);
+  assert.equal(signingConfig.azure.certificateProfileName, null);
 });
 
 test('resolveStoreSigningConfig rejects a publisher that is not a valid distinguished name', async () => {
   const storePackageConfig = await loadStorePackageConfig();
+  const invalidPublisherConfig = {
+    ...storePackageConfig,
+    signing: {
+      ...storePackageConfig.signing,
+      publisherSubject: 'not-a-distinguished-name'
+    }
+  };
+
   assert.throws(
     () =>
       resolveStoreSigningConfig({
-        storePackageConfig,
+        storePackageConfig: invalidPublisherConfig,
         signingMode: 'required',
         env: {
-          AZURE_CODESIGN_APPX_PUBLISHER: 'not-a-distinguished-name',
           AZURE_CLIENT_ID: 'client-id',
           AZURE_TENANT_ID: 'tenant-id',
-          AZURE_CLIENT_SECRET: 'client-secret',
-          AZURE_CODESIGN_ENDPOINT: 'https://example.test',
-          AZURE_CODESIGN_ACCOUNT_NAME: 'account-name',
-          AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: 'profile-name'
+          AZURE_CLIENT_SECRET: 'client-secret'
         }
       }),
     /Invalid Store signing publisher/

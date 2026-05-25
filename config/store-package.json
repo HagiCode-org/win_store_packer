@@ -38,15 +38,12 @@
     "revision": 0
   },
   "signing": {
-    "publisherSubjectEnvVar": "AZURE_CODESIGN_APPX_PUBLISHER",
+    "publisherSubject": "CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F",
     "verificationScriptRelativePath": "scripts/verify-signature.mjs",
     "azure": {
       "clientIdEnvVar": "AZURE_CLIENT_ID",
       "tenantIdEnvVar": "AZURE_TENANT_ID",
-      "clientSecretEnvVar": "AZURE_CLIENT_SECRET",
-      "endpointEnvVar": "AZURE_CODESIGN_ENDPOINT",
-      "accountNameEnvVar": "AZURE_CODESIGN_ACCOUNT_NAME",
-      "certificateProfileNameEnvVar": "AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME"
+      "clientSecretEnvVar": "AZURE_CLIENT_SECRET"
     }
   },
   "desktop": {

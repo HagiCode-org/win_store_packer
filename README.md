@@ -33,7 +33,7 @@ Defines the Store package identity metadata and packaging contract:
 - `appx.capabilities`
 - `packageVersion.source`
 - `packageVersion.revision`
-- `signing.publisherSubjectEnvVar`
+- `signing.publisherSubject`
 - `signing.verificationScriptRelativePath`
 - `signing.azure.*`
 - `supportedWindowsTargets`
@@ -84,17 +84,15 @@ This follows the AppX guidance from electron-builder and Microsoft Store: Store 
 
 ### Optional AppX sideload signing
 
-The signed variant uses Azure Trusted Signing through `electron-builder` `win.azureSignOptions`. If you need a separately signed AppX for enterprise sideloading or internal validation, configure:
+The signed variant uses Azure Trusted Signing through `electron-builder` `win.azureSignOptions`.
+
+For authentication, only these environment variables are required:
 
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
 - `AZURE_CLIENT_SECRET`
-- `AZURE_CODESIGN_ENDPOINT`
-- `AZURE_CODESIGN_ACCOUNT_NAME`
-- `AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME`
-- `AZURE_CODESIGN_APPX_PUBLISHER`
 
-`AZURE_CODESIGN_APPX_PUBLISHER` must match the signing certificate subject. The `CN=` component is also used to derive `publisherName` for Azure Trusted Signing.
+The remaining Trusted Signing fields such as `publisherName`, `endpoint`, `certificateProfileName`, and `codeSigningAccountName` belong in your electron-builder configuration path, not in environment variables. `win_store_packer` will pass through any configured `win.azureSignOptions` values and will no longer fail early because those values are not present in the environment.
 
 Configure the repository with the Microsoft Store credentials required by `microsoft/store-submission@v1`:
 
@@ -162,10 +160,6 @@ Build the signed AppX variant:
 AZURE_CLIENT_ID=... \
 AZURE_TENANT_ID=... \
 AZURE_CLIENT_SECRET=... \
-AZURE_CODESIGN_ENDPOINT=... \
-AZURE_CODESIGN_ACCOUNT_NAME=... \
-AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME=... \
-AZURE_CODESIGN_APPX_PUBLISHER="CN=..." \
 node scripts/build-appx.mjs \
   --plan build/build-plan.json \
   --platform win-x64 \
