@@ -40,7 +40,7 @@
   "signing": {
     "publisherSubjectEnvVar": "AZURE_CODESIGN_APPX_PUBLISHER",
     "publisherSubject": "CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F",
-    "skipFinalAppxSigning": true,
+    "skipFinalAppxSigning": false,
     "verificationScriptRelativePath": "scripts/verify-signature.mjs",
     "azure": {
       "clientIdEnvVar": "AZURE_CLIENT_ID",

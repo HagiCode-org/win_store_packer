@@ -293,7 +293,7 @@ test('build-appx fails early when signed packaging is required but Azure signing
   );
 });
 
-test('signed Store overlay excludes final appx signing while preserving Trusted Signing for embedded binaries', async () => {
+test('signed Store overlay enables final appx signing alongside Trusted Signing for embedded binaries', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-signed-overlay-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -361,8 +361,8 @@ test('signed Store overlay excludes final appx signing while preserving Trusted 
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.signed.yml'), 'utf8');
   const buildMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64-signed.json'));
 
-  assert.match(overlayConfigText, /signExts:\n\s+- "!\.appx"/);
+  assert.doesNotMatch(overlayConfigText, /signExts:/);
   assert.match(overlayConfigText, /azureSignOptions:/);
-  assert.equal(buildMetadata.signing.skipFinalAppxSigning, true);
-  assert.equal(buildMetadata.signing.finalArtifactSigningExpected, false);
+  assert.equal(buildMetadata.signing.skipFinalAppxSigning, false);
+  assert.equal(buildMetadata.signing.finalArtifactSigningExpected, true);
 });
