@@ -53,7 +53,7 @@ function createPlan(tempRoot) {
     },
     platforms: ['win-x64'],
     platformMatrix: {
-      include: [{ platform: 'win-x64', runner: 'windows-latest', runtimeKey: 'win-x64-nort' }]
+      include: [{ platform: 'win-x64', runner: 'windows-2025', runtimeKey: 'win-x64-nort' }]
     },
     downloads: {
       strategy: 'azure-blob-sas',

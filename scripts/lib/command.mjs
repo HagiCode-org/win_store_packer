@@ -1,11 +1,11 @@
 import { spawn } from 'node:child_process';
 
 export function shouldUseWindowsShell(command, shell, platform = process.platform) {
-  if (shell || platform !== 'win32') {
+  if (platform !== 'win32') {
     return shell;
   }
 
-  return /\.(?:cmd|bat)$/i.test(String(command));
+  return Boolean(shell);
 }
 
 export async function runCommand(command, args = [], options = {}) {

@@ -3,7 +3,7 @@ export const DEFAULT_PLATFORMS = ['win-x64'];
 const PLATFORM_MAP = {
   'win-x64': {
     id: 'win-x64',
-    runner: 'windows-latest',
+    runner: 'windows-2025',
     runtimeKey: 'win-x64-nort',
     desktopAssetPatterns: [
       /^hagicode\.desktop\..*-unpacked\.zip$/i,
