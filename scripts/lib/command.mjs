@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execa } from 'execa';
 
 export function shouldUseWindowsShell(command, shell, platform = process.platform) {
   if (platform !== 'win32') {
@@ -6,6 +6,10 @@ export function shouldUseWindowsShell(command, shell, platform = process.platfor
   }
 
   return Boolean(shell);
+}
+
+function buildStdio(stdio) {
+  return stdio === 'pipe' ? 'pipe' : stdio;
 }
 
 export async function runCommand(command, args = [], options = {}) {
@@ -17,40 +21,19 @@ export async function runCommand(command, args = [], options = {}) {
     stdio = 'inherit'
   } = options;
 
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd,
-      env,
-      shell: shouldUseWindowsShell(command, shell),
-      stdio: stdio === 'pipe' ? ['pipe', 'pipe', 'pipe'] : stdio
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    if (stdio === 'pipe') {
-      child.stdout?.on('data', (chunk) => {
-        stdout += chunk.toString();
-      });
-      child.stderr?.on('data', (chunk) => {
-        stderr += chunk.toString();
-      });
-      if (input) {
-        child.stdin?.write(input);
-      }
-      child.stdin?.end();
-    }
-
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve({ stdout, stderr });
-        return;
-      }
-
-      reject(new Error(`Command failed: ${command} ${args.join(' ')}${stderr ? `\n${stderr}` : ''}`));
-    });
+  const result = await execa(command, args, {
+    cwd,
+    env,
+    input,
+    shell: shouldUseWindowsShell(command, shell),
+    stdio: buildStdio(stdio),
+    reject: true
   });
+
+  return {
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? ''
+  };
 }
 
 export async function runCommandResult(command, args = [], options = {}) {
@@ -61,36 +44,26 @@ export async function runCommandResult(command, args = [], options = {}) {
     shell = false
   } = options;
 
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+  try {
+    const result = await execa(command, args, {
       cwd,
       env,
+      input,
       shell: shouldUseWindowsShell(command, shell),
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: 'pipe',
+      reject: true
     });
 
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr?.on('data', (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    if (input) {
-      child.stdin?.write(input);
-    }
-    child.stdin?.end();
-
-    child.on('error', reject);
-    child.on('close', (code) => {
-      resolve({
-        code: code ?? 1,
-        stdout,
-        stderr
-      });
-    });
-  });
+    return {
+      code: result.exitCode ?? 0,
+      stdout: result.stdout ?? '',
+      stderr: result.stderr ?? ''
+    };
+  } catch (error) {
+    return {
+      code: error.exitCode ?? 1,
+      stdout: error.stdout ?? '',
+      stderr: error.stderr ?? error.shortMessage ?? String(error)
+    };
+  }
 }
