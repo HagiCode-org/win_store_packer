@@ -53,6 +53,10 @@ jobs:
           node-version: '22'
           package-manager-cache: false
 
+      - name: Install win_store_packer dependencies
+        shell: bash
+        run: npm ci
+
       - name: Install global hagiscript
         shell: bash
         run: |
@@ -131,6 +135,10 @@ jobs:
         with:
           node-version: '22'
           package-manager-cache: false
+
+      - name: Install win_store_packer dependencies
+        shell: bash
+        run: npm ci
 
       - name: Install global hagiscript
         shell: bash
@@ -313,6 +321,10 @@ jobs:
         with:
           node-version: '22'
           package-manager-cache: false
+
+      - name: Install win_store_packer dependencies
+        shell: bash
+        run: npm ci
 
       - name: Download resolved build plan
         uses: actions/download-artifact@v8
