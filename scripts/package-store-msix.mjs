@@ -8,6 +8,8 @@ import { runCommand } from './lib/command.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const WINAPPCLI_VERSION = '0.3.1';
+const WINAPPCLI_PACKAGE_BASENAME = 'winappcli';
+const WINAPPCLI_TELEMETRY_OPTOUT_ENV = 'WINAPP_CLI_TELEMETRY_OPTOUT';
 const WINDOWS_PACKAGE_PUBLISHER_ENV = 'WINDOWS_PACKAGE_PUBLISHER';
 const REQUIRED_APPX_ASSETS = [
   'StoreLogo.png',
@@ -152,25 +154,41 @@ function parseGeneratedStoreConfig(configText) {
   return result;
 }
 
-function npxCommand() {
-  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
+export function getWinAppCliTarballUrl(version = WINAPPCLI_VERSION) {
+  return `https://registry.npmjs.org/@microsoft/winappcli/-/${WINAPPCLI_PACKAGE_BASENAME}-${version}.tgz`;
 }
 
-function quoteWindowsShellArg(rawValue) {
-  const value = String(rawValue ?? '');
-  if (value.length === 0) {
-    return '""';
-  }
-
-  if (!/[\s"&()<>^|]/.test(value)) {
-    return value;
-  }
-
-  return `"${value.replace(/"/g, '""')}"`;
+export function resolveWinAppCliExecutableRelativePath(nodeArch = process.arch) {
+  return path.join('package', 'bin', `win-${toWindowsArch(nodeArch)}`, 'winapp.exe');
 }
 
-export function buildWindowsShellCommand(command, args) {
-  return [command, ...args].map(quoteWindowsShellArg).join(' ');
+async function downloadFile(url, destinationPath) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
+  }
+
+  const content = Buffer.from(await response.arrayBuffer());
+  await fsp.writeFile(destinationPath, content);
+}
+
+async function ensureWinAppCliExecutable(cacheRoot) {
+  const archivePath = path.join(cacheRoot, `${WINAPPCLI_PACKAGE_BASENAME}-${WINAPPCLI_VERSION}.tgz`);
+  const executablePath = path.join(cacheRoot, resolveWinAppCliExecutableRelativePath());
+
+  if (fs.existsSync(executablePath)) {
+    return executablePath;
+  }
+
+  await fsp.rm(cacheRoot, { recursive: true, force: true });
+  await fsp.mkdir(cacheRoot, { recursive: true });
+
+  console.log(`[msix] downloading winappcli ${WINAPPCLI_VERSION}`);
+  await downloadFile(getWinAppCliTarballUrl(), archivePath);
+  await runCommand('tar', ['-xf', archivePath, '-C', cacheRoot]);
+  await ensureRequiredFilesExist([executablePath]);
+
+  return executablePath;
 }
 
 function escapeXml(value) {
@@ -381,9 +399,8 @@ export async function packageStoreMsix(rawOptions = {}) {
   await fsp.rm(artifactPath, { force: true });
 
   if (process.platform === 'win32') {
+    const winAppCliPath = await ensureWinAppCliExecutable(path.join(options.stagePath, 'tools', `winappcli-${WINAPPCLI_VERSION}`));
     const packageArgs = [
-      '--yes',
-      `@microsoft/winappcli@${WINAPPCLI_VERSION}`,
       'package',
       stageAppDir,
       '--manifest',
@@ -400,8 +417,12 @@ export async function packageStoreMsix(rawOptions = {}) {
       packageArgs.push('--verbose');
     }
 
-    await runCommand('cmd.exe', ['/d', '/s', '/c', buildWindowsShellCommand(npxCommand(), packageArgs)], {
+    await runCommand(winAppCliPath, packageArgs, {
       cwd: options.projectRoot,
+      env: {
+        ...process.env,
+        [WINAPPCLI_TELEMETRY_OPTOUT_ENV]: '1',
+      },
     });
   } else {
     await createArchive(stageAppDir, artifactPath);

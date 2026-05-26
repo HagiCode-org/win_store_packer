@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { buildWindowsShellCommand, parseArgs } from '../scripts/package-store-msix.mjs';
+import { getWinAppCliTarballUrl, parseArgs, resolveWinAppCliExecutableRelativePath } from '../scripts/package-store-msix.mjs';
 
 test('parseArgs strips wrapping quotes from Windows shell argument values', async () => {
   const projectRoot = path.resolve('/tmp/win-store-packer');
@@ -33,22 +33,20 @@ test('parseArgs strips wrapping quotes from Windows shell argument values', asyn
   assert.equal(options.assetsPath, path.resolve(projectRoot, 'resources/appx'));
 });
 
-test('buildWindowsShellCommand quotes executable arguments with spaces for cmd.exe', async () => {
-  const command = buildWindowsShellCommand('npx.cmd', [
-    '--yes',
-    '@microsoft/winappcli@0.3.1',
-    'package',
-    'D:/tmp/msix-stage/app',
-    '--manifest',
-    'D:/tmp/msix-stage/app/Package.appxmanifest',
-    '--output',
-    'D:/tmp/pkg',
-    '--name',
-    'Hagicode-0.1.57.0-x64.msix',
-    '--executable',
-    'Hagicode Desktop.exe',
-  ]);
+test('getWinAppCliTarballUrl resolves the npm registry archive URL', async () => {
+  assert.equal(
+    getWinAppCliTarballUrl('0.3.1'),
+    'https://registry.npmjs.org/@microsoft/winappcli/-/winappcli-0.3.1.tgz'
+  );
+});
 
-  assert.ok(command.startsWith('npx.cmd --yes @microsoft/winappcli@0.3.1 package D:/tmp/msix-stage/app'));
-  assert.match(command, /--executable "Hagicode Desktop.exe"$/);
+test('resolveWinAppCliExecutableRelativePath maps node architectures to packaged winapp binaries', async () => {
+  assert.equal(
+    resolveWinAppCliExecutableRelativePath('x64').replaceAll('\\', '/'),
+    'package/bin/win-x64/winapp.exe'
+  );
+  assert.equal(
+    resolveWinAppCliExecutableRelativePath('arm64').replaceAll('\\', '/'),
+    'package/bin/win-arm64/winapp.exe'
+  );
 });
