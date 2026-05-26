@@ -153,7 +153,8 @@ export async function buildAppx({
   }
 
   const packageLockPath = path.join(workspaceManifest.desktopWorkspace, 'package-lock.json');
-  if (!forceDryRun && await pathExists(packageLockPath)) {
+  const skipDesktopWorkspaceInstall = process.env.WIN_STORE_PACKER_SKIP_DESKTOP_NPM_CI === '1';
+  if (!forceDryRun && !skipDesktopWorkspaceInstall && await pathExists(packageLockPath)) {
     await runCommand(npmCommand(), ['ci'], { cwd: workspaceManifest.desktopWorkspace });
   }
 

@@ -218,9 +218,16 @@ jobs:
             --platform "${{ matrix.target.platform }}" \
             --workspace "$STORE_WORKSPACE"
 
+      - name: Install desktop workspace dependencies
+        shell: bash
+        run: |
+          cd "$STORE_WORKSPACE/extracted/desktop"
+          npm ci
+
       - name: Build Store package
         shell: bash
         env:
+          WIN_STORE_PACKER_SKIP_DESKTOP_NPM_CI: '1'
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || secrets.CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || secrets.TENANT_ID || secrets.AZURE_AD_TENANT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET || secrets.CLIENT_SECRET || secrets.AZURE_AD_APPLICATION_SECRET }}
