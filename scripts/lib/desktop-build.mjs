@@ -50,7 +50,7 @@ export async function resolveDesktopStoreBuildStrategy({ desktopWorkspace }) {
 }
 
 function shellQuote(value) {
-  return JSON.stringify(String(value));
+  return JSON.stringify(String(value).replaceAll('\\', '/'));
 }
 
 export function buildDesktopStoreCommand(overlayConfigPath, strategy, options = {}) {
