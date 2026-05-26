@@ -16,7 +16,20 @@ const REQUIRED_APPX_ASSETS = [
   'Wide310x150Logo.png',
 ];
 
-function parseArgs(argv) {
+function stripWrappingQuotes(rawValue) {
+  const value = String(rawValue ?? '').trim();
+  if (value.length >= 2) {
+    const first = value[0];
+    const last = value[value.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return value.slice(1, -1);
+    }
+  }
+
+  return value;
+}
+
+export function parseArgs(argv) {
   const options = {
     projectRoot: process.cwd(),
     config: 'electron-builder.yml',
@@ -31,22 +44,22 @@ function parseArgs(argv) {
     const arg = argv[index];
     switch (arg) {
       case '--project-root':
-        options.projectRoot = path.resolve(argv[++index]);
+        options.projectRoot = path.resolve(stripWrappingQuotes(argv[++index]));
         break;
       case '--config':
-        options.config = argv[++index];
+        options.config = stripWrappingQuotes(argv[++index]);
         break;
       case '--input':
-        options.input = argv[++index];
+        options.input = stripWrappingQuotes(argv[++index]);
         break;
       case '--output':
-        options.output = argv[++index];
+        options.output = stripWrappingQuotes(argv[++index]);
         break;
       case '--stage':
-        options.stage = argv[++index];
+        options.stage = stripWrappingQuotes(argv[++index]);
         break;
       case '--assets':
-        options.assets = argv[++index];
+        options.assets = stripWrappingQuotes(argv[++index]);
         break;
       case '--verbose':
         options.verbose = true;
