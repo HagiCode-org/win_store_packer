@@ -49,9 +49,18 @@ export async function resolveDesktopStoreBuildStrategy({ desktopWorkspace }) {
   };
 }
 
-export function buildDesktopStoreCommand(overlayConfigPath, strategy) {
+function shellQuote(value) {
+  return JSON.stringify(String(value));
+}
+
+export function buildDesktopStoreCommand(overlayConfigPath, strategy, options = {}) {
   if (!strategy.canBuild) {
     throw new Error('Desktop workspace is missing the current Store packaging pipeline required by win_store_packer.');
+  }
+
+  const packerRepoRoot = options.packerRepoRoot;
+  if (!packerRepoRoot) {
+    throw new Error('buildDesktopStoreCommand requires options.packerRepoRoot for MSIX packaging.');
   }
 
   const commands = [];
@@ -68,7 +77,23 @@ export function buildDesktopStoreCommand(overlayConfigPath, strategy) {
     }
   }
 
-  commands.push(`node scripts/run-electron-builder.js --win appx --publish never --config ${path.basename(overlayConfigPath)}`);
+  commands.push(`node scripts/run-electron-builder.js --win dir --publish never --config ${path.basename(overlayConfigPath)}`);
+  commands.push(
+    [
+      'node',
+      shellQuote(path.join(packerRepoRoot, 'scripts', 'package-store-msix.mjs')),
+      '--project-root',
+      shellQuote('.'),
+      '--config',
+      shellQuote(path.basename(overlayConfigPath)),
+      '--input',
+      shellQuote(path.join('pkg', 'win-unpacked')),
+      '--output',
+      shellQuote('pkg'),
+      '--assets',
+      shellQuote(path.join('resources', 'appx')),
+    ].join(' ')
+  );
 
   if (strategy.fallbackScripts.smokeTestScript) {
     commands.push(`npm run ${strategy.fallbackScripts.smokeTestScript}`);

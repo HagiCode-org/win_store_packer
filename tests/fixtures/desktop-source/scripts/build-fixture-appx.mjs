@@ -21,10 +21,22 @@ async function run(command, args, options = {}) {
 }
 
 async function main() {
+  const args = process.argv.slice(2).map((entry) => String(entry).toLowerCase());
   const cwd = process.cwd();
   const pkgDir = path.join(cwd, 'pkg');
+  await mkdir(pkgDir, { recursive: true });
+
+  if (args.includes('dir')) {
+    const unpackedDir = path.join(pkgDir, 'win-unpacked');
+    await rm(unpackedDir, { recursive: true, force: true });
+    await mkdir(unpackedDir, { recursive: true });
+    await writeFile(path.join(unpackedDir, 'Hagicode.exe'), 'fixture-exe', 'utf8');
+    await writeFile(path.join(unpackedDir, 'app.asar'), 'fixture-asar', 'utf8');
+    return;
+  }
+
   const stagingDir = path.join(pkgDir, '.fixture-msix');
-  const msixPath = path.join(pkgDir, 'fixture-output.appx');
+  const msixPath = path.join(pkgDir, 'fixture-output.msix');
   await rm(stagingDir, { recursive: true, force: true });
   await mkdir(path.join(stagingDir, 'extra', 'portable-fixed'), { recursive: true });
   await cp(
@@ -33,7 +45,6 @@ async function main() {
     { recursive: true, force: true }
   );
   await writeFile(path.join(stagingDir, 'AppxManifest.xml'), '<Package></Package>\n', 'utf8');
-  await mkdir(pkgDir, { recursive: true });
   await rm(msixPath, { force: true });
 
   if (process.platform === 'win32') {

@@ -36,10 +36,12 @@ test('resolveDesktopStoreBuildStrategy accepts the current desktop packaging pip
 
   assert.equal(strategy.canBuild, true);
   assert.equal(strategy.isCompatible, true);
-  assert.match(
-    buildDesktopStoreCommand('electron-builder.store.yml', strategy),
-    /node scripts\/run-electron-builder\.js --win appx --publish never --config electron-builder\.store\.yml/
-  );
+  const command = buildDesktopStoreCommand('electron-builder.store.yml', strategy, {
+    packerRepoRoot: '/tmp/win_store_packer'
+  });
+  assert.match(command, /node scripts\/run-electron-builder\.js --win dir --publish never --config electron-builder\.store\.yml/);
+  assert.match(command, /package-store-msix\.mjs/);
+  assert.match(command, /--input "pkg[\\/]win-unpacked"/);
   assert.equal(
     await shouldUseSyntheticDryRunBuild({
       desktopWorkspace: workspacePath,

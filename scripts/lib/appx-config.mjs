@@ -66,7 +66,7 @@ function renderAppxBlock(packageIdentity, appx = {}, publisherOverride) {
 }
 
 function renderWinBlock(signingConfig) {
-  if (!signingConfig?.enabled) {
+  if (!signingConfig?.inlineAzureTrustedSigning) {
     return null;
   }
 
@@ -90,7 +90,7 @@ function renderWinBlock(signingConfig) {
   const lines = ['win:'];
 
   if (signingConfig.skipFinalAppxSigning) {
-    lines.push(...renderYamlList('signExts', ['!.appx']));
+    lines.push(...renderYamlList('signExts', ['!.appx', '!.msix']));
   }
 
   const azureSignOptionLines = [

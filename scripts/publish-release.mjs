@@ -165,7 +165,7 @@ function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubRelea
     `- Server version: ${plan.upstream.server.version}`,
     `- Store package version: ${publicationArtifacts.releaseMetadata.storePackageVersion ?? 'unavailable'}`,
     '- Distribution mode: steam',
-    `- AppX assets: ${publicationArtifacts.mergedInventory.artifacts.filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName)).length}`,
+    `- Store package assets: ${publicationArtifacts.mergedInventory.artifacts.filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName)).length}`,
     `- Primary Store submission artifact: ${primaryArtifact?.fileName ?? 'none'}`,
     `- Optional signed sideload artifact: ${signedArtifact?.fileName ?? 'none'}`,
     `- Release metadata asset: ${path.basename(publicationArtifacts.metadataPath)}`,

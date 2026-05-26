@@ -82,10 +82,10 @@ async function findStoreOutputs(pkgDirectory) {
       const leftExtension = path.extname(leftLower);
       const rightExtension = path.extname(rightLower);
       if (leftExtension !== rightExtension) {
-        if (leftExtension === '.appx') {
+        if (leftExtension === '.msix') {
           return -1;
         }
-        if (rightExtension === '.appx') {
+        if (rightExtension === '.msix') {
           return 1;
         }
       }
@@ -161,7 +161,7 @@ export async function buildAppx({
 
   if (syntheticDryRun) {
     await createSyntheticStorePackage({
-      artifactPath: path.join(pkgDirectory, buildStoreArtifactName(plan.release.tag, platformId, normalizedArtifactVariant)),
+      artifactPath: path.join(pkgDirectory, buildStoreArtifactName(plan.release.tag, platformId, normalizedArtifactVariant, '.msix')),
       runtimeInjectionRoot: workspaceManifest.runtimeInjectionRoot,
       packageIdentity: storePackageConfig.packageIdentity,
       packageVersion: storePackageVersion
@@ -170,7 +170,7 @@ export async function buildAppx({
     await runShellCommand(desktopBuildCommand, workspaceManifest.desktopWorkspace);
   } else {
     await runShellCommand(
-      buildDesktopStoreCommand(overlayConfig.outputPath, desktopBuildStrategy),
+      buildDesktopStoreCommand(overlayConfig.outputPath, desktopBuildStrategy, { packerRepoRoot: repoRoot }),
       workspaceManifest.desktopWorkspace
     );
   }
@@ -343,7 +343,7 @@ if (isDirectExecution) {
   main().catch(async (error) => {
     annotateError(error.message);
     await appendSummary([
-      '## AppX build failed',
+      '## Store package build failed',
       `- ${error.message}`
     ]);
     console.error(error);

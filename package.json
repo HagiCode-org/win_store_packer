@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "verify:dry-run": "node --test tests/dry-run-packaging.test.mjs",
-    "verify:publication": "node --test tests/publish-release.test.mjs"
+    "verify:publication": "node --test tests/publish-release.test.mjs",
+    "verify:signing": "node --test tests/finalize-appx-signing.test.mjs tests/store-config.test.mjs tests/desktop-build-strategy.test.mjs"
   }
 }

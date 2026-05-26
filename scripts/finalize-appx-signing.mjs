@@ -70,7 +70,7 @@ export async function finalizeAppxSigning({
   const finalArtifactSigningExpected = buildMetadata.signing?.finalArtifactSigningExpected !== false;
   const signingStatus = finalArtifactSigningExpected
     ? 'signed-verified'
-    : 'content-signed-appx-unsigned';
+    : 'content-signed-package-unsigned';
 
   if (finalArtifactSigningExpected) {
     await verifySignedArtifact(buildMetadata.signing.verificationScriptPath, signedArtifactPath);
@@ -119,9 +119,9 @@ export async function finalizeAppxSigning({
           `- Store package version: ${buildMetadata.storePackageVersion}`
         ]
       : [
-          `### AppX signing finalized for ${platformId}`,
+          `### Store package signing finalized for ${platformId}`,
           `- Signed-content artifact: ${path.basename(signedArtifactPath)}`,
-          '- Final AppX Authenticode signing intentionally skipped.',
+          '- Final package Authenticode signing intentionally skipped.',
           '- Electron Builder still signed embedded Windows binaries before packaging.'
         ]
   );

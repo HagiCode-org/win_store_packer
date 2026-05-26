@@ -1,10 +1,10 @@
 # win_store_packer
 
-`win_store_packer` builds and publishes Windows Store AppX packages that already contain the bundled Hagicode Server runtime.
+`win_store_packer` builds and publishes Windows Store MSIX packages that already contain the bundled Hagicode Server runtime.
 
-It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, pre-creates the GitHub Release, prepares tagged Desktop source workspaces, stages the Server payload into `resources/portable-fixed/current`, builds unsigned and signed AppX variants in parallel, uploads both variants to the same GitHub Release, and publishes the resulting metadata from this repository.
+It resolves the latest eligible Desktop and Server releases from the Azure index manifests, maps the selected Desktop release to the exact Desktop Git tag, prepares tagged Desktop source workspaces, stages the Server payload into `resources/portable-fixed/current`, builds unsigned and signed MSIX variants in parallel, stores them as workflow artifacts, then publishes the GitHub Release assets and release metadata from a separate job.
 
-The published AppX package is intentionally treated as **Steam mode by default**. Desktop switches into `distributionMode=steam` whenever the packaged `extra/portable-fixed/current` payload validates, so this Store flow ships that payload as the authoritative runtime source and records `distributionMode: "steam"` plus `runtimeSource: "portable-fixed"` in the emitted metadata.
+The published MSIX package is intentionally treated as **Steam mode by default**. Desktop switches into `distributionMode=steam` whenever the packaged `extra/portable-fixed/current` payload validates, so this Store flow ships that payload as the authoritative runtime source and records `distributionMode: "steam"` plus `runtimeSource: "portable-fixed"` in the emitted metadata.
 
 ## Repository Contract
 
@@ -41,7 +41,7 @@ Defines the Store package identity metadata and packaging contract:
 - `desktop.electronBuilderConfigPath`
 - `desktop.runtimeInjectionPath`
 
-The packer targets the current Desktop Windows packaging pipeline directly. It prepares runtime resources, runs Desktop production build steps, then invokes `scripts/run-electron-builder.js --win appx --config electron-builder.store.<variant>.yml` inside the tagged Desktop workspace.
+The packer targets the current Desktop Windows packaging pipeline directly. It prepares runtime resources, runs Desktop production build steps, then invokes `scripts/run-electron-builder.js --win dir --config electron-builder.store.<variant>.yml`, followed by `scripts/package-store-msix.mjs`, inside the tagged Desktop workspace.
 
 ### AppX capability contract
 
@@ -52,7 +52,7 @@ The Store overlay must preserve the Windows capability declarations required by 
 - `internetClientServer`: required for torrent-first sharing acceleration because the packaged client can initiate and accept peer traffic while distributing package payloads.
 - `privateNetworkClientServer`: required because Desktop manages the bundled web service over loopback and also supports binding to private-network addresses such as `0.0.0.0` for LAN access.
 
-These capabilities are sourced from `config/store-package.json` and rendered into the generated `electron-builder.store.<variant>.yml` overlay before the Desktop AppX build runs.
+These capabilities are sourced from `config/store-package.json` and rendered into the generated `electron-builder.store.<variant>.yml` overlay before the Desktop MSIX build runs.
 
 ### `config/workflow-defaults.json`
 
@@ -76,44 +76,31 @@ Manual dispatch inputs:
 
 Scheduled runs use the latest eligible Windows Desktop and Server assets from the configured Azure indexes and skip packaging when the derived Store release tag already exists.
 
-## Microsoft Store publication
+## Release Publication
 
-`package-release.yml` first ensures the GitHub Release exists, then builds the `unsigned` and `signed` `.appx` variants in parallel and uploads both assets to the same release. The Store publish job still uses only the unsigned package and is skipped when `dry_run` is enabled.
+`package-release.yml` now follows the Desktop CI shape more closely:
 
-This follows the AppX guidance from electron-builder and Microsoft Store: Store submissions do not need to be manually signed in CI because Partner Center signs the package during Store processing. The workflow therefore uses the official `microsoft/store-submission@v1` action, builds the `product-update` payload from the public GitHub Release asset URLs, and submits the unsigned primary AppX package to Partner Center as a packaged app submission.
+- resolve the build plan
+- build `unsigned` and `signed` MSIX variants as workflow artifacts
+- publish GitHub Release assets and release metadata in a separate job
 
-### Optional AppX sideload signing
+The Microsoft Store automatic submission path is temporarily removed from the main workflow. This repository currently stops at `artifacts` plus `release` publication.
 
-The signed variant uses Azure Trusted Signing through `electron-builder` `win.azureSignOptions`.
+### Signed vs unsigned MSIX variants
 
-The signed variant uses Azure Trusted Signing for the packaged Windows binaries and keeps final AppX signing enabled. The signed build therefore expects the final `.appx` itself to pass signature verification during the finalize step.
+- The unsigned MSIX package is always preserved for inspection and troubleshooting.
+- The signed MSIX package is built as an independent variant.
+- The unsigned MSIX package is always marked `primaryForStoreSubmission: true` in metadata so the later Store handoff can still identify the canonical submission artifact.
+- The signed MSIX package is preserved as an additional sideloading package and is not used by the current workflow for Store submission.
 
-For authentication, only these environment variables are required:
+### Signing modes
 
-- `AZURE_CLIENT_ID`
-- `AZURE_TENANT_ID`
-- `AZURE_CLIENT_SECRET`
+`win_store_packer` supports two signed-package paths:
 
-The actual Trusted Signing config still needs `publisherName`, `endpoint`, `certificateProfileName`, and `codeSigningAccountName` in `win.azureSignOptions`. In this repository, AppX signing uses the full X.500 publisher subject for `publisherName`, because `electron-builder` reuses that field when it generates the AppX manifest for Azure Trusted Signing.
+- Current CI path: the signed workflow variant is built in `external` mode, then the workflow signs the produced `.msix` with `azure/artifact-signing-action@v2`.
+- Script-level inline path: `scripts/build-appx.mjs --signing-mode required` still supports rendering Azure Trusted Signing options into `win.azureSignOptions` when a direct Desktop-side signing build is needed.
 
-By default the repository falls back to `signing.publisherSubject`, but if `AZURE_CODESIGN_APPX_PUBLISHER` is present it takes precedence and should contain the full subject string such as `CN=Example Publisher, O=Example Corp, C=US`.
-
-The remaining Trusted Signing fields can come from `config/store-package.json` or from the declared fallback environment variables:
-
-- `AZURE_CODESIGN_ENDPOINT`
-- `AZURE_CODESIGN_ACCOUNT_NAME`
-- `AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME`
-
-Those fallback variables are not part of the Azure authentication contract, so `win_store_packer` no longer treats them as the primary required auth inputs. They are only used to finish rendering `win.azureSignOptions` for the signed AppX build.
-
-Configure the repository with the Microsoft Store credentials required by `microsoft/store-submission@v1`:
-
-- `SELLER_ID`
-- `TENANT_ID` (or the legacy `AZURE_AD_TENANT_ID`)
-- `CLIENT_ID` (or the legacy `AZURE_AD_APPLICATION_CLIENT_ID`)
-- `CLIENT_SECRET` (or the legacy `AZURE_AD_APPLICATION_SECRET`)
-
-Also configure `MICROSOFT_STORE_PRODUCT_ID` as a repository variable or secret so the workflow can target the correct Partner Center product.
+The current workflow intentionally follows the Desktop repository emphasis on explicit Windows signing orchestration, while still keeping Store-specific payload injection unchanged.
 
 ## Local Verification
 
@@ -123,6 +110,7 @@ From `repos/win_store_packer`:
 npm test
 npm run verify:dry-run
 npm run verify:publication
+npm run verify:signing
 ```
 
 ## Local Script Entry Points
@@ -156,7 +144,7 @@ node scripts/stage-server-payload.mjs \
   --workspace build/store-win-x64
 ```
 
-Build the AppX artifact:
+Build the unsigned MSIX artifact:
 
 ```bash
 node scripts/build-appx.mjs \
@@ -166,7 +154,7 @@ node scripts/build-appx.mjs \
   --artifact-variant unsigned
 ```
 
-Build the signed AppX variant:
+Build the signed MSIX variant:
 
 ```bash
 AZURE_CLIENT_ID=... \
@@ -201,8 +189,8 @@ Per-platform build outputs are written into the workspace root:
 - `artifact-inventory-win-x64-unsigned.json`
 - `build-metadata-win-x64-signed.json`
 - `artifact-inventory-win-x64-signed.json`
-- `release-assets/hagicode-store-<release-tag>-win-x64-unsigned.appx`
-- `release-assets/hagicode-store-<release-tag>-win-x64-signed.appx`
+- `release-assets/hagicode-store-<release-tag>-win-x64-unsigned.msix`
+- `release-assets/hagicode-store-<release-tag>-win-x64-signed.msix`
 
 The build metadata and artifact inventory also record:
 
@@ -224,15 +212,8 @@ The release metadata and dry-run report also record:
 - `runtimeSource: "portable-fixed"`
 - `storePackageVersion`
 
-## Signed vs unsigned artifacts
-
-- The unsigned AppX package is always preserved for inspection and troubleshooting.
-- The signed AppX package is built as an independent variant with Azure Trusted Signing enabled.
-- The unsigned AppX package is always marked `primaryForStoreSubmission: true` and consumed by `build-store-submission-update.mjs`.
-- When optional signing is enabled, the signed artifact is preserved as an additional sideloading package and is not used for Microsoft Store submission.
-
 ## Store-specific Differences From Desktop CI
 
 - The Store flow preserves Store identity metadata by generating a Store-specific electron-builder config overlay from `config/store-package.json`.
-- The default workflow submits the unsigned AppX package to Partner Center and does not require Azure Artifact Signing.
-- GitHub Releases receive the AppX artifact and release metadata JSON; Steam depot data and Azure Steam index updates are out of scope here.
+- The workflow now treats MSIX release publication as the terminal step; Partner Center submission is intentionally out of band for now.
+- GitHub Releases receive the MSIX artifacts and release metadata JSON; Steam depot data and Azure Steam index updates are out of scope here.

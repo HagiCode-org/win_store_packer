@@ -13,8 +13,8 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
   const planPath = path.join(tempRoot, 'build-plan.json');
   const signedArtifactsDir = path.join(artifactsDir, 'signed');
   const unsignedArtifactsDir = path.join(artifactsDir, 'unsigned');
-  const unsignedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx');
-  const signedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx');
+  const unsignedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix');
+  const signedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix');
   await mkdir(signedArtifactsDir, { recursive: true });
   await mkdir(unsignedArtifactsDir, { recursive: true });
   await writeFile(unsignedMsixPath, 'fixture-unsigned');
@@ -160,7 +160,7 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
 });
 
 
-test('publishRelease resolves AppX artifacts from merged workflow artifact directories', async () => {
+test('publishRelease resolves MSIX artifacts from merged workflow artifact directories', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-publish-merged-'));
   const artifactsDir = path.join(tempRoot, 'artifacts');
   const outputDir = path.join(tempRoot, 'output');
@@ -169,8 +169,8 @@ test('publishRelease resolves AppX artifacts from merged workflow artifact direc
   const unsignedArtifactDir = path.join(artifactsDir, 'store-package-win-x64-unsigned', 'release-assets');
   const signedInventoryDir = path.join(artifactsDir, 'store-package-win-x64-signed');
   const unsignedInventoryDir = path.join(artifactsDir, 'store-package-win-x64-unsigned');
-  const signedFileName = 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx';
-  const unsignedFileName = 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx';
+  const signedFileName = 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix';
+  const unsignedFileName = 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix';
   const signedMsixPath = path.join(signedArtifactDir, signedFileName);
   const unsignedMsixPath = path.join(unsignedArtifactDir, unsignedFileName);
 

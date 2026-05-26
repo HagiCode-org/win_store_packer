@@ -214,7 +214,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   const storePackageListing = (await validateZipPaths(storePackagePath)).join('\n');
   assert.match(storePackageListing, /extra\/portable-fixed\/current\/manifest\.json/);
   assert.match(storePackageListing, /extra\/portable-fixed\/current\/lib\/PCode\.Web\.dll/);
-  assert.match(storePackageListing, /AppxManifest\.xml|store-package-identity\.json/);
+  assert.match(storePackageListing, /Package\.appxmanifest|store-package-identity\.json/);
 
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.unsigned.yml'), 'utf8');
   assert.match(overlayConfigText, /extends: electron-builder\.yml/);
@@ -224,7 +224,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(overlayConfigText, /    - internetClient/);
   assert.match(overlayConfigText, /    - internetClientServer/);
   assert.match(overlayConfigText, /    - privateNetworkClientServer/);
-  assert.match(storePackagePath, /-unsigned\.appx$/);
+  assert.match(storePackagePath, /-unsigned\.msix$/);
 });
 
 test('workspace preparation fails when the expected desktop tag is missing', async () => {
@@ -293,7 +293,7 @@ test('build-appx fails early when signed packaging is required but Azure signing
   );
 });
 
-test('signed Store overlay enables final appx signing alongside Trusted Signing for embedded binaries', async () => {
+test('signed Store overlay enables final package signing alongside Trusted Signing for embedded binaries', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-signed-overlay-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -365,4 +365,22 @@ test('signed Store overlay enables final appx signing alongside Trusted Signing 
   assert.match(overlayConfigText, /azureSignOptions:/);
   assert.equal(buildMetadata.signing.skipFinalAppxSigning, false);
   assert.equal(buildMetadata.signing.finalArtifactSigningExpected, true);
+  assert.equal(buildMetadata.storePackageExtension, '.msix');
+  assert.equal(buildMetadata.signing.mode, 'required');
+
+  const externalSigningBuild = await buildAppx({
+    planPath,
+    workspacePath,
+    platformId: 'win-x64',
+    artifactVariant: 'signed',
+    signingMode: 'external',
+    forceDryRun: true
+  });
+  const externalSigningMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64-signed.json'));
+
+  assert.equal(externalSigningBuild.artifactVariant, 'signed');
+  assert.equal(externalSigningMetadata.signing.mode, 'external');
+  assert.equal(externalSigningMetadata.signing.enabled, true);
+  assert.equal(externalSigningMetadata.signing.finalArtifactSigningExpected, true);
+  assert.equal(externalSigningMetadata.storePackageExtension, '.msix');
 });

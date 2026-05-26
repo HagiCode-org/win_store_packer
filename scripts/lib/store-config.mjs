@@ -218,8 +218,8 @@ export function normalizeStorePackageVersion(desktopTag, packageVersionConfig = 
 
 export function normalizeStoreSigningMode(value) {
   const normalized = String(value ?? 'disabled').trim().toLowerCase();
-  if (!['disabled', 'enabled', 'required'].includes(normalized)) {
-    throw new Error(`Unsupported signing mode ${JSON.stringify(value)}. Expected disabled, enabled, or required.`);
+  if (!['disabled', 'enabled', 'required', 'external'].includes(normalized)) {
+    throw new Error(`Unsupported signing mode ${JSON.stringify(value)}. Expected disabled, enabled, required, or external.`);
   }
   return normalized;
 }
@@ -242,6 +242,7 @@ export function resolveStoreSigningConfig({
   const signing = validateSigningConfig(storePackageConfig.signing);
   const enabled = mode !== 'disabled';
   const required = mode === 'required';
+  const external = mode === 'external';
   const configuredPublisher = signing.publisherSubjectEnvVar
     ? (env[signing.publisherSubjectEnvVar]?.trim() || null)
     : null;
@@ -253,6 +254,8 @@ export function resolveStoreSigningConfig({
     mode,
     enabled,
     required,
+    external,
+    inlineAzureTrustedSigning: enabled && !external,
     publisher: normalizedPublisher,
     publisherName,
     publisherSubjectEnvVar: signing.publisherSubjectEnvVar ?? null,
@@ -278,6 +281,16 @@ export function resolveStoreSigningConfig({
     return resolved;
   }
 
+  if (!isValidDistinguishedName(resolved.publisher)) {
+    throw new Error(
+      'Invalid Store signing publisher. Expected an X.500 subject like CN=Example, O=Example Corp, C=US.'
+    );
+  }
+
+  if (external) {
+    return resolved;
+  }
+
   for (const [key, envVarName] of Object.entries(resolved.envVarNames)) {
     const value = resolved.azure[key];
     if (!value) {
@@ -287,12 +300,6 @@ export function resolveStoreSigningConfig({
 
   if (resolved.missing.length > 0) {
     throw new Error(`Missing Store signing configuration: ${resolved.missing.join(', ')}.`);
-  }
-
-  if (!isValidDistinguishedName(resolved.publisher)) {
-    throw new Error(
-      'Invalid Store signing publisher. Expected an X.500 subject like CN=Example, O=Example Corp, C=US.'
-    );
   }
 
   if (!resolved.publisherName) {

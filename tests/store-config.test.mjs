@@ -123,3 +123,20 @@ test('resolveStoreSigningConfig rejects a publisher that is not a valid distingu
     /Invalid Store signing publisher/
   );
 });
+
+test('resolveStoreSigningConfig supports external signing mode without Azure auth inputs', async () => {
+  const storePackageConfig = await loadStorePackageConfig();
+  const signingConfig = resolveStoreSigningConfig({
+    storePackageConfig,
+    signingMode: 'external',
+    env: {
+      AZURE_CODESIGN_APPX_PUBLISHER: 'CN=Hagicode Publisher, O=HagiCode, C=US'
+    }
+  });
+
+  assert.equal(signingConfig.mode, 'external');
+  assert.equal(signingConfig.enabled, true);
+  assert.equal(signingConfig.external, true);
+  assert.equal(signingConfig.inlineAzureTrustedSigning, false);
+  assert.equal(signingConfig.publisher, 'CN=Hagicode Publisher, O=HagiCode, C=US');
+});

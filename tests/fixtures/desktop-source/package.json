@@ -3,6 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
+  "productName": "Hagicode",
   "scripts": {
     "prepare:runtime": "node -e \"process.exit(0)\"",
     "prepare:bundled-toolchain": "node -e \"process.exit(0)\"",

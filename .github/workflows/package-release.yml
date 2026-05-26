@@ -32,7 +32,6 @@ env:
   RESOLVED_BUILD_PLAN_ARTIFACT_NAME: resolved-build-plan
   DESKTOP_AZURE_SAS_URL: ${{ secrets.desktop_azure_sas_url || secrets.WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL || secrets.DESKTOP_AZURE_SAS_URL }}
   SERVER_AZURE_SAS_URL: ${{ secrets.server_azure_sas_url || secrets.WIN_STORE_PACKER_SERVER_AZURE_SAS_URL || secrets.SERVER_AZURE_SAS_URL || secrets.SERVICE_AZURE_SAS_URL }}
-  MICROSOFT_STORE_PRODUCT_ID: ${{ vars.MICROSOFT_STORE_PRODUCT_ID || secrets.MICROSOFT_STORE_PRODUCT_ID }}
   HAGISCRIPT_INSTALL_SPEC: '@hagicode/hagiscript@0.2.3'
 
 jobs:
@@ -97,57 +96,14 @@ jobs:
           path: ${{ runner.temp }}/build-plan/build-plan.json
           if-no-files-found: error
 
-  prepare_release:
-    name: Prepare release
-    needs: resolve_plan
-    if: needs.resolve_plan.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout win_store_packer
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          package-manager-cache: false
-
-      - name: Download resolved build plan
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ env.RESOLVED_BUILD_PLAN_ARTIFACT_NAME }}
-          path: ${{ runner.temp }}/build-plan
-
-      - name: Ensure GitHub release exists
-        if: needs.resolve_plan.outputs.dry_run != 'true'
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          node scripts/ensure-release.mjs \
-            --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
-            --output-dir "$RUNNER_TEMP/release-bootstrap"
-
-      - name: Record dry-run skip
-        if: needs.resolve_plan.outputs.dry_run == 'true'
-        shell: bash
-        run: |
-          {
-            echo '## win_store_packer release preparation skipped'
-            echo
-            echo '- dry_run: true'
-            echo '- GitHub Release pre-creation is skipped in dry-run mode.'
-          } >> "$GITHUB_STEP_SUMMARY"
-
   build:
     name: Build ${{ matrix.target.platform }} ${{ matrix.variant }}
-    needs:
-      - resolve_plan
-      - prepare_release
+    needs: resolve_plan
     if: needs.resolve_plan.outputs.should_build == 'true'
     permissions:
-      contents: write
+      contents: read
       actions: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -198,20 +154,42 @@ jobs:
           name: ${{ env.RESOLVED_BUILD_PLAN_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/build-plan
 
-      - name: Set build variables
+      - name: Determine signing mode
         shell: bash
         run: |
           if [ "${{ matrix.variant }}" = 'signed' ]; then
             echo "STORE_WORKSPACE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-signed" >> "$GITHUB_ENV"
-            echo "STORE_SIGNING_MODE=required" >> "$GITHUB_ENV"
             echo "STORE_REQUIRE_SIGNED=true" >> "$GITHUB_ENV"
+            echo 'STORE_SIGNING_MODE=external' >> "$GITHUB_ENV"
           else
             echo "STORE_WORKSPACE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-unsigned" >> "$GITHUB_ENV"
-            echo "STORE_SIGNING_MODE=disabled" >> "$GITHUB_ENV"
-            echo "STORE_REQUIRE_SIGNED=false" >> "$GITHUB_ENV"
+            echo 'STORE_SIGNING_MODE=disabled' >> "$GITHUB_ENV"
+            echo 'STORE_REQUIRE_SIGNED=false' >> "$GITHUB_ENV"
           fi
 
+      - name: Validate external signing configuration
+        if: success() && matrix.variant == 'signed'
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_CODESIGN_ENDPOINT: ${{ secrets.AZURE_CODESIGN_ENDPOINT }}
+          AZURE_CODESIGN_ACCOUNT_NAME: ${{ secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
+          AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
+          WINDOWS_PACKAGE_PUBLISHER: ${{ secrets.WINDOWS_PACKAGE_PUBLISHER }}
+        run: |
+          missing=()
+          for key in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_CODESIGN_ENDPOINT AZURE_CODESIGN_ACCOUNT_NAME AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME WINDOWS_PACKAGE_PUBLISHER; do
+            if [ -z "${!key:-}" ]; then
+              missing+=("${key}")
+            fi
+          done
 
+          if [ ${#missing[@]} -gt 0 ]; then
+            printf '::error::Missing external signing configuration: %s\n' "$(IFS=', '; echo "${missing[*]}")"
+            exit 1
+          fi
 
       - name: Prepare tagged desktop workspace
         shell: bash
@@ -232,13 +210,13 @@ jobs:
             --platform "${{ matrix.target.platform }}" \
             --workspace "$STORE_WORKSPACE"
 
-      - name: Build AppX
+      - name: Build Store package
         shell: bash
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || secrets.CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || secrets.TENANT_ID || secrets.AZURE_AD_TENANT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET || secrets.CLIENT_SECRET || secrets.AZURE_AD_APPLICATION_SECRET }}
-          AZURE_CODESIGN_APPX_PUBLISHER: ${{ secrets.AZURE_CODESIGN_APPX_PUBLISHER }}
+          AZURE_CODESIGN_APPX_PUBLISHER: ${{ secrets.AZURE_CODESIGN_APPX_PUBLISHER || secrets.WINDOWS_PACKAGE_PUBLISHER }}
           AZURE_CODESIGN_ENDPOINT: ${{ vars.AZURE_CODESIGN_ENDPOINT || secrets.AZURE_CODESIGN_ENDPOINT }}
           AZURE_CODESIGN_ACCOUNT_NAME: ${{ vars.AZURE_CODESIGN_ACCOUNT_NAME || secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
           AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME || secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
@@ -250,7 +228,49 @@ jobs:
             --artifact-variant "${{ matrix.variant }}" \
             --signing-mode "$STORE_SIGNING_MODE"
 
-      - name: Finalize AppX variant metadata
+      - name: Azure login for external signing
+        if: success() && matrix.variant == 'signed'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Collect Windows package catalog
+        if: success() && matrix.variant == 'signed'
+        id: msix_catalog
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $releaseDir = Join-Path $env:STORE_WORKSPACE 'release-assets'
+          $catalogPath = Join-Path $env:STORE_WORKSPACE 'windows-signable-artifacts.txt'
+          $files = @(Get-ChildItem -LiteralPath $releaseDir -File | Where-Object { $_.Extension -in '.msix', '.appx' } | Sort-Object FullName -Unique)
+
+          if ($files.Count -eq 0) {
+            throw 'No packaged Store artifacts were found for signing.'
+          }
+
+          $files | ForEach-Object { $_.FullName } | Set-Content -Path $catalogPath
+
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "catalog_path=$catalogPath"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value 'package_files<<EOF'
+          $files | ForEach-Object { Add-Content -Path $env:GITHUB_OUTPUT -Value $_.FullName }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value 'EOF'
+
+      - name: Sign MSIX artifacts with Artifact Signing
+        if: success() && matrix.variant == 'signed'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ secrets.AZURE_CODESIGN_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
+          files-catalog: ${{ steps.msix_catalog.outputs.catalog_path }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          cache-dependencies: true
+
+      - name: Finalize Store package metadata
         shell: bash
         run: |
           args=(
@@ -263,19 +283,7 @@ jobs:
             args+=(--require-signed)
           fi
 
-          node scripts/finalize-appx-signing.mjs \
-            "${args[@]}"
-
-      - name: Upload variant assets to release
-        if: needs.resolve_plan.outputs.dry_run != 'true'
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          node scripts/upload-release-assets.mjs \
-            --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
-            --artifacts-dir "$STORE_WORKSPACE" \
-            --output-dir "$RUNNER_TEMP/release-upload-${{ matrix.target.platform }}-${{ matrix.variant }}"
+          node scripts/finalize-appx-signing.mjs "${args[@]}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
@@ -287,11 +295,10 @@ jobs:
             ${{ env.STORE_WORKSPACE }}/payload-validation-${{ matrix.target.platform }}.json
             ${{ env.STORE_WORKSPACE }}/workspace-validation-${{ matrix.target.platform }}.json
             ${{ env.STORE_WORKSPACE }}/release-assets
-            ${{ runner.temp }}/release-upload-${{ matrix.target.platform }}-${{ matrix.variant }}
           if-no-files-found: error
 
   publish:
-    name: Publish release
+    name: Publish release assets
     needs:
       - resolve_plan
       - build
@@ -320,7 +327,7 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/publish-input
 
-      - name: Publish Store release metadata
+      - name: Publish release and metadata
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -336,105 +343,6 @@ jobs:
           name: store-release-metadata-${{ needs.resolve_plan.outputs.release_tag }}
           path: ${{ runner.temp }}/release-metadata
           if-no-files-found: error
-
-  publish_store:
-    name: Publish to Microsoft Store
-    needs:
-      - resolve_plan
-      - build
-      - publish
-    if: needs.resolve_plan.outputs.should_build == 'true' && needs.resolve_plan.outputs.dry_run != 'true'
-    runs-on: ubuntu-latest
-    env:
-      MICROSOFT_STORE_CLIENT_ID: ${{ secrets.CLIENT_ID || secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
-      MICROSOFT_STORE_CLIENT_SECRET: ${{ secrets.CLIENT_SECRET || secrets.AZURE_AD_APPLICATION_SECRET }}
-      MICROSOFT_STORE_TENANT_ID: ${{ secrets.TENANT_ID || secrets.AZURE_AD_TENANT_ID }}
-      MICROSOFT_STORE_SELLER_ID: ${{ secrets.SELLER_ID }}
-    steps:
-      - name: Checkout win_store_packer
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          package-manager-cache: false
-
-      - name: Download resolved build plan
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ env.RESOLVED_BUILD_PLAN_ARTIFACT_NAME }}
-          path: ${{ runner.temp }}/build-plan
-
-      - name: Download release metadata
-        uses: actions/download-artifact@v8
-        with:
-          name: store-release-metadata-${{ needs.resolve_plan.outputs.release_tag }}
-          path: ${{ runner.temp }}/release-metadata
-
-      - name: Validate Microsoft Store configuration
-        shell: bash
-        run: |
-          missing=()
-          for name in MICROSOFT_STORE_CLIENT_ID MICROSOFT_STORE_CLIENT_SECRET MICROSOFT_STORE_TENANT_ID MICROSOFT_STORE_SELLER_ID MICROSOFT_STORE_PRODUCT_ID; do
-            if [ -z "${!name:-}" ]; then
-              missing+=("$name")
-            fi
-          done
-
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "Missing required Microsoft Store configuration: ${missing[*]}" >&2
-            exit 1
-          fi
-
-      - name: Build Store submission payload
-        id: store_payload
-        shell: bash
-        run: |
-          payload_path="$RUNNER_TEMP/store-submission-update.json"
-          node scripts/build-store-submission-update.mjs \
-            --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
-            --release-metadata-dir "$RUNNER_TEMP/release-metadata" \
-            --output "$payload_path"
-
-          {
-            echo 'product_update<<EOF'
-            cat "$payload_path"
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Configure Microsoft Store submission
-        uses: microsoft/store-submission@v1
-        with:
-          command: configure
-          type: packaged
-          seller-id: ${{ env.MICROSOFT_STORE_SELLER_ID }}
-          product-id: ${{ env.MICROSOFT_STORE_PRODUCT_ID }}
-          tenant-id: ${{ env.MICROSOFT_STORE_TENANT_ID }}
-          client-id: ${{ env.MICROSOFT_STORE_CLIENT_ID }}
-          client-secret: ${{ env.MICROSOFT_STORE_CLIENT_SECRET }}
-
-      - name: Update draft Store submission
-        uses: microsoft/store-submission@v1
-        with:
-          command: update
-          product-update: ${{ steps.store_payload.outputs.product_update }}
-
-      - name: Publish Store submission
-        id: publish_store_submission
-        uses: microsoft/store-submission@v1
-        with:
-          command: publish
-
-      - name: Record Store submission
-        shell: bash
-        run: |
-          {
-            echo '## Microsoft Store publish queued'
-            echo
-            echo '- Product ID: '"$MICROSOFT_STORE_PRODUCT_ID"
-            echo '- Submission ID: ${{ steps.publish_store_submission.outputs.polling-submission-id }}'
-          } >> "$GITHUB_STEP_SUMMARY"
 
   skip_summary:
     name: Record skipped release
