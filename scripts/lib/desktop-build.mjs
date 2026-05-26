@@ -5,6 +5,14 @@ export function selectAvailableScript(scripts, candidates) {
   return candidates.find((scriptName) => typeof scripts?.[scriptName] === 'string') ?? null;
 }
 
+function npmCommand(platform = process.platform) {
+  return platform === 'win32' ? 'npm.cmd' : 'npm';
+}
+
+function nodeCommand(platform = process.platform) {
+  return platform === 'win32' ? 'node.exe' : 'node';
+}
+
 export async function resolveDesktopStoreBuildStrategy({ desktopWorkspace }) {
   const packageJsonPath = path.join(desktopWorkspace, 'package.json');
   if (!(await pathExists(packageJsonPath))) {
@@ -57,17 +65,22 @@ function shellQuote(value) {
   return JSON.stringify(normalizeShellPath(value));
 }
 
-export function buildDesktopStoreCommand(overlayConfigPath, strategy, options = {}) {
+function createStep(name, command, args) {
+  return { name, command, args };
+}
+
+export function buildDesktopStoreSteps(overlayConfigPath, strategy, options = {}) {
   if (!strategy.canBuild) {
     throw new Error('Desktop workspace is missing the current Store packaging pipeline required by win_store_packer.');
   }
 
   const packerRepoRoot = options.packerRepoRoot;
   if (!packerRepoRoot) {
-    throw new Error('buildDesktopStoreCommand requires options.packerRepoRoot for MSIX packaging.');
+    throw new Error('buildDesktopStoreSteps requires options.packerRepoRoot for MSIX packaging.');
   }
 
-  const commands = [];
+  const platform = options.platform ?? process.platform;
+  const steps = [];
 
   for (const scriptName of [
     strategy.fallbackScripts.runtimeScript,
@@ -77,33 +90,59 @@ export function buildDesktopStoreCommand(overlayConfigPath, strategy, options = 
     strategy.fallbackScripts.buildProdScript
   ]) {
     if (scriptName) {
-      commands.push(`npm run ${scriptName}`);
+      steps.push(createStep(`npm run ${scriptName}`, npmCommand(platform), ['run', scriptName]));
     }
   }
 
-  commands.push(`node scripts/run-electron-builder.js --win dir --publish never --config ${path.basename(overlayConfigPath)}`);
-  commands.push(
-    [
-      'node',
-      normalizeShellPath(path.join(packerRepoRoot, 'scripts', 'package-store-msix.mjs')),
-      '--project-root',
-      shellQuote('.'),
-      '--config',
-      shellQuote(path.basename(overlayConfigPath)),
-      '--input',
-      shellQuote(path.join('pkg', 'win-unpacked')),
-      '--output',
-      shellQuote('pkg'),
-      '--assets',
-      shellQuote(path.join('resources', 'appx')),
-    ].join(' ')
+  steps.push(
+    createStep(
+      'node scripts/run-electron-builder.js --win dir --publish never',
+      nodeCommand(platform),
+      ['scripts/run-electron-builder.js', '--win', 'dir', '--publish', 'never', '--config', path.basename(overlayConfigPath)]
+    )
+  );
+
+  steps.push(
+    createStep(
+      'node package-store-msix.mjs',
+      nodeCommand(platform),
+      [
+        normalizeShellPath(path.join(packerRepoRoot, 'scripts', 'package-store-msix.mjs')),
+        '--project-root',
+        '.',
+        '--config',
+        path.basename(overlayConfigPath),
+        '--input',
+        path.join('pkg', 'win-unpacked'),
+        '--output',
+        'pkg',
+        '--assets',
+        path.join('resources', 'appx')
+      ]
+    )
   );
 
   if (strategy.fallbackScripts.smokeTestScript) {
-    commands.push(`npm run ${strategy.fallbackScripts.smokeTestScript}`);
+    steps.push(createStep(`npm run ${strategy.fallbackScripts.smokeTestScript}`, npmCommand(platform), ['run', strategy.fallbackScripts.smokeTestScript]));
   }
 
-  return commands.join(' && ');
+  return steps;
+}
+
+export function buildDesktopStoreCommand(overlayConfigPath, strategy, options = {}) {
+  const steps = buildDesktopStoreSteps(overlayConfigPath, strategy, options);
+  return steps.map((step) => {
+    if (step.command === 'npm' || step.command === 'npm.cmd') {
+      return [step.command, ...step.args].join(' ');
+    }
+
+    if (step.command === 'node' || step.command === 'node.exe') {
+      const serializedArgs = step.args.map((arg) => shellQuote(arg));
+      return [step.command, ...serializedArgs].join(' ');
+    }
+
+    return [step.command, ...step.args.map((arg) => shellQuote(arg))].join(' ');
+  }).join(' && ');
 }
 
 export async function shouldUseSyntheticDryRunBuild({ desktopWorkspace, planDryRun }) {

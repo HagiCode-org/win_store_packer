@@ -5,6 +5,7 @@ import path from 'node:path';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import {
   buildDesktopStoreCommand,
+  buildDesktopStoreSteps,
   resolveDesktopStoreBuildStrategy,
   shouldUseSyntheticDryRunBuild,
 } from '../scripts/lib/desktop-build.mjs';
@@ -36,17 +37,42 @@ test('resolveDesktopStoreBuildStrategy accepts the current desktop packaging pip
 
   assert.equal(strategy.canBuild, true);
   assert.equal(strategy.isCompatible, true);
+
+  const steps = buildDesktopStoreSteps('electron-builder.store.yml', strategy, {
+    packerRepoRoot: '/tmp/win_store_packer',
+    platform: 'linux'
+  });
+  assert.equal(steps[0].command, 'npm');
+  assert.deepEqual(steps[0].args, ['run', 'prepare:runtime']);
+  assert.equal(steps[5].command, 'node');
+  assert.deepEqual(steps[5].args, ['scripts/run-electron-builder.js', '--win', 'dir', '--publish', 'never', '--config', 'electron-builder.store.yml']);
+  assert.equal(steps[6].command, 'node');
+  assert.deepEqual(steps[6].args, [
+    '/tmp/win_store_packer/scripts/package-store-msix.mjs',
+    '--project-root',
+    '.',
+    '--config',
+    'electron-builder.store.yml',
+    '--input',
+    'pkg/win-unpacked',
+    '--output',
+    'pkg',
+    '--assets',
+    'resources/appx'
+  ]);
+
   const command = buildDesktopStoreCommand('electron-builder.store.yml', strategy, {
     packerRepoRoot: '/tmp/win_store_packer'
   });
-  assert.match(command, /node scripts\/run-electron-builder\.js --win dir --publish never --config electron-builder\.store\.yml/);
+  assert.match(command, /node "scripts\/run-electron-builder\.js" "--win" "dir" "--publish" "never" "--config" "electron-builder\.store\.yml"/);
   assert.match(command, /package-store-msix\.mjs/);
-  assert.match(command, /--input "pkg[\\/]win-unpacked"/);
+  assert.match(command, /"--input" "pkg[\/]win-unpacked"/);
 
   const windowsCommand = buildDesktopStoreCommand('electron-builder.store.yml', strategy, {
-    packerRepoRoot: 'C:\\tmp\\win_store_packer'
+    packerRepoRoot: 'C:\\tmp\\win_store_packer',
+    platform: 'win32'
   });
-  assert.match(windowsCommand, /node C:\/tmp\/win_store_packer\/scripts\/package-store-msix\.mjs/);
+  assert.match(windowsCommand, /node\.exe "C:\/tmp\/win_store_packer\/scripts\/package-store-msix\.mjs"/);
   assert.equal(
     await shouldUseSyntheticDryRunBuild({
       desktopWorkspace: workspacePath,

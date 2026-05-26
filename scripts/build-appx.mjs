@@ -11,6 +11,7 @@ import { loadReleasePlan } from './lib/release-plan.mjs';
 import { buildStoreArtifactName } from './lib/platforms.mjs';
 import {
   buildDesktopStoreCommand,
+  buildDesktopStoreSteps,
   resolveDesktopStoreBuildStrategy,
   shouldUseSyntheticDryRunBuild
 } from './lib/desktop-build.mjs';
@@ -46,6 +47,13 @@ async function runShellCommand(commandText, cwd) {
   }
 
   await runCommand('/bin/bash', ['-lc', commandText], { cwd });
+}
+
+async function executeDesktopBuildSteps(steps, cwd) {
+  for (const [index, step] of steps.entries()) {
+    console.log(`[build-appx] step ${index + 1}/${steps.length}: ${step.name}`);
+    await runCommand(step.command, step.args, { cwd });
+  }
 }
 
 async function createSyntheticStorePackage({
@@ -169,10 +177,11 @@ export async function buildAppx({
   } else if (desktopBuildCommand) {
     await runShellCommand(desktopBuildCommand, workspaceManifest.desktopWorkspace);
   } else {
-    await runShellCommand(
-      buildDesktopStoreCommand(overlayConfig.outputPath, desktopBuildStrategy, { packerRepoRoot: repoRoot }),
-      workspaceManifest.desktopWorkspace
-    );
+    const desktopBuildSteps = buildDesktopStoreSteps(overlayConfig.outputPath, desktopBuildStrategy, {
+      packerRepoRoot: repoRoot,
+      platform: process.platform
+    });
+    await executeDesktopBuildSteps(desktopBuildSteps, workspaceManifest.desktopWorkspace);
   }
 
   const storeOutputs = await findStoreOutputs(pkgDirectory);
