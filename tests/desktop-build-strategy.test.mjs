@@ -46,7 +46,7 @@ test('resolveDesktopStoreBuildStrategy accepts the current desktop packaging pip
   const windowsCommand = buildDesktopStoreCommand('electron-builder.store.yml', strategy, {
     packerRepoRoot: 'C:\\tmp\\win_store_packer'
   });
-  assert.match(windowsCommand, /node "C:\/tmp\/win_store_packer\/scripts\/package-store-msix\.mjs"/);
+  assert.match(windowsCommand, /node C:\/tmp\/win_store_packer\/scripts\/package-store-msix\.mjs/);
   assert.equal(
     await shouldUseSyntheticDryRunBuild({
       desktopWorkspace: workspacePath,

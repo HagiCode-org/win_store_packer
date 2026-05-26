@@ -49,8 +49,12 @@ export async function resolveDesktopStoreBuildStrategy({ desktopWorkspace }) {
   };
 }
 
+function normalizeShellPath(value) {
+  return String(value).replaceAll('\\', '/');
+}
+
 function shellQuote(value) {
-  return JSON.stringify(String(value).replaceAll('\\', '/'));
+  return JSON.stringify(normalizeShellPath(value));
 }
 
 export function buildDesktopStoreCommand(overlayConfigPath, strategy, options = {}) {
@@ -81,7 +85,7 @@ export function buildDesktopStoreCommand(overlayConfigPath, strategy, options = 
   commands.push(
     [
       'node',
-      shellQuote(path.join(packerRepoRoot, 'scripts', 'package-store-msix.mjs')),
+      normalizeShellPath(path.join(packerRepoRoot, 'scripts', 'package-store-msix.mjs')),
       '--project-root',
       shellQuote('.'),
       '--config',
