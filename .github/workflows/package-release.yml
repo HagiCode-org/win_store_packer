@@ -116,6 +116,9 @@ jobs:
           - unsigned
           - signed
     runs-on: ${{ matrix.target.runner }}
+    env:
+      ELECTRON_CACHE: ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron
+      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron-builder
     steps:
       - name: Checkout win_store_packer
         uses: actions/checkout@v5
@@ -207,6 +210,20 @@ jobs:
             --platform "${{ matrix.target.platform }}" \
             --workspace "$STORE_WORKSPACE" \
             --desktop-source "$GITHUB_WORKSPACE/inputs/hagicode-desktop"
+
+      - name: Cache desktop build downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron
+            ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron-builder
+            ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/build/embedded-runtime/downloads
+            ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/build/embedded-node-runtime/downloads
+            ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.generated/code-server-runtime/downloads
+            ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.generated/omniroute-runtime/downloads
+          key: ${{ runner.os }}-desktop-build-downloads-${{ hashFiles('inputs/hagicode-desktop/package-lock.json', 'inputs/hagicode-desktop/resources/manifest.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-desktop-build-downloads-
 
       - name: Download and inject server payload
         shell: bash
