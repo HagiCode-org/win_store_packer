@@ -51,8 +51,25 @@ async function runShellCommand(commandText, cwd) {
 
 async function executeDesktopBuildSteps(steps, cwd) {
   for (const [index, step] of steps.entries()) {
-    console.log(`[build-appx] step ${index + 1}/${steps.length}: ${step.name}`);
-    await runCommand(step.command, step.args, { cwd });
+    const stepLabel = `step ${index + 1}/${steps.length}: ${step.name}`;
+    console.log(`[build-appx] ${stepLabel}`);
+
+    const startedAt = Date.now();
+    const heartbeat = setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+      console.log(`[build-appx] still running ${stepLabel} (${elapsedSeconds}s elapsed)`);
+    }, 30_000);
+
+    heartbeat.unref?.();
+
+    try {
+      await runCommand(step.command, step.args, { cwd });
+    } finally {
+      clearInterval(heartbeat);
+    }
+
+    const completedSeconds = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
+    console.log(`[build-appx] completed ${stepLabel} (${completedSeconds}s)`);
   }
 }
 
