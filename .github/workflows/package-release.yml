@@ -279,13 +279,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $releaseDir = Join-Path $env:STORE_WORKSPACE 'release-assets'
           $catalogPath = Join-Path $env:STORE_WORKSPACE 'windows-signable-artifacts.txt'
+          $workspaceRoot = [System.IO.Path]::GetFullPath($env:STORE_WORKSPACE)
           $files = @(Get-ChildItem -LiteralPath $releaseDir -File | Where-Object { $_.Extension -in '.msix', '.appx' } | Sort-Object FullName -Unique)
 
           if ($files.Count -eq 0) {
             throw 'No packaged Store artifacts were found for signing.'
           }
 
-          $files | ForEach-Object { $_.FullName } | Set-Content -Path $catalogPath
+          $files | ForEach-Object { [System.IO.Path]::GetRelativePath($workspaceRoot, $_.FullName) } | Set-Content -Path $catalogPath
 
           Add-Content -Path $env:GITHUB_OUTPUT -Value "catalog_path=$catalogPath"
           Add-Content -Path $env:GITHUB_OUTPUT -Value 'package_files<<EOF'
