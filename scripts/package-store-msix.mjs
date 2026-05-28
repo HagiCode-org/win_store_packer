@@ -156,6 +156,22 @@ function npxCommand() {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
 }
 
+function quoteWindowsCmdArgument(value) {
+  const text = String(value ?? '');
+  if (text.length === 0) {
+    return '""';
+  }
+
+  if (!/[\s"&()<>^|]/.test(text)) {
+    return text;
+  }
+
+  return `"${text.replaceAll('"', '\\"')}"`;
+}
+
+export function buildWindowsWinAppCliCommand(packageArgs) {
+  return [npxCommand(), ...packageArgs].map((arg) => quoteWindowsCmdArgument(arg)).join(' ');
+}
 function escapeXml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -383,7 +399,8 @@ export async function packageStoreMsix(rawOptions = {}) {
       packageArgs.push('--verbose');
     }
 
-    await runCommand(npxCommand(), packageArgs, {
+    const packageCommand = buildWindowsWinAppCliCommand(packageArgs);
+    await runCommand('cmd.exe', ['/d', '/s', '/c', packageCommand], {
       cwd: options.projectRoot,
     });
   } else {

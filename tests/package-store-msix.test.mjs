@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { parseArgs } from '../scripts/package-store-msix.mjs';
+import { buildWindowsWinAppCliCommand, parseArgs } from '../scripts/package-store-msix.mjs';
 
 test('parseArgs strips wrapping quotes from Windows shell argument values', async () => {
   const projectRoot = path.resolve('/tmp/win-store-packer');
@@ -31,4 +31,24 @@ test('parseArgs strips wrapping quotes from Windows shell argument values', asyn
   assert.equal(options.outputPath, path.resolve(projectRoot, 'pkg'));
   assert.equal(options.stagePath, path.resolve(projectRoot, 'build/msix-stage'));
   assert.equal(options.assetsPath, path.resolve(projectRoot, 'resources/appx'));
+});
+
+test('buildWindowsWinAppCliCommand preserves whitespace in winappcli values', async () => {
+  const command = buildWindowsWinAppCliCommand([
+    'package',
+    'D:/tmp/msix stage/app',
+    '--manifest',
+    'D:/tmp/msix stage/app/Package.appxmanifest',
+    '--output',
+    'D:/tmp/msix stage/out dir',
+    '--name',
+    'HagiCode-Desktop-0.1.57.0-x64.msix',
+    '--executable',
+    'HagiCode Desktop.exe',
+  ]);
+
+  assert.match(command, /^npx(?:\.cmd)? package /);
+  assert.ok(command.includes(`--manifest "D:/tmp/msix stage/app/Package.appxmanifest"`));
+  assert.ok(command.includes(`--output "D:/tmp/msix stage/out dir"`));
+  assert.ok(command.endsWith(`--executable "HagiCode Desktop.exe"`));
 });
