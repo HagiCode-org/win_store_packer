@@ -1,8 +1,14 @@
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 export function shouldUseWindowsShell(command, shell, platform = process.platform) {
   if (platform !== 'win32') {
     return shell;
+  }
+
+  const extension = path.extname(String(command).toLowerCase());
+  if (extension === '.cmd' || extension === '.bat') {
+    return true;
   }
 
   return Boolean(shell);
