@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
 import { createArchive } from './lib/archive.mjs';
-import { runCommand } from './lib/command.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const WINAPPCLI_VERSION = '0.3.1';
@@ -152,27 +152,8 @@ function parseGeneratedStoreConfig(configText) {
   return result;
 }
 
-function npxCommand() {
-  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
-}
-
-function quoteWindowsCmdArgument(value) {
-  const text = String(value ?? '');
-  if (text.length === 0) {
-    return '""';
-  }
-
-  if (!/[\s"&()<>^|]/.test(text)) {
-    return text;
-  }
-
-  return `"${text.replaceAll('"', '\\"')}"`;
-}
-
-export function buildWindowsWinAppCliCommand(packageArgs) {
-  return [npxCommand(), ...packageArgs].map((arg) => quoteWindowsCmdArgument(arg)).join(' ');
-}
 function escapeXml(value) {
+
   return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -399,9 +380,9 @@ export async function packageStoreMsix(rawOptions = {}) {
       packageArgs.push('--verbose');
     }
 
-    const packageCommand = buildWindowsWinAppCliCommand(packageArgs);
-    await runCommand('cmd.exe', ['/d', '/s', '/c', packageCommand], {
+    await execa('npx', packageArgs, {
       cwd: options.projectRoot,
+      stdio: 'inherit',
     });
   } else {
     await createArchive(stageAppDir, artifactPath);
