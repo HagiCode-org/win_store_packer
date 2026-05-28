@@ -1,4 +1,4 @@
-import { execa } from 'execa';
+import { spawn } from 'node:child_process';
 
 export function shouldUseWindowsShell(command, shell, platform = process.platform) {
   if (platform !== 'win32') {
@@ -8,62 +8,91 @@ export function shouldUseWindowsShell(command, shell, platform = process.platfor
   return Boolean(shell);
 }
 
-function buildStdio(stdio) {
-  return stdio === 'pipe' ? 'pipe' : stdio;
+function normalizeStdio(stdio) {
+  return stdio === 'pipe' ? 'pipe' : 'inherit';
+}
+
+function createExitError(command, args, code, signal, stdout, stderr) {
+  const commandText = [command, ...args].join(' ');
+  const statusText = signal ? `signal ${signal}` : `exit code ${code}`;
+  const error = new Error(`Command failed with ${statusText}: ${commandText}`);
+  error.exitCode = typeof code === 'number' ? code : 1;
+  error.signal = signal ?? null;
+  error.stdout = stdout;
+  error.stderr = stderr;
+  error.shortMessage = error.message;
+  return error;
+}
+
+function spawnCommand(command, args = [], options = {}) {
+  const { cwd, env, input, shell = false, stdio = 'inherit' } = options;
+  const normalizedStdio = normalizeStdio(stdio);
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd,
+      env,
+      shell: shouldUseWindowsShell(command, shell),
+      stdio: normalizedStdio,
+      windowsHide: true,
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    if (normalizedStdio === 'pipe') {
+      child.stdout?.setEncoding('utf8');
+      child.stderr?.setEncoding('utf8');
+      child.stdout?.on('data', (chunk) => {
+        stdout += chunk;
+      });
+      child.stderr?.on('data', (chunk) => {
+        stderr += chunk;
+      });
+    }
+
+    child.on('error', (error) => {
+      error.stdout ??= stdout;
+      error.stderr ??= stderr;
+      reject(error);
+    });
+
+    child.on('close', (code, signal) => {
+      if (code === 0) {
+        resolve({ code: 0, stdout, stderr });
+        return;
+      }
+
+      reject(createExitError(command, args, code, signal, stdout, stderr));
+    });
+
+    if (input !== undefined && child.stdin) {
+      child.stdin.end(input);
+    }
+  });
 }
 
 export async function runCommand(command, args = [], options = {}) {
-  const {
-    cwd,
-    env,
-    input,
-    shell = false,
-    stdio = 'inherit'
-  } = options;
-
-  const result = await execa(command, args, {
-    cwd,
-    env,
-    input,
-    shell: shouldUseWindowsShell(command, shell),
-    stdio: buildStdio(stdio),
-    reject: true
-  });
-
+  const result = await spawnCommand(command, args, options);
   return {
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? ''
+    stdout: result.stdout,
+    stderr: result.stderr,
   };
 }
 
 export async function runCommandResult(command, args = [], options = {}) {
-  const {
-    cwd,
-    env,
-    input,
-    shell = false
-  } = options;
-
   try {
-    const result = await execa(command, args, {
-      cwd,
-      env,
-      input,
-      shell: shouldUseWindowsShell(command, shell),
-      stdio: 'pipe',
-      reject: true
-    });
-
+    const result = await spawnCommand(command, args, { ...options, stdio: 'pipe' });
     return {
-      code: result.exitCode ?? 0,
-      stdout: result.stdout ?? '',
-      stderr: result.stderr ?? ''
+      code: result.code,
+      stdout: result.stdout,
+      stderr: result.stderr,
     };
   } catch (error) {
     return {
       code: error.exitCode ?? 1,
       stdout: error.stdout ?? '',
-      stderr: error.stderr ?? error.shortMessage ?? String(error)
+      stderr: error.stderr ?? error.shortMessage ?? String(error),
     };
   }
 }
