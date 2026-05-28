@@ -116,9 +116,6 @@ jobs:
           - unsigned
           - signed
     runs-on: ${{ matrix.target.runner }}
-    env:
-      ELECTRON_CACHE: ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron
-      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron-builder
     steps:
       - name: Checkout win_store_packer
         uses: actions/checkout@v5
@@ -177,6 +174,12 @@ jobs:
             echo 'STORE_SIGNING_MODE=disabled' >> "$GITHUB_ENV"
             echo 'STORE_REQUIRE_SIGNED=false' >> "$GITHUB_ENV"
           fi
+
+      - name: Configure Electron cache directories
+        shell: bash
+        run: |
+          echo "ELECTRON_CACHE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron" >> "$GITHUB_ENV"
+          echo "ELECTRON_BUILDER_CACHE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron-builder" >> "$GITHUB_ENV"
 
       - name: Validate external signing configuration
         if: success() && matrix.variant == 'signed'
