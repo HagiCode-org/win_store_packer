@@ -220,6 +220,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(storePackageListing, /extra\/portable-fixed\/current\/manifest\.json/);
   assert.match(storePackageListing, /extra\/portable-fixed\/current\/lib\/PCode\.Web\.dll/);
   assert.match(storePackageListing, /Package\.appxmanifest|store-package-identity\.json/);
+  assert.equal(path.basename(storePackagePath), 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix');
 
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.unsigned.yml'), 'utf8');
   assert.match(overlayConfigText, /extends: electron-builder\.yml/);
@@ -382,6 +383,7 @@ test('signed packaging records post-processing signing state without changing th
   assert.equal(buildMetadata.storePackageExtension, '.msix');
   assert.equal(buildMetadata.signing.mode, 'required');
   assert.equal(buildMetadata.signing.status, 'synthetic');
+  assert.equal(path.basename(buildMetadata.publishedArtifactPath), 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix');
   assert.equal(desktopBuildMetadata.store.publisher, customPublisher);
 
   const externalSigningBuild = await buildAppx({
@@ -400,4 +402,5 @@ test('signed packaging records post-processing signing state without changing th
   assert.equal(externalSigningMetadata.signing.finalArtifactSigningExpected, true);
   assert.equal(externalSigningMetadata.storePackageExtension, '.msix');
   assert.equal(externalSigningMetadata.signing.status, 'synthetic');
+  assert.equal(path.basename(externalSigningMetadata.publishedArtifactPath), 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix');
 });

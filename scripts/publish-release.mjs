@@ -149,23 +149,19 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
     metadataPath,
     inventoryPath,
     releaseAssets,
+    releaseAssetUploads: mergedInventory.artifacts.map((artifact, index) => ({
+      filePath: releaseAssets[index],
+      fileName: artifact.fileName,
+      contentType: contentTypeFromPath(releaseAssets[index]),
+      variant: artifact.variant ?? null,
+      platform: artifact.platform ?? null,
+    })),
     metadataUpload: {
       filePath: metadataPath,
       fileName: path.basename(metadataPath),
       contentType: contentTypeFromPath(metadataPath)
     }
   };
-}
-
-async function loadPriorAssetUploads(artifactsDir) {
-  const files = await listFilesRecursively(artifactsDir);
-  const resultFiles = files.filter((entry) => entry.endsWith('.asset-upload-result.json')).sort();
-  if (resultFiles.length === 0) {
-    return [];
-  }
-
-  const results = await Promise.all(resultFiles.map((filePath) => readJson(filePath)));
-  return results.flatMap((result) => result.uploadedAssets ?? []);
 }
 
 function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubReleaseAssets }) {
@@ -270,6 +266,30 @@ export async function publishRelease({
     fetchImpl
   });
 
+  const uploadedReleaseAssets = [];
+  for (const asset of publicationArtifacts.releaseAssetUploads) {
+    const uploadedAsset = await uploadReleaseAsset({
+      release: releaseResult.release,
+      repository: plan.release.repository,
+      filePath: asset.filePath,
+      fileName: asset.fileName,
+      contentType: asset.contentType,
+      token,
+      fetchImpl
+    });
+
+    uploadedReleaseAssets.push({
+      name: uploadedAsset.name,
+      url: uploadedAsset.browser_download_url ?? uploadedAsset.url ?? null,
+      variant: asset.variant,
+      platform: asset.platform
+    });
+
+    if (Array.isArray(releaseResult.release?.assets)) {
+      releaseResult.release.assets.push(uploadedAsset);
+    }
+  }
+
   const metadataAsset = await uploadReleaseAsset({
     release: releaseResult.release,
     repository: plan.release.repository,
@@ -280,9 +300,8 @@ export async function publishRelease({
     fetchImpl
   });
 
-  const priorAssetUploads = await loadPriorAssetUploads(resolvedArtifactsDir);
   const uploadedAssets = [
-    ...priorAssetUploads,
+    ...uploadedReleaseAssets,
     {
       name: metadataAsset.name,
       url: metadataAsset.browser_download_url ?? metadataAsset.url ?? null

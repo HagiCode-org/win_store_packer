@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import { rename, rm } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { createArtifactRecord } from './lib/artifacts.mjs';
 import { runCommand } from './lib/command.mjs';
 import { ensureDir, pathExists, readJson, writeJson } from './lib/fs-utils.mjs';
+import { buildStoreArtifactName } from './lib/platforms.mjs';
 import { loadReleasePlan } from './lib/release-plan.mjs';
 import { buildDesktopStoreSteps, resolveDesktopStoreBuildStrategy } from './lib/desktop-build.mjs';
 import {
@@ -44,6 +46,56 @@ function normalizeArtifactVariant(value) {
     throw new Error(`Unsupported artifact variant ${JSON.stringify(value)}. Expected unsigned or signed.`);
   }
   return normalized;
+}
+
+function appendSuffixBeforeExtension(fileName, suffix) {
+  const extension = path.extname(fileName);
+  if (!extension) {
+    return `${fileName}${suffix}`;
+  }
+
+  return `${fileName.slice(0, -extension.length)}${suffix}${extension}`;
+}
+
+async function normalizePublishedArtifacts({ artifacts, outputDirectory, releaseTag, platformId, artifactVariant, primaryArtifactPath }) {
+  const usedFileNames = new Set();
+  const resolvedPrimaryArtifactPath = path.resolve(primaryArtifactPath);
+  let normalizedPrimaryArtifactPath = primaryArtifactPath;
+  const normalizedArtifacts = [];
+
+  for (const [index, artifact] of artifacts.entries()) {
+    const baseFileName = buildStoreArtifactName(releaseTag, platformId, artifactVariant, artifact.extension);
+    let desiredFileName = index === 0 ? baseFileName : appendSuffixBeforeExtension(baseFileName, `-${index + 1}`);
+    let duplicateIndex = index + 1;
+    while (usedFileNames.has(desiredFileName)) {
+      duplicateIndex += 1;
+      desiredFileName = appendSuffixBeforeExtension(baseFileName, `-${duplicateIndex}`);
+    }
+
+    usedFileNames.add(desiredFileName);
+
+    const currentArtifactPath = path.resolve(artifact.path);
+    const desiredArtifactPath = path.join(outputDirectory, desiredFileName);
+    if (currentArtifactPath !== path.resolve(desiredArtifactPath)) {
+      await rm(desiredArtifactPath, { force: true });
+      await rename(currentArtifactPath, desiredArtifactPath);
+    }
+
+    if (currentArtifactPath === resolvedPrimaryArtifactPath) {
+      normalizedPrimaryArtifactPath = desiredArtifactPath;
+    }
+
+    normalizedArtifacts.push({
+      ...artifact,
+      path: desiredArtifactPath,
+      fileName: desiredFileName,
+    });
+  }
+
+  return {
+    artifacts: normalizedArtifacts,
+    primaryArtifactPath: normalizedPrimaryArtifactPath,
+  };
 }
 
 async function executeDesktopBuildSteps(steps, cwd, env = process.env) {
@@ -268,14 +320,31 @@ export async function buildAppx({
     throw new Error(`Desktop build did not produce the expected Store package artifact: ${desktopBuildMetadata.primaryArtifactPath}`);
   }
 
+  const normalizedPublishedArtifacts = await normalizePublishedArtifacts({
+    artifacts: desktopBuildMetadata.artifacts,
+    outputDirectory: workspaceManifest.outputDirectory,
+    releaseTag: workspaceManifest.releaseTag,
+    platformId,
+    artifactVariant: normalizedArtifactVariant,
+    primaryArtifactPath: desktopBuildMetadata.primaryArtifactPath,
+  });
+  const publishedDesktopBuildMetadata = {
+    ...desktopBuildMetadata,
+    artifacts: normalizedPublishedArtifacts.artifacts,
+    primaryArtifactPath: normalizedPublishedArtifacts.primaryArtifactPath,
+    primaryArtifact: normalizedPublishedArtifacts.artifacts.find(
+      (artifact) => artifact.path === normalizedPublishedArtifacts.primaryArtifactPath
+    ) ?? normalizedPublishedArtifacts.artifacts[0],
+  };
+
   const signingState = deriveInitialSigningState({
-    desktopBuildMetadata,
+    desktopBuildMetadata: publishedDesktopBuildMetadata,
     signingConfig,
     dryRun: shouldDryRun,
     artifactVariant: normalizedArtifactVariant,
   });
   const artifactRecords = await Promise.all(
-    desktopBuildMetadata.artifacts.map(async (artifact) => {
+    publishedDesktopBuildMetadata.artifacts.map(async (artifact) => {
       if (!(await pathExists(artifact.path))) {
         throw new Error(`Desktop build metadata referenced a missing artifact: ${artifact.path}`);
       }
@@ -286,56 +355,56 @@ export async function buildAppx({
         metadata: {
           desktopProduced: true,
           desktopBuildMetadataPath,
-          desktopBuildMode: desktopBuildMetadata.buildMode,
+          desktopBuildMode: publishedDesktopBuildMetadata.buildMode,
           desktopVersion: workspaceManifest.desktopVersion,
           desktopTag: workspaceManifest.desktopTag,
           desktopRef: workspaceManifest.desktopRef,
-          desktopSourceRef: desktopBuildMetadata.desktopSourceRef,
+          desktopSourceRef: publishedDesktopBuildMetadata.desktopSourceRef,
           serverVersion: workspaceManifest.serverVersion,
-          storePackageVersion: desktopBuildMetadata.storePackageVersion,
+          storePackageVersion: publishedDesktopBuildMetadata.storePackageVersion,
           storePackageExtension: artifact.extension,
-          storeConfigPath: desktopBuildMetadata.storeConfigPath,
-          overlayConfigPath: desktopBuildMetadata.overlayConfigPath,
-          runtimeInjectionPath: desktopBuildMetadata.effectiveRuntimeInjectionPath,
-          serverPayloadPath: desktopBuildMetadata.serverPayloadPath,
-          serverPayloadRoot: desktopBuildMetadata.serverPayloadRoot,
-          languages: Array.isArray(desktopBuildMetadata.store.languages)
-            ? [...desktopBuildMetadata.store.languages]
+          storeConfigPath: publishedDesktopBuildMetadata.storeConfigPath,
+          overlayConfigPath: publishedDesktopBuildMetadata.overlayConfigPath,
+          runtimeInjectionPath: publishedDesktopBuildMetadata.effectiveRuntimeInjectionPath,
+          serverPayloadPath: publishedDesktopBuildMetadata.serverPayloadPath,
+          serverPayloadRoot: publishedDesktopBuildMetadata.serverPayloadRoot,
+          languages: Array.isArray(publishedDesktopBuildMetadata.store.languages)
+            ? [...publishedDesktopBuildMetadata.store.languages]
             : [],
-          identityName: desktopBuildMetadata.store.identityName ?? null,
-          publisher: desktopBuildMetadata.store.publisher ?? null,
+          identityName: publishedDesktopBuildMetadata.store.identityName ?? null,
+          publisher: publishedDesktopBuildMetadata.store.publisher ?? null,
           variant: normalizedArtifactVariant,
           signed: signingState.finalArtifactSigned,
           contentSigned: signingState.contentSigned,
           finalArtifactSigned: signingState.finalArtifactSigned,
-          primaryForStoreSubmission: normalizedArtifactVariant === 'unsigned' && artifact.path === desktopBuildMetadata.primaryArtifactPath,
+          primaryForStoreSubmission: normalizedArtifactVariant === 'unsigned' && artifact.path === publishedDesktopBuildMetadata.primaryArtifactPath,
         },
       });
     })
   );
 
   const primaryArtifactRecord = artifactRecords.find(
-    (artifact) => artifact.outputPath === desktopBuildMetadata.primaryArtifactPath
+    (artifact) => artifact.outputPath === publishedDesktopBuildMetadata.primaryArtifactPath
   ) ?? artifactRecords[0];
   const buildMetadata = {
     validationPassed: true,
     platform: platformId,
     artifactVariant: normalizedArtifactVariant,
     desktopBuildMetadataPath,
-    desktopBuildMode: desktopBuildMetadata.buildMode,
+    desktopBuildMode: publishedDesktopBuildMetadata.buildMode,
     desktopVersion: workspaceManifest.desktopVersion,
     desktopTag: workspaceManifest.desktopTag,
     desktopRef: workspaceManifest.desktopRef,
     serverVersion: workspaceManifest.serverVersion,
     releaseTag: workspaceManifest.releaseTag,
-    storePackageVersion: desktopBuildMetadata.storePackageVersion,
-    storePackageExtension: path.extname(desktopBuildMetadata.primaryArtifactPath).toLowerCase(),
-    storeConfigPath: desktopBuildMetadata.storeConfigPath,
-    overlayConfigPath: desktopBuildMetadata.overlayConfigPath,
-    effectiveRuntimeInjectionPath: desktopBuildMetadata.effectiveRuntimeInjectionPath,
-    serverPayloadPath: desktopBuildMetadata.serverPayloadPath,
-    serverPayloadRoot: desktopBuildMetadata.serverPayloadRoot,
-    desktopProducedArtifactPath: desktopBuildMetadata.primaryArtifactPath,
+    storePackageVersion: publishedDesktopBuildMetadata.storePackageVersion,
+    storePackageExtension: path.extname(publishedDesktopBuildMetadata.primaryArtifactPath).toLowerCase(),
+    storeConfigPath: publishedDesktopBuildMetadata.storeConfigPath,
+    overlayConfigPath: publishedDesktopBuildMetadata.overlayConfigPath,
+    effectiveRuntimeInjectionPath: publishedDesktopBuildMetadata.effectiveRuntimeInjectionPath,
+    serverPayloadPath: publishedDesktopBuildMetadata.serverPayloadPath,
+    serverPayloadRoot: publishedDesktopBuildMetadata.serverPayloadRoot,
+    desktopProducedArtifactPath: publishedDesktopBuildMetadata.primaryArtifactPath,
     desktopProducedArtifactPaths: artifactRecords.map((artifact) => artifact.outputPath),
     publishedArtifactPath: primaryArtifactRecord.outputPath,
     signing: {
