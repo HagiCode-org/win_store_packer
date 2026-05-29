@@ -32,6 +32,14 @@ function requireArray(value, label) {
   return value;
 }
 
+function requireEnum(value, allowedValues, label) {
+  const normalized = requireNonEmptyString(value, label);
+  if (!allowedValues.includes(normalized)) {
+    throw new Error(`${label} must be one of ${allowedValues.join(', ')}.`);
+  }
+  return normalized;
+}
+
 function validatePlatforms(plan) {
   const platforms = requireArray(plan.platforms, 'plan.platforms').map((platformId) =>
     requireNonEmptyString(platformId, 'plan.platforms[]')
@@ -92,6 +100,9 @@ export function validateReleasePlan(plan, { planPath = '[inline]' } = {}) {
   requireObject(downloads.desktop, 'plan.downloads.desktop');
   requireObject(downloads.server, 'plan.downloads.server');
 
+  const publication = requireObject(plan.publication ?? { mode: 'github-release' }, 'plan.publication');
+  const publicationMode = requireEnum(publication.mode, ['github-release', 'workflow-artifact'], 'plan.publication.mode');
+
   const store = requireObject(plan.store, 'plan.store');
   requireArray(store.supportedWindowsTargets, 'plan.store.supportedWindowsTargets');
   const desktopStore = requireObject(store.desktop, 'plan.store.desktop');
@@ -115,6 +126,7 @@ export function validateReleasePlan(plan, { planPath = '[inline]' } = {}) {
     dryRun: build.dryRun,
     shouldBuild: build.shouldBuild,
     forceRebuild: build.forceRebuild,
+    publicationMode,
     platforms
   };
 }

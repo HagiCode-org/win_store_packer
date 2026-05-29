@@ -33,6 +33,7 @@ export async function main() {
     dry_run: releasePlan.dryRun,
     should_build: releasePlan.shouldBuild,
     platform_matrix: JSON.stringify(releasePlan.plan.platformMatrix),
+    publication_mode: releasePlan.publicationMode,
     handoff_schema: WIN_STORE_PACKER_HANDOFF_SCHEMA
   });
 
@@ -51,6 +52,7 @@ export async function main() {
         dryRun: releasePlan.dryRun,
         shouldBuild: releasePlan.shouldBuild,
         platformMatrix: releasePlan.plan.platformMatrix,
+        publicationMode: releasePlan.publicationMode,
         handoffSchema: WIN_STORE_PACKER_HANDOFF_SCHEMA
       },
       null,

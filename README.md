@@ -63,6 +63,18 @@ Defines workflow defaults such as:
 
 The workflow no longer replays Desktop packaging internals such as overlay rendering or packer-owned MSIX generation.
 
+### Manual `desktop main` builds
+
+`workflow_dispatch` now supports `desktop_source=main`.
+
+In that mode, `win_store_packer`:
+
+- checks out the current `desktop` `main` branch instead of a published Desktop tag
+- resolves the latest eligible Desktop release only as the version baseline
+- bumps that Desktop version to the next patch revision for the packaged Desktop version
+- resolves the latest eligible Server release unless `server_version` is explicitly overridden
+- keeps the result in GitHub Actions workflow artifacts and release-metadata artifacts instead of creating a GitHub Release
+
 ## Signing
 
 Two signing modes remain relevant:

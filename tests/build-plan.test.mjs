@@ -84,8 +84,55 @@ test('buildPlan resolves latest Desktop and Server versions and records the Desk
   assert.deepEqual(plan.platforms, ['win-x64']);
   assert.equal(plan.upstream.desktop.version, 'v0.3.0');
   assert.equal(plan.upstream.desktop.tag, 'v0.3.0');
+  assert.equal(plan.upstream.desktop.checkoutRef, 'refs/tags/v0.3.0');
+  assert.equal(plan.upstream.desktop.checkoutType, 'git-tag');
   assert.equal(plan.upstream.server.version, '0.1.0-beta.34');
   assert.equal(plan.release.tag, 'store-desktop-v0.3.0-server-v0.1.0-beta.34');
+  assert.equal(plan.publication.mode, 'github-release');
+  assert.equal(plan.build.shouldBuild, true);
+  assert.equal(plan.build.forceRebuild, false);
+  assert.equal(plan.build.dryRun, false);
+});
+
+test('buildPlan supports manual desktop main builds with the next Desktop revision and workflow artifacts only', async () => {
+  let releaseLookupCalled = false;
+  const plan = await buildPlan({
+    eventName: 'workflow_dispatch',
+    eventPayload: {
+      inputs: {
+        desktop_source: 'main'
+      }
+    },
+    repositories: {
+      desktop: DESKTOP_INDEX_URL,
+      server: SERVER_INDEX_URL,
+      packer: 'HagiCode-org/win_store_packer'
+    },
+    azureSasUrls: {
+      desktop: DESKTOP_AZURE_SAS_URL,
+      server: SERVER_AZURE_SAS_URL
+    },
+    findStoreRelease: async () => {
+      releaseLookupCalled = true;
+      return null;
+    },
+    fetchImpl: createFetchStub(),
+    now: '2026-04-21T00:00:00.000Z'
+  });
+
+  assert.equal(releaseLookupCalled, false);
+  assert.equal(plan.trigger.desktopSourceMode, 'main');
+  assert.equal(plan.upstream.desktop.baseVersion, 'v0.3.0');
+  assert.equal(plan.upstream.desktop.baseTag, 'v0.3.0');
+  assert.equal(plan.upstream.desktop.version, 'v0.3.1');
+  assert.equal(plan.upstream.desktop.tag, 'v0.3.1');
+  assert.equal(plan.upstream.desktop.checkoutRef, 'main');
+  assert.equal(plan.upstream.desktop.checkoutType, 'branch');
+  assert.deepEqual(plan.upstream.desktop.assetsByPlatform, {});
+  assert.equal(plan.upstream.server.version, '0.1.0-beta.34');
+  assert.equal(plan.release.tag, 'store-desktop-v0.3.1-server-v0.1.0-beta.34');
+  assert.equal(plan.publication.mode, 'workflow-artifact');
+  assert.equal(plan.release.exists, false);
   assert.equal(plan.build.shouldBuild, true);
   assert.equal(plan.build.forceRebuild, false);
   assert.equal(plan.build.dryRun, false);

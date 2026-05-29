@@ -119,6 +119,10 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
     desktop: {
       version: plan.upstream.desktop.version,
       tag: plan.upstream.desktop.tag,
+      baseVersion: plan.upstream.desktop.baseVersion ?? plan.upstream.desktop.version,
+      baseTag: plan.upstream.desktop.baseTag ?? plan.upstream.desktop.tag,
+      checkoutRef: plan.upstream.desktop.checkoutRef ?? `refs/tags/${plan.upstream.desktop.tag}`,
+      checkoutType: plan.upstream.desktop.checkoutType ?? 'git-tag',
       manifestUrl: plan.upstream.desktop.manifestUrl,
       storeConfigPath: mergedArtifacts.map((artifact) => artifact.storeConfigPath).find(Boolean) ?? plan.store.desktop.storeConfigPath,
       buildCommand: plan.store.desktop.buildCommand,
@@ -128,6 +132,7 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
       manifestUrl: plan.upstream.server.manifestUrl
     },
     publication: {
+      mode: plan.publication?.mode ?? 'github-release',
       desktopUnsignedArtifact: desktopUnsignedArtifact?.fileName ?? null,
       signedArtifact: signedArtifact?.fileName ?? null,
       submissionReadyVariant: submissionReadyArtifact?.variant ?? null,

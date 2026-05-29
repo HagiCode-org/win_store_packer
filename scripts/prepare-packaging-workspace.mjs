@@ -18,13 +18,13 @@ async function writeGithubOutputs(outputs) {
   await appendFile(process.env.GITHUB_OUTPUT, `${lines.join('\n')}\n`, 'utf8');
 }
 
-async function ensureGitTagExists(sourcePath, desktopTag) {
+async function ensureGitRefExists(sourcePath, ref, label = 'git ref', displayRef = ref) {
   const result = await runCommandResult(
     'git',
-    ['-C', sourcePath, 'rev-parse', '--verify', '--quiet', `refs/tags/${desktopTag}`]
+    ['-C', sourcePath, 'rev-parse', '--verify', '--quiet', ref]
   );
   if (result.code !== 0) {
-    throw new Error(`Desktop tag ${desktopTag} is not available in ${sourcePath}. Ensure the tracked desktop source includes the selected release tag.`);
+    throw new Error(`${label} ${displayRef} is not available in ${sourcePath}. Ensure the tracked desktop source includes the selected Desktop revision.`);
   }
 }
 
@@ -106,13 +106,22 @@ export async function preparePackagingWorkspace({
   await ensureDir(outputDirectory);
   await ensureDir(reportsDirectory);
 
+  const desktopCheckoutRef = plan.upstream.desktop.checkoutRef ?? `refs/tags/${plan.upstream.desktop.tag}`;
+  const desktopCheckoutType = plan.upstream.desktop.checkoutType ?? 'git-tag';
+  const desktopCheckoutLabel = desktopCheckoutType === 'git-tag' ? 'Desktop tag' : 'Desktop checkout ref';
+  const desktopCheckoutDisplayRef = desktopCheckoutType === 'git-tag'
+    ? (plan.upstream.desktop.tag ?? desktopCheckoutRef)
+    : desktopCheckoutRef;
+
   await runCommand('git', ['-C', resolvedDesktopSourcePath, 'worktree', 'prune']);
-  await ensureGitTagExists(resolvedDesktopSourcePath, plan.upstream.desktop.tag);
-  await runCommand('git', ['-C', resolvedDesktopSourcePath, 'worktree', 'add', '--detach', desktopWorkspace, `refs/tags/${plan.upstream.desktop.tag}`]);
+  await ensureGitRefExists(resolvedDesktopSourcePath, desktopCheckoutRef, desktopCheckoutLabel, desktopCheckoutDisplayRef);
+  await runCommand('git', ['-C', resolvedDesktopSourcePath, 'worktree', 'add', '--detach', desktopWorkspace, desktopCheckoutRef]);
 
   const validation = await validateDesktopWorkspace({ desktopWorkspace, storePackageConfig });
   const desktopRef = await resolveGitRevision(desktopWorkspace, 'HEAD');
-  const tagObject = await resolveGitRevision(resolvedDesktopSourcePath, `refs/tags/${plan.upstream.desktop.tag}`);
+  const tagObject = desktopCheckoutType === 'git-tag'
+    ? await resolveGitRevision(resolvedDesktopSourcePath, desktopCheckoutRef)
+    : null;
 
   const workspaceManifest = {
     planPath: path.resolve(planPath),
@@ -131,6 +140,10 @@ export async function preparePackagingWorkspace({
     runtimeInjectionRoot: validation.runtimeRoot,
     desktopVersion: plan.upstream.desktop.version,
     desktopTag: plan.upstream.desktop.tag,
+    desktopBaseVersion: plan.upstream.desktop.baseVersion ?? plan.upstream.desktop.version,
+    desktopBaseTag: plan.upstream.desktop.baseTag ?? plan.upstream.desktop.tag,
+    desktopCheckoutRef,
+    desktopCheckoutType,
     desktopTagObject: tagObject,
     desktopRef,
     desktopAssetName: plan.upstream.desktop.assetsByPlatform[platformId]?.name ?? null,
@@ -147,6 +160,10 @@ export async function preparePackagingWorkspace({
     platform: platformId,
     desktopVersion: plan.upstream.desktop.version,
     desktopTag: plan.upstream.desktop.tag,
+    desktopBaseVersion: plan.upstream.desktop.baseVersion ?? plan.upstream.desktop.version,
+    desktopBaseTag: plan.upstream.desktop.baseTag ?? plan.upstream.desktop.tag,
+    desktopCheckoutRef,
+    desktopCheckoutType,
     desktopRef,
     desktopTagObject: tagObject,
     serverVersion: plan.upstream.server.version,
@@ -181,6 +198,7 @@ export async function preparePackagingWorkspace({
     `### Desktop workspace prepared for ${platformId}`,
     `- Desktop version: ${plan.upstream.desktop.version}`,
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
+    `- Desktop checkout ref: ${desktopCheckoutRef}`,
     `- Desktop ref: ${desktopRef}`,
     `- Desktop source: ${resolvedDesktopSourcePath}`,
     `- Desktop workspace: ${desktopWorkspace}`,

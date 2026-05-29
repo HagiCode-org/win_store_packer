@@ -72,13 +72,17 @@ export async function resolveDispatchBuildPlan({
   await appendSummary([
     '## win_store_packer build plan',
     `- Trigger type: ${plan.trigger.type}`,
+    `- Desktop source mode: ${plan.trigger.desktopSourceMode}`,
     `- Desktop manifest source: ${plan.upstream.desktop.manifestUrl}`,
     `- Desktop version: ${plan.upstream.desktop.version}`,
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
+    `- Desktop checkout ref: ${plan.upstream.desktop.checkoutRef}`,
+    `- Desktop base version: ${plan.upstream.desktop.baseVersion}`,
     `- Server manifest source: ${plan.upstream.server.manifestUrl}`,
     `- Server version: ${plan.upstream.server.version}`,
     `- Platforms: ${plan.platforms.join(', ')}`,
     `- Derived release tag: ${plan.release.tag}`,
+    `- Publication mode: ${plan.publication.mode}`,
     `- Desktop Azure SAS: ${sanitizeUrlForLogs(desktopAzureSasUrl)}`,
     `- Server Azure SAS: ${sanitizeUrlForLogs(serverAzureSasUrl)}`,
     `- Release exists: ${plan.release.exists ? 'yes' : 'no'}`,
@@ -150,7 +154,9 @@ export async function main() {
         outputPath: result.outputPath,
         releaseTag: result.plan.release.tag,
         shouldBuild: result.plan.build.shouldBuild,
-        desktopTag: result.plan.upstream.desktop.tag
+        desktopTag: result.plan.upstream.desktop.tag,
+        desktopCheckoutRef: result.plan.upstream.desktop.checkoutRef,
+        publicationMode: result.plan.publication.mode
       },
       null,
       2

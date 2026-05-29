@@ -15,6 +15,15 @@ import {
 import { loadStorePackageConfig } from './store-config.mjs';
 
 export const WIN_STORE_PACKER_HANDOFF_SCHEMA = 'win-store-packer-handoff/v1';
+export const DESKTOP_SOURCE_MODES = {
+  RELEASE: 'release',
+  MAIN: 'main'
+};
+
+export const PUBLICATION_MODES = {
+  GITHUB_RELEASE: 'github-release',
+  WORKFLOW_ARTIFACT: 'workflow-artifact'
+};
 
 const DEFAULT_REPOSITORIES = {
   packer: 'HagiCode-org/win_store_packer'
@@ -39,6 +48,28 @@ function normalizeBoolean(value, defaultValue = false) {
 
 function coalesce(...values) {
   return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
+}
+
+function normalizeDesktopSourceMode(value, defaultValue = DESKTOP_SOURCE_MODES.RELEASE) {
+  const normalized = String(value ?? defaultValue).trim().toLowerCase();
+  if (Object.values(DESKTOP_SOURCE_MODES).includes(normalized)) {
+    return normalized;
+  }
+
+  return defaultValue;
+}
+
+function deriveNextDesktopTag(version) {
+  const normalized = normalizeGitTag(version).replace(/^v/i, '');
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(normalized);
+  if (!match) {
+    throw new Error(
+      `Unable to derive the next Desktop revision from ${JSON.stringify(version)}. Expected a stable version like v1.2.3.`
+    );
+  }
+
+  const [, major, minor, patch] = match;
+  return `v${major}.${minor}.${Number.parseInt(patch, 10) + 1}`;
 }
 
 function resolveIndexRepository({ sourceType, explicitUrl, azureSasUrl }) {
@@ -119,6 +150,10 @@ async function resolveDesktopRelease({
 export function normalizeTriggerInputs({ eventName, eventPayload, defaultPlatforms = DEFAULT_PLATFORMS }) {
   const inputs = eventPayload?.inputs ?? {};
   const clientPayload = eventPayload?.client_payload ?? {};
+  const desktopSourceMode = normalizeDesktopSourceMode(
+    coalesce(inputs.desktop_source, clientPayload.desktopSource, clientPayload.desktop_source),
+    eventName === 'workflow_dispatch' ? DESKTOP_SOURCE_MODES.RELEASE : DESKTOP_SOURCE_MODES.RELEASE
+  );
   const desktopSelector = coalesce(inputs.desktop_version, inputs.desktop_tag, clientPayload.desktopVersion, clientPayload.desktopTag);
   const serverSelector = coalesce(inputs.server_version, inputs.server_tag, clientPayload.serverVersion, clientPayload.serverTag);
   const platforms = coalesce(inputs.platforms, clientPayload.platforms);
@@ -127,12 +162,14 @@ export function normalizeTriggerInputs({ eventName, eventPayload, defaultPlatfor
 
   return {
     triggerType: eventName,
+    desktopSourceMode,
     desktopSelector,
     serverSelector,
     selectedPlatforms: normalizePlatforms(platforms, defaultPlatforms),
     forceRebuild,
     dryRun,
     rawInputs: {
+      desktop_source: desktopSourceMode,
       desktop_version: desktopSelector ?? null,
       server_version: serverSelector ?? null,
       platforms: platforms ?? null,
@@ -172,7 +209,7 @@ export async function buildPlan({
   const [desktopRelease, serverRelease] = await Promise.all([
     resolveDesktopRelease({
       repository: desktopRepository,
-      selector: trigger.desktopSelector,
+      selector: trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN ? null : trigger.desktopSelector,
       platforms: trigger.selectedPlatforms,
       fetchImpl
     }),
@@ -188,11 +225,25 @@ export async function buildPlan({
     })
   ]);
 
-  const desktopTag = normalizeGitTag(desktopRelease.version);
-  const releaseTag = deriveStoreReleaseTag(desktopRelease.version, serverRelease.version);
-  const existingRelease = await findStoreRelease(packerRepository, releaseTag, token, { fetchImpl });
+  const baseDesktopTag = normalizeGitTag(desktopRelease.version);
+  const desktopTag = trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN
+    ? deriveNextDesktopTag(baseDesktopTag)
+    : baseDesktopTag;
+  const desktopCheckoutRef = trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN
+    ? 'main'
+    : `refs/tags/${desktopTag}`;
+  const desktopCheckoutType = trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN ? 'branch' : 'git-tag';
+  const publicationMode = trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN
+    ? PUBLICATION_MODES.WORKFLOW_ARTIFACT
+    : PUBLICATION_MODES.GITHUB_RELEASE;
+  const releaseTag = deriveStoreReleaseTag(desktopTag, serverRelease.version);
+  const existingRelease = publicationMode === PUBLICATION_MODES.GITHUB_RELEASE
+    ? await findStoreRelease(packerRepository, releaseTag, token, { fetchImpl })
+    : null;
   const releaseExists = Boolean(existingRelease);
-  const shouldBuild = !releaseExists || trigger.forceRebuild;
+  const shouldBuild = publicationMode === PUBLICATION_MODES.WORKFLOW_ARTIFACT
+    ? true
+    : !releaseExists || trigger.forceRebuild;
   const skipReason = shouldBuild
     ? null
     : `Store release ${releaseTag} already exists and force_rebuild was not enabled.`;
@@ -207,6 +258,7 @@ export async function buildPlan({
     },
     trigger: {
       type: trigger.triggerType,
+      desktopSourceMode: trigger.desktopSourceMode,
       rawInputs: trigger.rawInputs
     },
     platforms: trigger.selectedPlatforms,
@@ -226,7 +278,16 @@ export async function buildPlan({
       desktop: {
         ...desktopRelease,
         repository: 'HagiCode-org/desktop',
-        tag: desktopTag
+        sourceMode: trigger.desktopSourceMode,
+        version: desktopTag,
+        tag: desktopTag,
+        baseVersion: desktopRelease.version,
+        baseTag: baseDesktopTag,
+        checkoutRef: desktopCheckoutRef,
+        checkoutType: desktopCheckoutType,
+        assetsByPlatform: trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN
+          ? {}
+          : desktopRelease.assetsByPlatform
       },
       server: {
         ...serverRelease
@@ -239,6 +300,9 @@ export async function buildPlan({
         buildCommand: storePackageConfig.desktop.buildCommand,
         runtimeInjectionPath: storePackageConfig.desktop.runtimeInjectionPath
       }
+    },
+    publication: {
+      mode: publicationMode
     },
     release: {
       repository: packerRepository,

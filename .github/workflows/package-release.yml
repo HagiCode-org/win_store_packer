@@ -5,8 +5,16 @@ on:
     - cron: '0 */4 * * *'
   workflow_dispatch:
     inputs:
+      desktop_source:
+        description: 'Choose whether to package a published Desktop release or the current desktop main branch.'
+        required: false
+        default: release
+        type: choice
+        options:
+          - release
+          - main
       desktop_version:
-        description: 'Optional Desktop release selector. Defaults to the latest eligible Windows Desktop release.'
+        description: 'Optional Desktop release selector. Used only when desktop_source=release.'
         required: false
         type: string
       server_version:
@@ -43,6 +51,7 @@ jobs:
       dry_run: ${{ steps.resolve.outputs.dry_run }}
       should_build: ${{ steps.resolve.outputs.should_build }}
       platform_matrix: ${{ steps.resolve.outputs.platform_matrix }}
+      publication_mode: ${{ steps.resolve.outputs.publication_mode }}
     steps:
       - name: Checkout win_store_packer
         uses: actions/checkout@v5
@@ -126,6 +135,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: HagiCode-org/desktop
+          ref: main
           path: inputs/hagicode-desktop
           fetch-depth: 0
           fetch-tags: true
@@ -329,7 +339,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Publish release assets
+    name: Publish release metadata
     needs:
       - resolve_plan
       - build
@@ -362,15 +372,22 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/publish-input
 
-      - name: Publish release and metadata
+      - name: Publish release or stage workflow metadata
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          node scripts/publish-release.mjs \
-            --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
-            --artifacts-dir "$RUNNER_TEMP/publish-input" \
+          args=(
+            --plan "$RUNNER_TEMP/build-plan/build-plan.json"
+            --artifacts-dir "$RUNNER_TEMP/publish-input"
             --output-dir "$RUNNER_TEMP/release-metadata"
+          )
+
+          if [ "${{ needs.resolve_plan.outputs.publication_mode }}" != 'github-release' ]; then
+            args+=(--force-dry-run)
+          fi
+
+          node scripts/publish-release.mjs "${args[@]}"
 
       - name: Upload release metadata artifact
         uses: actions/upload-artifact@v6

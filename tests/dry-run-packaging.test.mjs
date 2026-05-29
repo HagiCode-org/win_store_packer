@@ -59,6 +59,7 @@ async function createTaggedDesktopRepo(tempRoot, tag = 'v0.3.0', packageVersion 
   await runCommand('git', ['init'], { cwd: repoPath, env: gitEnv() });
   await runCommand('git', ['add', '.'], { cwd: repoPath, env: gitEnv() });
   await runCommand('git', ['commit', '-m', 'fixture'], { cwd: repoPath, env: gitEnv() });
+  await runCommand('git', ['branch', '-M', 'main'], { cwd: repoPath, env: gitEnv() });
   await runCommand('git', ['tag', tag], { cwd: repoPath, env: gitEnv() });
   return repoPath;
 }
@@ -70,7 +71,22 @@ async function createServerArchive(tempRoot) {
   return archivePath;
 }
 
-function createPlan(tempRoot) {
+function createPlan(tempRoot, options = {}) {
+  const desktopVersion = options.desktopVersion ?? 'v0.3.0';
+  const desktopTag = options.desktopTag ?? desktopVersion;
+  const desktopBaseVersion = options.desktopBaseVersion ?? desktopVersion;
+  const desktopBaseTag = options.desktopBaseTag ?? desktopBaseVersion;
+  const desktopCheckoutRef = options.desktopCheckoutRef ?? `refs/tags/${desktopTag}`;
+  const desktopCheckoutType = options.desktopCheckoutType ?? 'git-tag';
+  const desktopAssetsByPlatform = options.desktopAssetsByPlatform ?? {
+    'win-x64': {
+      name: 'hagicode.desktop.0.3.0-unpacked.zip',
+      path: 'v0.3.0/hagicode.desktop.0.3.0-unpacked.zip'
+    }
+  };
+  const publicationMode = options.publicationMode ?? 'github-release';
+  const releaseTag = options.releaseTag ?? `store-desktop-${desktopTag}-server-v0.1.0-beta.34`;
+
   return {
     repositories: {
       desktop: 'https://index.hagicode.com/desktop/index.json',
@@ -93,15 +109,15 @@ function createPlan(tempRoot) {
     upstream: {
       desktop: {
         sourceType: 'index',
+        sourceMode: options.desktopSourceMode ?? 'release',
         manifestUrl: 'https://index.hagicode.com/desktop/index.json',
-        version: 'v0.3.0',
-        tag: 'v0.3.0',
-        assetsByPlatform: {
-          'win-x64': {
-            name: 'hagicode.desktop.0.3.0-unpacked.zip',
-            path: 'v0.3.0/hagicode.desktop.0.3.0-unpacked.zip'
-          }
-        }
+        version: desktopVersion,
+        tag: desktopTag,
+        baseVersion: desktopBaseVersion,
+        baseTag: desktopBaseTag,
+        checkoutRef: desktopCheckoutRef,
+        checkoutType: desktopCheckoutType,
+        assetsByPlatform: desktopAssetsByPlatform
       },
       server: {
         sourceType: 'index',
@@ -123,10 +139,13 @@ function createPlan(tempRoot) {
         runtimeInjectionPath: 'resources/portable-fixed/current'
       }
     },
+    publication: {
+      mode: publicationMode
+    },
     release: {
       repository: 'HagiCode-org/win_store_packer',
-      tag: 'store-desktop-v0.3.0-server-v0.1.0-beta.34',
-      name: 'Windows Store store-desktop-v0.3.0-server-v0.1.0-beta.34'
+      tag: releaseTag,
+      name: `Windows Store ${releaseTag}`
     },
     build: {
       shouldBuild: true,
@@ -249,6 +268,95 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(overlayConfigText, /    - internetClientServer/);
   assert.match(overlayConfigText, /    - privateNetworkClientServer/);
   assert.match(storePackagePath, /\.msix$/);
+});
+
+test('dry-run packaging can build from desktop main using the next Desktop revision as the packaged version', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-main-packaging-'));
+  const planPath = path.join(tempRoot, 'build-plan.json');
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const desktopRepoPath = await createTaggedDesktopRepo(tempRoot, 'v0.3.0', '0.1.0');
+  const serverArchivePath = await createServerArchive(tempRoot);
+  await writeJson(planPath, createPlan(tempRoot, {
+    desktopSourceMode: 'main',
+    desktopVersion: 'v0.3.1',
+    desktopTag: 'v0.3.1',
+    desktopBaseVersion: 'v0.3.0',
+    desktopBaseTag: 'v0.3.0',
+    desktopCheckoutRef: 'main',
+    desktopCheckoutType: 'branch',
+    desktopAssetsByPlatform: {},
+    publicationMode: 'workflow-artifact',
+    releaseTag: 'store-desktop-v0.3.1-server-v0.1.0-beta.34'
+  }));
+
+  await runCommand('node', [
+    path.join(repoRoot, 'scripts', 'prepare-packaging-workspace.mjs'),
+    '--plan',
+    planPath,
+    '--platform',
+    'win-x64',
+    '--workspace',
+    workspacePath,
+    '--desktop-source',
+    desktopRepoPath
+  ]);
+
+  await runCommand('node', [
+    path.join(repoRoot, 'scripts', 'stage-server-payload.mjs'),
+    '--plan',
+    planPath,
+    '--platform',
+    'win-x64',
+    '--workspace',
+    workspacePath,
+    '--server-asset-source',
+    serverArchivePath
+  ]);
+
+  await runCommand('node', [
+    path.join(repoRoot, 'scripts', 'build-appx.mjs'),
+    '--plan',
+    planPath,
+    '--platform',
+    'win-x64',
+    '--workspace',
+    workspacePath
+  ]);
+
+  const publishOutputDir = path.join(tempRoot, 'release-metadata');
+  await runCommand('node', [
+    path.join(repoRoot, 'scripts', 'publish-release.mjs'),
+    '--plan',
+    planPath,
+    '--artifacts-dir',
+    workspacePath,
+    '--output-dir',
+    publishOutputDir,
+    '--force-dry-run'
+  ]);
+
+  const workspaceManifest = await readJson(path.join(workspacePath, 'workspace-manifest.json'));
+  const buildMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64-unsigned.json'));
+  const inventory = await readJson(path.join(workspacePath, 'artifact-inventory-win-x64-unsigned.json'));
+  const releaseMetadata = await readJson(path.join(publishOutputDir, 'store-desktop-v0.3.1-server-v0.1.0-beta.34.release-metadata.json'));
+
+  assert.equal(workspaceManifest.desktopCheckoutRef, 'main');
+  assert.equal(workspaceManifest.desktopCheckoutType, 'branch');
+  assert.equal(workspaceManifest.desktopVersion, 'v0.3.1');
+  assert.equal(workspaceManifest.desktopBaseVersion, 'v0.3.0');
+  assert.equal((await readJson(workspaceManifest.packageJsonPath)).version, '0.3.1');
+  assert.equal(buildMetadata.desktopVersion, 'v0.3.1');
+  assert.equal(buildMetadata.desktopTag, 'v0.3.1');
+  assert.equal(buildMetadata.storePackageVersion, '0.3.1.0');
+  assert.equal(inventory.storePackageVersion, '0.3.1.0');
+  assert.equal(path.basename(inventory.artifacts[0].outputPath), 'hagicode-store-store-desktop-v0.3.1-server-v0.1.0-beta.34-win-x64-unsigned.msix');
+  assert.equal(releaseMetadata.desktop.version, 'v0.3.1');
+  assert.equal(releaseMetadata.desktop.baseVersion, 'v0.3.0');
+  assert.equal(releaseMetadata.desktop.checkoutRef, 'main');
+  assert.equal(releaseMetadata.publication.mode, 'workflow-artifact');
+
+  const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.unsigned.yml'), 'utf8');
+  assert.match(overlayConfigText, /buildVersion: 0\.3\.1\.0/);
 });
 
 test('workspace preparation fails when the expected desktop tag is missing', async () => {
