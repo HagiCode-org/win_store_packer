@@ -12,6 +12,7 @@ import { buildDesktopStoreSteps, resolveDesktopStoreBuildStrategy } from './lib/
 import {
   loadStorePackageConfig,
   normalizeStoreSigningMode,
+  normalizeStorePackageVersion,
   resolveStoreSigningConfig,
 } from './lib/store-config.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
@@ -95,6 +96,49 @@ async function normalizePublishedArtifacts({ artifacts, outputDirectory, release
   return {
     artifacts: normalizedArtifacts,
     primaryArtifactPath: normalizedPrimaryArtifactPath,
+  };
+}
+
+function toDesktopPackageJsonVersion(desktopTag, packageVersionConfig) {
+  return normalizeStorePackageVersion(desktopTag, packageVersionConfig).split('.').slice(0, 3).join('.');
+}
+
+async function synchronizeDesktopWorkspaceVersion({ desktopWorkspace, desktopTag, packageVersionConfig }) {
+  const expectedVersion = toDesktopPackageJsonVersion(desktopTag, packageVersionConfig);
+  const packageJsonPath = path.join(desktopWorkspace, 'package.json');
+  const packageJson = await readJson(packageJsonPath);
+  let changed = false;
+
+  if (String(packageJson.version ?? '').trim() !== expectedVersion) {
+    packageJson.version = expectedVersion;
+    await writeJson(packageJsonPath, packageJson);
+    changed = true;
+  }
+
+  const packageLockPath = path.join(desktopWorkspace, 'package-lock.json');
+  if (await pathExists(packageLockPath)) {
+    const packageLock = await readJson(packageLockPath);
+    let lockChanged = false;
+
+    if (String(packageLock.version ?? '').trim() !== expectedVersion) {
+      packageLock.version = expectedVersion;
+      lockChanged = true;
+    }
+
+    if (packageLock.packages?.[''] && String(packageLock.packages[''].version ?? '').trim() !== expectedVersion) {
+      packageLock.packages[''].version = expectedVersion;
+      lockChanged = true;
+    }
+
+    if (lockChanged) {
+      await writeJson(packageLockPath, packageLock);
+      changed = true;
+    }
+  }
+
+  return {
+    expectedVersion,
+    changed,
   };
 }
 
@@ -258,6 +302,17 @@ export async function buildAppx({
   });
   if (!desktopBuildStrategy.canBuild) {
     throw new Error('Desktop workspace is missing the direct Store build contract required by win_store_packer.');
+  }
+
+  const desktopVersionSync = await synchronizeDesktopWorkspaceVersion({
+    desktopWorkspace: workspaceManifest.desktopWorkspace,
+    desktopTag: workspaceManifest.desktopTag,
+    packageVersionConfig: storePackageConfig.packageVersion,
+  });
+  if (desktopVersionSync.changed) {
+    console.log(
+      `[build-appx] synchronized desktop workspace version to ${desktopVersionSync.expectedVersion} from tag ${workspaceManifest.desktopTag}`
+    );
   }
 
   const packageLockPath = path.join(workspaceManifest.desktopWorkspace, 'package-lock.json');

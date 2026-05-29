@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cp, mkdtemp, readFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { createArchive, validateZipPaths } from '../scripts/lib/archive.mjs';
 import { runCommand } from '../scripts/lib/command.mjs';
 import { readJson, writeJson } from '../scripts/lib/fs-utils.mjs';
@@ -35,10 +35,27 @@ function restoreEnv(name, previousValue) {
   process.env[name] = previousValue;
 }
 
-async function createTaggedDesktopRepo(tempRoot, tag = 'v0.3.0') {
+async function createTaggedDesktopRepo(tempRoot, tag = 'v0.3.0', packageVersion = null) {
   const sourcePath = fixturePath('desktop-source');
   const repoPath = path.join(tempRoot, 'hagicode-desktop');
   await cp(sourcePath, repoPath, { recursive: true });
+
+  if (packageVersion) {
+    const packageJsonPath = path.join(repoPath, 'package.json');
+    const packageLockPath = path.join(repoPath, 'package-lock.json');
+    const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
+    const packageLock = JSON.parse(await readFile(packageLockPath, 'utf8'));
+
+    packageJson.version = packageVersion;
+    packageLock.version = packageVersion;
+    if (packageLock.packages?.['']) {
+      packageLock.packages[''].version = packageVersion;
+    }
+
+    await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`, 'utf8');
+    await writeFile(packageLockPath, `${JSON.stringify(packageLock, null, 2)}\n`, 'utf8');
+  }
+
   await runCommand('git', ['init'], { cwd: repoPath, env: gitEnv() });
   await runCommand('git', ['add', '.'], { cwd: repoPath, env: gitEnv() });
   await runCommand('git', ['commit', '-m', 'fixture'], { cwd: repoPath, env: gitEnv() });
@@ -129,7 +146,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-packaging-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
-  const desktopRepoPath = await createTaggedDesktopRepo(tempRoot);
+  const desktopRepoPath = await createTaggedDesktopRepo(tempRoot, 'v0.3.0', '0.1.0');
   const serverArchivePath = await createServerArchive(tempRoot);
   await writeJson(planPath, createPlan(tempRoot));
 
@@ -190,6 +207,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(workspaceManifest.desktopTag, 'v0.3.0');
   assert.equal(workspaceManifest.desktopBuildCommand, 'build:win:store');
   assert.equal(workspaceManifest.desktopStoreConfigRelativePath, 'config/store-package.json');
+  assert.equal((await readJson(workspaceManifest.packageJsonPath)).version, '0.3.0');
   assert.equal(workspaceReport.validationPassed, true);
   assert.equal(workspaceReport.checks.desktopBuildContractPresent, true);
   assert.equal(workspaceReport.buildStrategy.supported, true);
