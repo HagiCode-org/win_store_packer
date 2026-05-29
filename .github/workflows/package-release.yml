@@ -32,7 +32,7 @@ env:
   RESOLVED_BUILD_PLAN_ARTIFACT_NAME: resolved-build-plan
   DESKTOP_AZURE_SAS_URL: ${{ secrets.desktop_azure_sas_url || secrets.WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL || secrets.DESKTOP_AZURE_SAS_URL }}
   SERVER_AZURE_SAS_URL: ${{ secrets.server_azure_sas_url || secrets.WIN_STORE_PACKER_SERVER_AZURE_SAS_URL || secrets.SERVER_AZURE_SAS_URL || secrets.SERVICE_AZURE_SAS_URL }}
-  HAGISCRIPT_INSTALL_SPEC: '@hagicode/hagiscript@0.2.3'
+  HAGISCRIPT_INSTALL_SPEC: '@hagicode/hagiscript@0.2.9'
 
 jobs:
   resolve_plan:
