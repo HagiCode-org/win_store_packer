@@ -70,6 +70,52 @@ function resolveIndexRepository({ sourceType, explicitUrl, azureSasUrl }) {
   };
 }
 
+function createDesktopTagFallbackRelease({ selector, manifestUrl }) {
+  const desktopTag = normalizeGitTag(selector);
+  return {
+    sourceType: 'git-tag',
+    sourceAuthority: 'git-tag-fallback',
+    manifestUrl,
+    manifestPath: null,
+    selector: desktopTag,
+    version: desktopTag,
+    assetsByPlatform: {}
+  };
+}
+
+async function resolveDesktopRelease({
+  repository,
+  selector,
+  platforms,
+  fetchImpl
+}) {
+  try {
+    return await resolveIndexRelease({
+      sourceType: 'desktop',
+      indexUrl: repository.requestUrl,
+      manifestUrl: repository.manifestUrl,
+      sourceAuthority: repository.sourceAuthority,
+      manifestPath: repository.manifestPath,
+      selector,
+      platforms,
+      fetchImpl
+    });
+  } catch (error) {
+    const shouldFallbackToGitTag =
+      Boolean(selector) &&
+      /Unable to find Desktop version matching selector/i.test(error?.message ?? '');
+
+    if (!shouldFallbackToGitTag) {
+      throw error;
+    }
+
+    return createDesktopTagFallbackRelease({
+      selector,
+      manifestUrl: `https://github.com/HagiCode-org/desktop/tree/${normalizeGitTag(selector)}`
+    });
+  }
+}
+
 export function normalizeTriggerInputs({ eventName, eventPayload, defaultPlatforms = DEFAULT_PLATFORMS }) {
   const inputs = eventPayload?.inputs ?? {};
   const clientPayload = eventPayload?.client_payload ?? {};
@@ -124,12 +170,8 @@ export async function buildPlan({
   });
 
   const [desktopRelease, serverRelease] = await Promise.all([
-    resolveIndexRelease({
-      sourceType: 'desktop',
-      indexUrl: desktopRepository.requestUrl,
-      manifestUrl: desktopRepository.manifestUrl,
-      sourceAuthority: desktopRepository.sourceAuthority,
-      manifestPath: desktopRepository.manifestPath,
+    resolveDesktopRelease({
+      repository: desktopRepository,
       selector: trigger.desktopSelector,
       platforms: trigger.selectedPlatforms,
       fetchImpl

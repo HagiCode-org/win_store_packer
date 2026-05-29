@@ -5,6 +5,7 @@ import path from 'node:path';
 import { mkdtemp } from 'node:fs/promises';
 import { buildPlan } from '../scripts/lib/build-plan.mjs';
 import { readJson } from '../scripts/lib/fs-utils.mjs';
+import { validateReleasePlan } from '../scripts/lib/release-plan.mjs';
 import { resolveDispatchBuildPlan } from '../scripts/resolve-dispatch-build-plan.mjs';
 
 const DESKTOP_INDEX_URL = 'https://index.hagicode.com/desktop/index.json';
@@ -169,6 +170,42 @@ test('buildPlan respects manual selectors and force_rebuild', async () => {
   assert.equal(plan.build.shouldBuild, true);
   assert.equal(plan.build.forceRebuild, true);
   assert.equal(plan.build.dryRun, true);
+});
+
+test('buildPlan falls back to a Desktop git tag when the selected release is newer than the published index', async () => {
+  const plan = await buildPlan({
+    eventName: 'workflow_dispatch',
+    eventPayload: {
+      inputs: {
+        desktop_version: 'v0.1.59',
+        server_version: '0.1.0-beta.33',
+        force_rebuild: true
+      }
+    },
+    repositories: {
+      desktop: DESKTOP_INDEX_URL,
+      server: SERVER_INDEX_URL,
+      packer: 'HagiCode-org/win_store_packer'
+    },
+    azureSasUrls: {
+      desktop: DESKTOP_AZURE_SAS_URL,
+      server: SERVER_AZURE_SAS_URL
+    },
+    findStoreRelease: async () => null,
+    fetchImpl: createFetchStub(),
+    now: '2026-04-21T00:00:00.000Z'
+  });
+
+  assert.equal(plan.upstream.desktop.version, 'v0.1.59');
+  assert.equal(plan.upstream.desktop.tag, 'v0.1.59');
+  assert.equal(plan.upstream.desktop.sourceType, 'git-tag');
+  assert.equal(plan.upstream.desktop.sourceAuthority, 'git-tag-fallback');
+  assert.deepEqual(plan.upstream.desktop.assetsByPlatform, {});
+  assert.equal(plan.release.tag, 'store-desktop-v0.1.59-server-v0.1.0-beta.33');
+
+  const validated = validateReleasePlan(plan);
+  assert.equal(validated.releaseTag, 'store-desktop-v0.1.59-server-v0.1.0-beta.33');
+  assert.deepEqual(validated.platforms, ['win-x64']);
 });
 
 test('resolveDispatchBuildPlan writes the normalized plan artifact', async () => {

@@ -44,12 +44,28 @@ function validatePlatforms(plan) {
   return platforms;
 }
 
-function validateUpstreamAssets(plan, platformId, sourceType) {
+function validateUpstreamAssets(plan, platformId, sourceType, { required = true } = {}) {
   const upstream = requireObject(plan.upstream, 'plan.upstream');
   const source = requireObject(upstream[sourceType], `plan.upstream.${sourceType}`);
   requireNonEmptyString(source.version, `plan.upstream.${sourceType}.version`);
-  const assetsByPlatform = requireObject(source.assetsByPlatform, `plan.upstream.${sourceType}.assetsByPlatform`);
-  const asset = requireObject(assetsByPlatform[platformId], `plan.upstream.${sourceType}.assetsByPlatform.${platformId}`);
+
+  const assetsByPlatform = source.assetsByPlatform;
+  if (!required && (assetsByPlatform === undefined || assetsByPlatform === null)) {
+    return;
+  }
+
+  const normalizedAssetsByPlatform = requireObject(
+    assetsByPlatform,
+    `plan.upstream.${sourceType}.assetsByPlatform`
+  );
+  if (!required && !normalizedAssetsByPlatform[platformId]) {
+    return;
+  }
+
+  const asset = requireObject(
+    normalizedAssetsByPlatform[platformId],
+    `plan.upstream.${sourceType}.assetsByPlatform.${platformId}`
+  );
   requireNonEmptyString(asset.name, `plan.upstream.${sourceType}.assetsByPlatform.${platformId}.name`);
   if (!asset.path && !asset.directUrl) {
     throw new Error(`plan.upstream.${sourceType}.assetsByPlatform.${platformId} must define path or directUrl.`);
@@ -85,7 +101,7 @@ export function validateReleasePlan(plan, { planPath = '[inline]' } = {}) {
 
   const platforms = validatePlatforms(plan);
   for (const platformId of platforms) {
-    validateUpstreamAssets(plan, platformId, 'desktop');
+    validateUpstreamAssets(plan, platformId, 'desktop', { required: false });
     validateUpstreamAssets(plan, platformId, 'server');
   }
 
