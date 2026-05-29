@@ -57,8 +57,7 @@ function optionalStringArray(value, label) {
     return undefined;
   }
 
-  const values = requireArray(value, label).map((entry, index) => requireNonEmptyString(entry, `${label}[${index}]`));
-  return values;
+  return requireArray(value, label).map((entry, index) => requireNonEmptyString(entry, `${label}[${index}]`));
 }
 
 function stripOptionalWrappingQuotes(value) {
@@ -70,12 +69,6 @@ function stripOptionalWrappingQuotes(value) {
     return normalized.slice(1, -1).trim();
   }
   return normalized;
-}
-
-function extractCommonName(distinguishedName) {
-  const match = String(distinguishedName).match(/(?:^|,\s*)CN=(?:"([^"]+)"|([^,]+))/i);
-  const commonName = match?.[1] ?? match?.[2] ?? '';
-  return commonName.trim() || null;
 }
 
 function isValidDistinguishedName(value) {
@@ -90,7 +83,7 @@ function validatePackageVersionConfig(config) {
   }
   return {
     source,
-    revision: requireInteger(packageVersion.revision, 'storePackageConfig.packageVersion.revision', { min: 0, max: 65535 })
+    revision: requireInteger(packageVersion.revision, 'storePackageConfig.packageVersion.revision', { min: 0, max: 65535 }),
   };
 }
 
@@ -98,76 +91,72 @@ function validateSigningConfig(config) {
   const signing = requireObject(config, 'storePackageConfig.signing');
   const azure = requireObject(signing.azure, 'storePackageConfig.signing.azure');
   return {
-    publisherSubjectEnvVar: optionalNonEmptyString(
-      signing.publisherSubjectEnvVar,
-      'storePackageConfig.signing.publisherSubjectEnvVar'
-    ),
+    publisherSubjectEnvVar: optionalNonEmptyString(signing.publisherSubjectEnvVar, 'storePackageConfig.signing.publisherSubjectEnvVar'),
     publisherSubject: optionalNonEmptyString(signing.publisherSubject, 'storePackageConfig.signing.publisherSubject'),
     skipFinalAppxSigning: signing.skipFinalAppxSigning === undefined
       ? false
       : requireBoolean(signing.skipFinalAppxSigning, 'storePackageConfig.signing.skipFinalAppxSigning'),
-    verificationScriptRelativePath: requireNonEmptyString(
-      signing.verificationScriptRelativePath,
-      'storePackageConfig.signing.verificationScriptRelativePath'
-    ),
+    verificationScriptRelativePath: requireNonEmptyString(signing.verificationScriptRelativePath, 'storePackageConfig.signing.verificationScriptRelativePath'),
     azure: {
       clientIdEnvVar: requireNonEmptyString(azure.clientIdEnvVar, 'storePackageConfig.signing.azure.clientIdEnvVar'),
       tenantIdEnvVar: requireNonEmptyString(azure.tenantIdEnvVar, 'storePackageConfig.signing.azure.tenantIdEnvVar'),
-      clientSecretEnvVar: requireNonEmptyString(
-        azure.clientSecretEnvVar,
-        'storePackageConfig.signing.azure.clientSecretEnvVar'
-      ),
+      clientSecretEnvVar: requireNonEmptyString(azure.clientSecretEnvVar, 'storePackageConfig.signing.azure.clientSecretEnvVar'),
       publisherName: optionalNonEmptyString(azure.publisherName, 'storePackageConfig.signing.azure.publisherName'),
       endpoint: optionalNonEmptyString(azure.endpoint, 'storePackageConfig.signing.azure.endpoint'),
-      codeSigningAccountName: optionalNonEmptyString(
-        azure.codeSigningAccountName,
-        'storePackageConfig.signing.azure.codeSigningAccountName'
-      ),
-      certificateProfileName: optionalNonEmptyString(
-        azure.certificateProfileName,
-        'storePackageConfig.signing.azure.certificateProfileName'
-      ),
+      codeSigningAccountName: optionalNonEmptyString(azure.codeSigningAccountName, 'storePackageConfig.signing.azure.codeSigningAccountName'),
+      certificateProfileName: optionalNonEmptyString(azure.certificateProfileName, 'storePackageConfig.signing.azure.certificateProfileName'),
       endpointEnvVar: optionalNonEmptyString(azure.endpointEnvVar, 'storePackageConfig.signing.azure.endpointEnvVar'),
-      codeSigningAccountNameEnvVar: optionalNonEmptyString(
-        azure.codeSigningAccountNameEnvVar,
-        'storePackageConfig.signing.azure.codeSigningAccountNameEnvVar'
-      ),
-      certificateProfileNameEnvVar: optionalNonEmptyString(
-        azure.certificateProfileNameEnvVar,
-        'storePackageConfig.signing.azure.certificateProfileNameEnvVar'
-      )
-    }
+      codeSigningAccountNameEnvVar: optionalNonEmptyString(azure.codeSigningAccountNameEnvVar, 'storePackageConfig.signing.azure.codeSigningAccountNameEnvVar'),
+      certificateProfileNameEnvVar: optionalNonEmptyString(azure.certificateProfileNameEnvVar, 'storePackageConfig.signing.azure.certificateProfileNameEnvVar'),
+    },
+  };
+}
+
+export function validateDesktopStoreConfig(config) {
+  requireObject(config, 'desktopStoreConfig');
+  const packageIdentity = requireObject(config.packageIdentity, 'desktopStoreConfig.packageIdentity');
+  const appx = requireObject(config.appx, 'desktopStoreConfig.appx');
+
+  return {
+    ...config,
+    sourceElectronBuilderConfigPath: requireNonEmptyString(config.sourceElectronBuilderConfigPath, 'desktopStoreConfig.sourceElectronBuilderConfigPath'),
+    inputDirectory: requireNonEmptyString(config.inputDirectory, 'desktopStoreConfig.inputDirectory'),
+    outputDirectory: requireNonEmptyString(config.outputDirectory, 'desktopStoreConfig.outputDirectory'),
+    stageDirectory: requireNonEmptyString(config.stageDirectory, 'desktopStoreConfig.stageDirectory'),
+    assetsDirectory: requireNonEmptyString(config.assetsDirectory, 'desktopStoreConfig.assetsDirectory'),
+    metadataOutputPath: requireNonEmptyString(config.metadataOutputPath, 'desktopStoreConfig.metadataOutputPath'),
+    runtimeInjectionPath: requireNonEmptyString(config.runtimeInjectionPath, 'desktopStoreConfig.runtimeInjectionPath'),
+    packageIdentity: {
+      displayName: requireNonEmptyString(packageIdentity.displayName, 'desktopStoreConfig.packageIdentity.displayName'),
+      publisherDisplayName: requireNonEmptyString(packageIdentity.publisherDisplayName, 'desktopStoreConfig.packageIdentity.publisherDisplayName'),
+      publisher: requireNonEmptyString(packageIdentity.publisher, 'desktopStoreConfig.packageIdentity.publisher'),
+      identityName: requireNonEmptyString(packageIdentity.identityName, 'desktopStoreConfig.packageIdentity.identityName'),
+      backgroundColor: requireNonEmptyString(packageIdentity.backgroundColor, 'desktopStoreConfig.packageIdentity.backgroundColor'),
+      languages: optionalStringArray(packageIdentity.languages, 'desktopStoreConfig.packageIdentity.languages') ?? ['en-US'],
+      addAutoLaunchExtension: requireBoolean(packageIdentity.addAutoLaunchExtension, 'desktopStoreConfig.packageIdentity.addAutoLaunchExtension'),
+    },
+    appx: {
+      minVersion: optionalNonEmptyString(appx.minVersion, 'desktopStoreConfig.appx.minVersion'),
+      maxVersionTested: optionalNonEmptyString(appx.maxVersionTested, 'desktopStoreConfig.appx.maxVersionTested'),
+      capabilities: optionalStringArray(appx.capabilities, 'desktopStoreConfig.appx.capabilities') ?? [],
+    },
   };
 }
 
 export function validateStorePackageConfig(config) {
   requireObject(config, 'storePackageConfig');
-  const packageIdentity = requireObject(config.packageIdentity, 'storePackageConfig.packageIdentity');
-  requireNonEmptyString(packageIdentity.displayName, 'storePackageConfig.packageIdentity.displayName');
-  requireNonEmptyString(packageIdentity.publisherDisplayName, 'storePackageConfig.packageIdentity.publisherDisplayName');
-  requireNonEmptyString(packageIdentity.publisher, 'storePackageConfig.packageIdentity.publisher');
-  requireNonEmptyString(packageIdentity.identityName, 'storePackageConfig.packageIdentity.identityName');
-  requireNonEmptyString(packageIdentity.backgroundColor, 'storePackageConfig.packageIdentity.backgroundColor');
-  requireArray(packageIdentity.languages, 'storePackageConfig.packageIdentity.languages');
-  requireBoolean(packageIdentity.addAutoLaunchExtension, 'storePackageConfig.packageIdentity.addAutoLaunchExtension');
   const desktop = requireObject(config.desktop, 'storePackageConfig.desktop');
-  requireNonEmptyString(desktop.submodulePath, 'storePackageConfig.desktop.submodulePath');
-  requireNonEmptyString(desktop.electronBuilderConfigPath, 'storePackageConfig.desktop.electronBuilderConfigPath');
-  requireNonEmptyString(desktop.runtimeInjectionPath, 'storePackageConfig.desktop.runtimeInjectionPath');
-  requireArray(config.supportedWindowsTargets, 'storePackageConfig.supportedWindowsTargets');
-  const appx = config.appx ? requireObject(config.appx, 'storePackageConfig.appx') : undefined;
   return {
     ...config,
+    supportedWindowsTargets: requireArray(config.supportedWindowsTargets, 'storePackageConfig.supportedWindowsTargets').map((entry, index) => requireNonEmptyString(entry, `storePackageConfig.supportedWindowsTargets[${index}]`)),
     packageVersion: validatePackageVersionConfig(config.packageVersion),
     signing: validateSigningConfig(config.signing),
-    appx: appx
-      ? {
-          ...appx,
-          minVersion: optionalNonEmptyString(appx.minVersion, 'storePackageConfig.appx.minVersion'),
-          maxVersionTested: optionalNonEmptyString(appx.maxVersionTested, 'storePackageConfig.appx.maxVersionTested'),
-          capabilities: optionalStringArray(appx.capabilities, 'storePackageConfig.appx.capabilities')
-        }
-      : undefined
+    desktop: {
+      submodulePath: requireNonEmptyString(desktop.submodulePath, 'storePackageConfig.desktop.submodulePath'),
+      storeConfigPath: requireNonEmptyString(desktop.storeConfigPath, 'storePackageConfig.desktop.storeConfigPath'),
+      buildCommand: requireNonEmptyString(desktop.buildCommand, 'storePackageConfig.desktop.buildCommand'),
+      runtimeInjectionPath: requireNonEmptyString(desktop.runtimeInjectionPath, 'storePackageConfig.desktop.runtimeInjectionPath'),
+    },
   };
 }
 
@@ -183,12 +172,21 @@ export function validateWorkflowDefaults(config) {
     packageArtifactNamePrefix: requireNonEmptyString(config.packageArtifactNamePrefix, 'workflowDefaults.packageArtifactNamePrefix'),
     releaseMetadataArtifactPrefix: requireNonEmptyString(config.releaseMetadataArtifactPrefix, 'workflowDefaults.releaseMetadataArtifactPrefix'),
     desktopSourcePath: requireNonEmptyString(config.desktopSourcePath, 'workflowDefaults.desktopSourcePath'),
-    schedule: requireNonEmptyString(config.schedule, 'workflowDefaults.schedule')
+    schedule: requireNonEmptyString(config.schedule, 'workflowDefaults.schedule'),
   };
 }
 
 export async function loadStorePackageConfig() {
   return validateStorePackageConfig(await readJson(STORE_PACKAGE_CONFIG_PATH));
+}
+
+export async function loadDesktopStoreConfig(desktopRoot, relativeConfigPath) {
+  const configPath = path.resolve(desktopRoot, relativeConfigPath);
+  const config = validateDesktopStoreConfig(await readJson(configPath));
+  return {
+    config,
+    configPath,
+  };
 }
 
 export async function loadWorkflowDefaults() {
@@ -199,9 +197,7 @@ export function normalizeStorePackageVersion(desktopTag, packageVersionConfig = 
   const rawTag = requireNonEmptyString(desktopTag, 'desktopTag').replace(/^refs\/tags\//i, '');
   const normalized = rawTag.replace(/^v/i, '');
   if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(normalized)) {
-    throw new Error(
-      `Invalid Desktop tag ${JSON.stringify(desktopTag)}. Expected a stable tag like v1.2.3 so a Store-safe numeric package version can be derived.`
-    );
+    throw new Error(`Invalid Desktop tag ${JSON.stringify(desktopTag)}. Expected a stable tag like v1.2.3 so a Store-safe numeric package version can be derived.`);
   }
 
   const versionParts = normalized.split('.').map((part) => Number(part));
@@ -226,17 +222,13 @@ export function normalizeStoreSigningMode(value) {
 
 export function getStoreSigningEnvironmentVariableNames(storePackageConfig) {
   const signing = validateSigningConfig(storePackageConfig.signing);
-  return [
-    signing.azure.clientIdEnvVar,
-    signing.azure.tenantIdEnvVar,
-    signing.azure.clientSecretEnvVar
-  ];
+  return [signing.azure.clientIdEnvVar, signing.azure.tenantIdEnvVar, signing.azure.clientSecretEnvVar];
 }
 
 export function resolveStoreSigningConfig({
   storePackageConfig,
   env = process.env,
-  signingMode = 'disabled'
+  signingMode = 'disabled',
 }) {
   const mode = normalizeStoreSigningMode(signingMode);
   const signing = validateSigningConfig(storePackageConfig.signing);
@@ -246,7 +238,7 @@ export function resolveStoreSigningConfig({
   const configuredPublisher = signing.publisherSubjectEnvVar
     ? (env[signing.publisherSubjectEnvVar]?.trim() || null)
     : null;
-  const defaultPublisher = configuredPublisher ?? signing.publisherSubject ?? storePackageConfig.packageIdentity?.publisher ?? null;
+  const defaultPublisher = configuredPublisher ?? signing.publisherSubject ?? null;
   const normalizedPublisher = defaultPublisher ? stripOptionalWrappingQuotes(defaultPublisher) : null;
   const publisherName = signing.azure.publisherName ?? normalizedPublisher;
 
@@ -267,14 +259,14 @@ export function resolveStoreSigningConfig({
       clientSecret: env[signing.azure.clientSecretEnvVar]?.trim() || null,
       endpoint: signing.azure.endpoint ?? (env[signing.azure.endpointEnvVar]?.trim() || null),
       codeSigningAccountName: signing.azure.codeSigningAccountName ?? (env[signing.azure.codeSigningAccountNameEnvVar]?.trim() || null),
-      certificateProfileName: signing.azure.certificateProfileName ?? (env[signing.azure.certificateProfileNameEnvVar]?.trim() || null)
+      certificateProfileName: signing.azure.certificateProfileName ?? (env[signing.azure.certificateProfileNameEnvVar]?.trim() || null),
     },
     envVarNames: {
       clientId: signing.azure.clientIdEnvVar,
       tenantId: signing.azure.tenantIdEnvVar,
-      clientSecret: signing.azure.clientSecretEnvVar
+      clientSecret: signing.azure.clientSecretEnvVar,
     },
-    missing: []
+    missing: [],
   };
 
   if (!enabled) {
@@ -282,9 +274,7 @@ export function resolveStoreSigningConfig({
   }
 
   if (!isValidDistinguishedName(resolved.publisher)) {
-    throw new Error(
-      'Invalid Store signing publisher. Expected an X.500 subject like CN=Example, O=Example Corp, C=US.'
-    );
+    throw new Error('Invalid Store signing publisher. Expected an X.500 subject like CN=Example, O=Example Corp, C=US.');
   }
 
   if (external) {
@@ -292,8 +282,7 @@ export function resolveStoreSigningConfig({
   }
 
   for (const [key, envVarName] of Object.entries(resolved.envVarNames)) {
-    const value = resolved.azure[key];
-    if (!value) {
+    if (!resolved.azure[key]) {
       resolved.missing.push(envVarName);
     }
   }
@@ -303,9 +292,7 @@ export function resolveStoreSigningConfig({
   }
 
   if (!resolved.publisherName) {
-    throw new Error(
-      'Unable to derive Azure Trusted Signing publisherName from storePackageConfig.signing.publisherSubject. Expected the certificate subject to include a CN component.'
-    );
+    throw new Error('Unable to derive Azure Trusted Signing publisherName from storePackageConfig.signing.publisherSubject. Expected the certificate subject to include a CN component.');
   }
 
   const missingTrustedSigningOptions = [];
@@ -320,9 +307,7 @@ export function resolveStoreSigningConfig({
   }
 
   if (missingTrustedSigningOptions.length > 0) {
-    throw new Error(
-      `Missing Azure Trusted Signing options: ${missingTrustedSigningOptions.join(', ')}. Configure them in storePackageConfig.signing.azure or via the declared fallback environment variables.`
-    );
+    throw new Error(`Missing Azure Trusted Signing options: ${missingTrustedSigningOptions.join(', ')}. Configure them in storePackageConfig.signing.azure or via the declared fallback environment variables.`);
   }
 
   return resolved;

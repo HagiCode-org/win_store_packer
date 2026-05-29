@@ -90,16 +90,12 @@ function createPlan(tempRoot) {
       }
     },
     store: {
-      packageIdentity: {
-        displayName: 'Hagicode',
-        publisherDisplayName: 'newbe36524',
-        publisher: 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F',
-        identityName: 'newbe36524.Hagicode',
-        backgroundColor: 'transparent',
-        languages: ['en-US'],
-        addAutoLaunchExtension: false
-      },
-      supportedWindowsTargets: ['win-x64']
+      supportedWindowsTargets: ['win-x64'],
+      desktop: {
+        storeConfigPath: 'config/store-package.json',
+        buildCommand: 'build:win:store',
+        runtimeInjectionPath: 'resources/portable-fixed/current'
+      }
     },
     release: {
       repository: 'HagiCode-org/win_store_packer',
@@ -183,32 +179,32 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   const releaseMetadata = await readJson(path.join(publishOutputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json'));
 
   assert.equal(workspaceManifest.desktopTag, 'v0.3.0');
+  assert.equal(workspaceManifest.desktopBuildCommand, 'build:win:store');
+  assert.equal(workspaceManifest.desktopStoreConfigRelativePath, 'config/store-package.json');
   assert.equal(workspaceReport.validationPassed, true);
-  assert.equal(workspaceReport.checks.desktopBuildPipelineSupported, true);
+  assert.equal(workspaceReport.checks.desktopBuildContractPresent, true);
   assert.equal(workspaceReport.buildStrategy.supported, true);
+  assert.equal(workspaceReport.buildStrategy.buildCommand, 'build:win:store');
   assert.equal(payloadReport.validationPassed, true);
+  assert.ok(payloadReport.payloadRootForDesktopBuild);
   assert.equal(buildMetadata.validationPassed, true);
   assert.equal(buildMetadata.artifactVariant, 'unsigned');
-  assert.equal(buildMetadata.distributionMode, 'steam');
-  assert.equal(buildMetadata.runtimeSource, 'portable-fixed');
+  assert.equal(buildMetadata.storeConfigPath.endsWith('config/store-package.json'), true);
   assert.equal(buildMetadata.storePackageVersion, '0.3.0.0');
-  assert.equal(buildMetadata.buildMode, 'desktop-build-pipeline');
+  assert.equal(buildMetadata.desktopBuildMode, 'desktop-store-build-dry-run');
   assert.equal(buildMetadata.signing.mode, 'disabled');
   assert.equal(inventory.artifacts.length, 1);
   assert.equal(inventory.artifactVariant, 'unsigned');
-  assert.equal(inventory.artifacts[0].distributionMode, 'steam');
-  assert.equal(inventory.artifacts[0].runtimeSource, 'portable-fixed');
+  assert.equal(inventory.artifacts[0].desktopProduced, true);
   assert.equal(inventory.artifacts[0].variant, 'unsigned');
   assert.equal(inventory.artifacts[0].primaryForStoreSubmission, true);
   assert.equal(inventory.artifacts[0].storePackageVersion, '0.3.0.0');
   assert.equal(dryRunReport.releaseTag, 'store-desktop-v0.3.0-server-v0.1.0-beta.34');
-  assert.equal(dryRunReport.distributionMode, 'steam');
-  assert.equal(dryRunReport.runtimeSource, 'portable-fixed');
+  assert.equal(dryRunReport.desktopVersion, 'v0.3.0');
   assert.equal(dryRunReport.desktopTag, 'v0.3.0');
   assert.equal(dryRunReport.storePackageVersion, '0.3.0.0');
-  assert.equal(releaseMetadata.distributionMode, 'steam');
-  assert.equal(releaseMetadata.runtimeSource, 'portable-fixed');
   assert.equal(releaseMetadata.storePackageVersion, '0.3.0.0');
+  assert.equal(releaseMetadata.desktop.storeConfigPath.endsWith('config/store-package.json'), true);
 
   const storePackagePath = inventory.artifacts[0].outputPath;
   const storePackageListing = (await validateZipPaths(storePackagePath)).join('\n');
@@ -224,7 +220,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(overlayConfigText, /    - internetClient/);
   assert.match(overlayConfigText, /    - internetClientServer/);
   assert.match(overlayConfigText, /    - privateNetworkClientServer/);
-  assert.match(storePackagePath, /-unsigned\.msix$/);
+  assert.match(storePackagePath, /\.msix$/);
 });
 
 test('workspace preparation fails when the expected desktop tag is missing', async () => {
@@ -293,7 +289,7 @@ test('build-appx fails early when signed packaging is required but Azure signing
   );
 });
 
-test('signed Store overlay enables final package signing alongside Trusted Signing for embedded binaries', async () => {
+test('signed packaging records post-processing signing state without changing the desktop build contract', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-signed-overlay-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -361,12 +357,13 @@ test('signed Store overlay enables final package signing alongside Trusted Signi
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.signed.yml'), 'utf8');
   const buildMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64-signed.json'));
 
-  assert.doesNotMatch(overlayConfigText, /signExts:/);
-  assert.match(overlayConfigText, /azureSignOptions:/);
+  assert.match(overlayConfigText, /identityName: newbe36524\.Hagicode/);
+  assert.doesNotMatch(overlayConfigText, /azureSignOptions:/);
   assert.equal(buildMetadata.signing.skipFinalAppxSigning, false);
   assert.equal(buildMetadata.signing.finalArtifactSigningExpected, true);
   assert.equal(buildMetadata.storePackageExtension, '.msix');
   assert.equal(buildMetadata.signing.mode, 'required');
+  assert.equal(buildMetadata.signing.status, 'synthetic');
 
   const externalSigningBuild = await buildAppx({
     planPath,
@@ -383,4 +380,5 @@ test('signed Store overlay enables final package signing alongside Trusted Signi
   assert.equal(externalSigningMetadata.signing.enabled, true);
   assert.equal(externalSigningMetadata.signing.finalArtifactSigningExpected, true);
   assert.equal(externalSigningMetadata.storePackageExtension, '.msix');
+  assert.equal(externalSigningMetadata.signing.status, 'synthetic');
 });

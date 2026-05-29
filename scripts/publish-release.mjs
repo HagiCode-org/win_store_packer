@@ -90,13 +90,22 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
   const inventories = await Promise.all(inventoryFiles.sort().map((entry) => readJson(entry)));
   const availableFiles = files.filter((entry) => !inventoryFiles.includes(entry));
   const storePackageVersion = inventories.map((inventory) => inventory.storePackageVersion).find(Boolean) ?? null;
+  const mergedArtifacts = inventories.flatMap((inventory) => inventory.artifacts);
+  const desktopUnsignedArtifact = mergedArtifacts.find((artifact) => artifact.variant === 'unsigned' && artifact.desktopProduced);
+  const signedArtifact = mergedArtifacts.find((artifact) => artifact.variant === 'signed' && artifact.signed === true);
+  const submissionReadyArtifact = signedArtifact
+    ?? mergedArtifacts.find((artifact) => artifact.primaryForStoreSubmission === true)
+    ?? desktopUnsignedArtifact
+    ?? mergedArtifacts[0]
+    ?? null;
   const mergedInventory = {
     releaseTag: plan.release.tag,
     dryRun: Boolean(plan.build.dryRun),
     platforms: [...new Set(inventories.map((inventory) => inventory.platform))],
     variants: inventories.map((inventory) => inventory.artifactVariant).filter(Boolean),
     storePackageVersion,
-    artifacts: inventories.flatMap((inventory) => inventory.artifacts)
+    submissionReadyVariant: submissionReadyArtifact?.variant ?? null,
+    artifacts: mergedArtifacts
   };
 
   const releaseAssets = await Promise.all(
@@ -106,17 +115,23 @@ async function buildPublicationArtifacts({ plan, artifactsDir, outputDir }) {
   const releaseMetadata = {
     releaseTag: plan.release.tag,
     releaseName: plan.release.name,
-    distributionMode: 'steam',
-    runtimeSource: 'portable-fixed',
     storePackageVersion,
     desktop: {
       version: plan.upstream.desktop.version,
       tag: plan.upstream.desktop.tag,
-      manifestUrl: plan.upstream.desktop.manifestUrl
+      manifestUrl: plan.upstream.desktop.manifestUrl,
+      storeConfigPath: mergedArtifacts.map((artifact) => artifact.storeConfigPath).find(Boolean) ?? plan.store.desktop.storeConfigPath,
+      buildCommand: plan.store.desktop.buildCommand,
     },
     server: {
       version: plan.upstream.server.version,
       manifestUrl: plan.upstream.server.manifestUrl
+    },
+    publication: {
+      desktopUnsignedArtifact: desktopUnsignedArtifact?.fileName ?? null,
+      signedArtifact: signedArtifact?.fileName ?? null,
+      submissionReadyVariant: submissionReadyArtifact?.variant ?? null,
+      submissionReadyArtifact: submissionReadyArtifact?.fileName ?? null,
     },
     artifacts: mergedInventory.artifacts.map((artifact, index) => ({
       ...artifact,
@@ -154,8 +169,9 @@ async function loadPriorAssetUploads(artifactsDir) {
 }
 
 function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubReleaseAssets }) {
-  const primaryArtifact = publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission);
-  const signedArtifact = publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.variant === 'signed');
+  const desktopUnsignedArtifact = publicationArtifacts.releaseMetadata.publication.desktopUnsignedArtifact;
+  const signedArtifact = publicationArtifacts.releaseMetadata.publication.signedArtifact;
+  const submissionReadyVariant = publicationArtifacts.releaseMetadata.publication.submissionReadyVariant;
   return [
     `## Windows Store ${plan.release.tag}`,
     '',
@@ -163,11 +179,12 @@ function buildReleaseBody({ plan, publicationArtifacts, publishedAt, githubRelea
     `- Desktop version: ${plan.upstream.desktop.version}`,
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
     `- Server version: ${plan.upstream.server.version}`,
+    `- Store config source: ${publicationArtifacts.releaseMetadata.desktop.storeConfigPath}`,
     `- Store package version: ${publicationArtifacts.releaseMetadata.storePackageVersion ?? 'unavailable'}`,
-    '- Distribution mode: steam',
     `- Store package assets: ${publicationArtifacts.mergedInventory.artifacts.filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName)).length}`,
-    `- Primary Store submission artifact: ${primaryArtifact?.fileName ?? 'none'}`,
-    `- Optional signed sideload artifact: ${signedArtifact?.fileName ?? 'none'}`,
+    `- Desktop unsigned artifact: ${desktopUnsignedArtifact ?? 'none'}`,
+    `- Post-signed artifact: ${signedArtifact ?? 'none'}`,
+    `- Submission-ready variant: ${submissionReadyVariant ?? 'none'}`,
     `- Release metadata asset: ${path.basename(publicationArtifacts.metadataPath)}`,
     `- GitHub Release assets uploaded: ${githubReleaseAssets}`
   ].join('\n');
@@ -198,12 +215,13 @@ export async function publishRelease({
     const dryRunReport = {
       releaseTag: plan.release.tag,
       repository: plan.release.repository,
-      distributionMode: 'steam',
-      runtimeSource: 'portable-fixed',
       desktopVersion: plan.upstream.desktop.version,
       desktopTag: plan.upstream.desktop.tag,
       serverVersion: plan.upstream.server.version,
       storePackageVersion: publicationArtifacts.releaseMetadata.storePackageVersion,
+      submissionReadyVariant: publicationArtifacts.releaseMetadata.publication.submissionReadyVariant,
+      desktopUnsignedArtifact: publicationArtifacts.releaseMetadata.publication.desktopUnsignedArtifact,
+      signedArtifact: publicationArtifacts.releaseMetadata.publication.signedArtifact,
       uploads: [
         ...publicationArtifacts.releaseAssets.map((filePath, index) => ({
           fileName: publicationArtifacts.mergedInventory.artifacts[index].fileName,
@@ -222,9 +240,11 @@ export async function publishRelease({
       `- Release tag: ${plan.release.tag}`,
       `- Desktop tag: ${plan.upstream.desktop.tag}`,
       `- Server version: ${plan.upstream.server.version}`,
+      `- Store config source: ${publicationArtifacts.releaseMetadata.desktop.storeConfigPath}`,
       `- Store package version: ${publicationArtifacts.releaseMetadata.storePackageVersion ?? 'unavailable'}`,
-      '- Distribution mode: steam',
-      `- Primary Store submission package: ${publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.fileName ?? 'none'}`,
+      `- Desktop unsigned artifact: ${publicationArtifacts.releaseMetadata.publication.desktopUnsignedArtifact ?? 'none'}`,
+      `- Post-signed artifact: ${publicationArtifacts.releaseMetadata.publication.signedArtifact ?? 'none'}`,
+      `- Submission-ready variant: ${publicationArtifacts.releaseMetadata.publication.submissionReadyVariant ?? 'none'}`,
       `- Assets prepared: ${publicationArtifacts.releaseAssets.length + 1}`
     ]);
 
@@ -287,9 +307,11 @@ export async function publishRelease({
     `- Uploaded assets: ${uploadedAssets.length}`,
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
     `- Server version: ${plan.upstream.server.version}`,
+    `- Store config source: ${publicationArtifacts.releaseMetadata.desktop.storeConfigPath}`,
     `- Store package version: ${publicationArtifacts.releaseMetadata.storePackageVersion ?? 'unavailable'}`,
-    `- Primary Store submission package: ${publicationArtifacts.releaseMetadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.fileName ?? 'none'}`,
-    '- Distribution mode: steam'
+    `- Desktop unsigned artifact: ${publicationArtifacts.releaseMetadata.publication.desktopUnsignedArtifact ?? 'none'}`,
+    `- Post-signed artifact: ${publicationArtifacts.releaseMetadata.publication.signedArtifact ?? 'none'}`,
+    `- Submission-ready variant: ${publicationArtifacts.releaseMetadata.publication.submissionReadyVariant ?? 'none'}`
   ]);
 
   return publicationResult;

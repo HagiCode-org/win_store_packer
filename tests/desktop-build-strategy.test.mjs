@@ -20,16 +20,15 @@ async function writePackageJson(workspacePath, scripts) {
 
 test('resolveDesktopStoreBuildStrategy accepts the current desktop packaging pipeline', async () => {
   const workspacePath = await mkdtemp(path.join(os.tmpdir(), 'desktop-build-strategy-pipeline-'));
-  await mkdir(path.join(workspacePath, 'scripts'), { recursive: true });
-  await writeFile(path.join(workspacePath, 'scripts', 'run-electron-builder.js'), 'console.log("stub");\n', 'utf8');
+  await mkdir(path.join(workspacePath, 'config'), { recursive: true });
   await writePackageJson(workspacePath, {
-    'prepare:runtime': 'node -e "process.exit(0)"',
-    'prepare:bundled-toolchain': 'node -e "process.exit(0)"',
-    'prepare:code-server-runtime': 'node -e "process.exit(0)"',
-    'prepare:omniroute-runtime': 'node -e "process.exit(0)"',
-    'build:prod': 'node -e "process.exit(0)"',
-    'package:smoke-test': 'node -e "process.exit(0)"',
+    'build:win:store': 'node scripts/build-store-package.js',
   });
+  await writeFile(
+    path.join(workspacePath, 'config', 'store-package.json'),
+    JSON.stringify({ packageIdentity: { identityName: 'fixture.Hagicode' }, appx: {} }, null, 2),
+    'utf8'
+  );
 
   const strategy = await resolveDesktopStoreBuildStrategy({
     desktopWorkspace: workspacePath,
@@ -38,41 +37,19 @@ test('resolveDesktopStoreBuildStrategy accepts the current desktop packaging pip
   assert.equal(strategy.canBuild, true);
   assert.equal(strategy.isCompatible, true);
 
-  const steps = buildDesktopStoreSteps('electron-builder.store.yml', strategy, {
-    packerRepoRoot: '/tmp/win_store_packer',
+  const steps = buildDesktopStoreSteps(strategy, {
     platform: 'linux'
   });
   assert.equal(steps[0].command, 'npm');
-  assert.deepEqual(steps[0].args, ['run', 'prepare:runtime']);
-  assert.equal(steps[5].command, 'node');
-  assert.deepEqual(steps[5].args, ['scripts/run-electron-builder.js', '--win', 'dir', '--publish', 'never', '--config', 'electron-builder.store.yml']);
-  assert.equal(steps[6].command, 'node');
-  assert.deepEqual(steps[6].args, [
-    '/tmp/win_store_packer/scripts/package-store-msix.mjs',
-    '--project-root',
-    '.',
-    '--config',
-    'electron-builder.store.yml',
-    '--input',
-    'pkg/win-unpacked',
-    '--output',
-    'pkg',
-    '--assets',
-    'resources/appx'
-  ]);
+  assert.deepEqual(steps[0].args, ['run', 'build:win:store']);
 
-  const command = buildDesktopStoreCommand('electron-builder.store.yml', strategy, {
-    packerRepoRoot: '/tmp/win_store_packer'
-  });
-  assert.match(command, /node "scripts\/run-electron-builder\.js" "--win" "dir" "--publish" "never" "--config" "electron-builder\.store\.yml"/);
-  assert.match(command, /package-store-msix\.mjs/);
-  assert.match(command, /"--input" "pkg[\/]win-unpacked"/);
+  const command = buildDesktopStoreCommand(strategy);
+  assert.equal(command, 'npm "run" "build:win:store"');
 
-  const windowsCommand = buildDesktopStoreCommand('electron-builder.store.yml', strategy, {
-    packerRepoRoot: 'C:\\tmp\\win_store_packer',
+  const windowsCommand = buildDesktopStoreCommand(strategy, {
     platform: 'win32'
   });
-  assert.match(windowsCommand, /node\.exe "C:\/tmp\/win_store_packer\/scripts\/package-store-msix\.mjs"/);
+  assert.equal(windowsCommand, 'npm.cmd "run" "build:win:store"');
   assert.equal(
     await shouldUseSyntheticDryRunBuild({
       desktopWorkspace: workspacePath,

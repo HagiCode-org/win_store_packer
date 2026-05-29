@@ -42,16 +42,12 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
       }
     },
     store: {
-      packageIdentity: {
-        displayName: 'Hagicode',
-        publisherDisplayName: 'newbe36524',
-        publisher: 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F',
-        identityName: 'newbe36524.Hagicode',
-        backgroundColor: 'transparent',
-        languages: ['en-US', 'zh-CN'],
-        addAutoLaunchExtension: false
-      },
-      supportedWindowsTargets: ['win-x64']
+      supportedWindowsTargets: ['win-x64'],
+      desktop: {
+        storeConfigPath: 'config/store-package.json',
+        buildCommand: 'build:win:store',
+        runtimeInjectionPath: 'resources/portable-fixed/current'
+      }
     },
     release: {
       repository: 'HagiCode-org/win_store_packer',
@@ -73,20 +69,23 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
   await writeJson(path.join(releaseMetadataDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json'), {
     releaseTag: 'store-desktop-v0.3.0-server-v0.1.0-beta.34',
     storePackageVersion: '0.3.0.0',
+    publication: {
+      submissionReadyVariant: 'unsigned'
+    },
     artifacts: [
       {
         platform: 'win-x64',
         fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx',
         variant: 'unsigned',
         signed: false,
-        primaryForStoreSubmission: true
+        languages: ['en-US', 'zh-CN']
       },
       {
         platform: 'win-x64',
         fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx',
         variant: 'signed',
         signed: true,
-        primaryForStoreSubmission: false
+        languages: ['en-US', 'zh-CN']
       },
       {
         platform: 'win-x64',

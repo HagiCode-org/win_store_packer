@@ -3,10 +3,10 @@ import path from 'node:path';
 import { appendFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { cleanDir, ensureDir, pathExists, readJson, writeJson } from './lib/fs-utils.mjs';
+import { cleanDir, ensureDir, pathExists, writeJson } from './lib/fs-utils.mjs';
 import { runCommand, runCommandResult } from './lib/command.mjs';
 import { loadReleasePlan } from './lib/release-plan.mjs';
-import { loadStorePackageConfig, loadWorkflowDefaults } from './lib/store-config.mjs';
+import { loadDesktopStoreConfig, loadStorePackageConfig, loadWorkflowDefaults } from './lib/store-config.mjs';
 import { resolveDesktopStoreBuildStrategy } from './lib/desktop-build.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 
@@ -38,22 +38,28 @@ async function resolveGitRevision(sourcePath, ref) {
 
 async function validateDesktopWorkspace({ desktopWorkspace, storePackageConfig }) {
   const packageJsonPath = path.join(desktopWorkspace, 'package.json');
-  const electronBuilderPath = path.join(desktopWorkspace, storePackageConfig.desktop.electronBuilderConfigPath);
+  const desktopStoreConfigPath = path.join(desktopWorkspace, storePackageConfig.desktop.storeConfigPath);
   const runtimeRoot = path.join(desktopWorkspace, storePackageConfig.desktop.runtimeInjectionPath);
 
   if (!(await pathExists(packageJsonPath))) {
     throw new Error(`Desktop workspace is missing package.json at ${packageJsonPath}.`);
   }
-  if (!(await pathExists(electronBuilderPath))) {
-    throw new Error(`Desktop workspace is missing ${storePackageConfig.desktop.electronBuilderConfigPath}.`);
+  if (!(await pathExists(desktopStoreConfigPath))) {
+    throw new Error(`Desktop workspace is missing ${storePackageConfig.desktop.storeConfigPath}.`);
   }
 
+  const { config: desktopStoreConfig } = await loadDesktopStoreConfig(
+    desktopWorkspace,
+    storePackageConfig.desktop.storeConfigPath
+  );
+
   const buildStrategy = await resolveDesktopStoreBuildStrategy({
-    desktopWorkspace
+    desktopWorkspace,
+    buildCommand: storePackageConfig.desktop.buildCommand
   });
   if (!buildStrategy.isCompatible) {
     throw new Error(
-      'Desktop workspace is missing the current Store packaging pipeline required for AppX packaging.'
+      'Desktop workspace is missing the direct Store build contract required for AppX packaging.'
     );
   }
 
@@ -61,7 +67,8 @@ async function validateDesktopWorkspace({ desktopWorkspace, storePackageConfig }
 
   return {
     packageJsonPath,
-    electronBuilderPath,
+    desktopStoreConfigPath,
+    desktopStoreConfig,
     runtimeRoot,
     buildStrategy
   };
@@ -118,7 +125,9 @@ export async function preparePackagingWorkspace({
     outputDirectory,
     reportsDirectory,
     packageJsonPath: validation.packageJsonPath,
-    electronBuilderConfigPath: validation.electronBuilderPath,
+    desktopStoreConfigPath: validation.desktopStoreConfigPath,
+    desktopStoreConfigRelativePath: storePackageConfig.desktop.storeConfigPath,
+    desktopBuildCommand: storePackageConfig.desktop.buildCommand,
     runtimeInjectionRoot: validation.runtimeRoot,
     desktopVersion: plan.upstream.desktop.version,
     desktopTag: plan.upstream.desktop.tag,
@@ -144,17 +153,19 @@ export async function preparePackagingWorkspace({
     targetPaths: {
       desktopWorkspace,
       runtimeInjectionRoot: validation.runtimeRoot,
-      electronBuilderConfigPath: validation.electronBuilderPath
+      desktopStoreConfigPath: validation.desktopStoreConfigPath
     },
     checks: {
       tagResolved: true,
       packageJsonPresent: true,
-      electronBuilderPresent: true,
-      desktopBuildPipelineSupported: validation.buildStrategy.canBuild
+      desktopStoreConfigPresent: true,
+      desktopBuildContractPresent: validation.buildStrategy.canBuild
     },
     buildStrategy: {
       supported: validation.buildStrategy.canBuild,
-      hasElectronBuilderRunner: validation.buildStrategy.hasElectronBuilderRunner
+      buildCommand: validation.buildStrategy.buildCommand,
+      storeConfigPath: validation.desktopStoreConfigPath,
+      identityName: validation.desktopStoreConfig.packageIdentity.identityName
     }
   };
   const workspaceReportPath = path.join(resolvedWorkspacePath, `workspace-validation-${platformId}.json`);
@@ -173,6 +184,8 @@ export async function preparePackagingWorkspace({
     `- Desktop ref: ${desktopRef}`,
     `- Desktop source: ${resolvedDesktopSourcePath}`,
     `- Desktop workspace: ${desktopWorkspace}`,
+    `- Desktop Store config: ${validation.desktopStoreConfigPath}`,
+    `- Desktop build command: ${storePackageConfig.desktop.buildCommand}`,
     `- Runtime injection root: ${validation.runtimeRoot}`
   ]);
 

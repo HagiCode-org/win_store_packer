@@ -30,6 +30,8 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
         outputPath: unsignedMsixPath,
         sizeBytes: 16,
         sha256: 'abc',
+        desktopProduced: true,
+        storeConfigPath: 'config/store-package.json',
         variant: 'unsigned',
         signed: false,
         primaryForStoreSubmission: true
@@ -47,6 +49,8 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
         outputPath: signedMsixPath,
         sizeBytes: 14,
         sha256: 'def',
+        desktopProduced: true,
+        storeConfigPath: 'config/store-package.json',
         variant: 'signed',
         signed: true,
         primaryForStoreSubmission: false
@@ -80,16 +84,12 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
       server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } }
     },
     store: {
-      packageIdentity: {
-        displayName: 'Hagicode',
-        publisherDisplayName: 'newbe36524',
-        publisher: 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F',
-        identityName: 'newbe36524.Hagicode',
-        backgroundColor: 'transparent',
-        languages: ['en-US'],
-        addAutoLaunchExtension: false
-      },
-      supportedWindowsTargets: ['win-x64']
+      supportedWindowsTargets: ['win-x64'],
+      desktop: {
+        storeConfigPath: 'config/store-package.json',
+        buildCommand: 'build:win:store',
+        runtimeInjectionPath: 'resources/portable-fixed/current'
+      }
     },
     release: {
       repository: 'HagiCode-org/win_store_packer',
@@ -152,11 +152,13 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
 
   const metadataPath = path.join(outputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json');
   const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
-  assert.equal(metadata.distributionMode, 'steam');
-  assert.equal(metadata.runtimeSource, 'portable-fixed');
   assert.equal(metadata.storePackageVersion, '0.3.0.0');
+  assert.equal(metadata.desktop.storeConfigPath, 'config/store-package.json');
+  assert.equal(metadata.publication.desktopUnsignedArtifact, path.basename(unsignedMsixPath));
+  assert.equal(metadata.publication.signedArtifact, path.basename(signedMsixPath));
+  assert.equal(metadata.publication.submissionReadyVariant, 'signed');
   assert.equal(metadata.artifacts.filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName)).length, 2);
-  assert.equal(metadata.artifacts.find((artifact) => artifact.primaryForStoreSubmission)?.variant, 'unsigned');
+  assert.equal(metadata.artifacts.find((artifact) => artifact.fileName === path.basename(signedMsixPath))?.variant, 'signed');
 });
 
 
@@ -189,6 +191,8 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
         outputPath: 'D:\\a\\_temp\\store-release-win-x64-unsigned\\release-assets\\' + unsignedFileName,
         sizeBytes: 16,
         sha256: 'abc',
+        desktopProduced: true,
+        storeConfigPath: 'config/store-package.json',
         variant: 'unsigned',
         signed: false,
         primaryForStoreSubmission: true
@@ -206,6 +210,8 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
         outputPath: 'D:\\a\\_temp\\store-release-win-x64-signed\\release-assets\\' + signedFileName,
         sizeBytes: 14,
         sha256: 'def',
+        desktopProduced: true,
+        storeConfigPath: 'config/store-package.json',
         variant: 'signed',
         signed: true,
         primaryForStoreSubmission: false
@@ -223,16 +229,12 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
       server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } }
     },
     store: {
-      packageIdentity: {
-        displayName: 'Hagicode',
-        publisherDisplayName: 'newbe36524',
-        publisher: 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F',
-        identityName: 'newbe36524.Hagicode',
-        backgroundColor: 'transparent',
-        languages: ['en-US'],
-        addAutoLaunchExtension: false
-      },
-      supportedWindowsTargets: ['win-x64']
+      supportedWindowsTargets: ['win-x64'],
+      desktop: {
+        storeConfigPath: 'config/store-package.json',
+        buildCommand: 'build:win:store',
+        runtimeInjectionPath: 'resources/portable-fixed/current'
+      }
     },
     release: {
       repository: 'HagiCode-org/win_store_packer',

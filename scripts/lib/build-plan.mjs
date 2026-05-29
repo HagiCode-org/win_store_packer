@@ -191,8 +191,12 @@ export async function buildPlan({
       }
     },
     store: {
-      packageIdentity: storePackageConfig.packageIdentity,
-      supportedWindowsTargets: [...storePackageConfig.supportedWindowsTargets]
+      supportedWindowsTargets: [...storePackageConfig.supportedWindowsTargets],
+      desktop: {
+        storeConfigPath: storePackageConfig.desktop.storeConfigPath,
+        buildCommand: storePackageConfig.desktop.buildCommand,
+        runtimeInjectionPath: storePackageConfig.desktop.runtimeInjectionPath
+      }
     },
     release: {
       repository: packerRepository,

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "sourceElectronBuilderConfigPath": "electron-builder.yml",
+  "inputDirectory": "pkg/win-unpacked",
+  "outputDirectory": "pkg",
+  "stageDirectory": "build/msix-stage",
+  "assetsDirectory": "resources/appx",
+  "metadataOutputPath": "pkg/store-build-metadata.json",
+  "runtimeInjectionPath": "resources/portable-fixed/current",
+  "packageIdentity": {
+    "displayName": "Hagicode",
+    "publisherDisplayName": "newbe36524",
+    "publisher": "CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F",
+    "identityName": "newbe36524.Hagicode",
+    "backgroundColor": "transparent",
+    "languages": [
+      "en-US",
+      "zh-CN"
+    ],
+    "addAutoLaunchExtension": false
+  },
+  "appx": {
+    "minVersion": "10.0.19041.0",
+    "maxVersionTested": "10.0.22621.0",
+    "capabilities": [
+      "runFullTrust",
+      "internetClient",
+      "internetClientServer",
+      "privateNetworkClientServer"
+    ]
+  }
+}

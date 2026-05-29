@@ -16,8 +16,7 @@ test('finalizeAppxSigning skips final package verification when configured to ke
   await writeJson(buildMetadataPath, {
     publishedArtifactPath: artifactPath,
     storePackageVersion: '0.3.0.0',
-    distributionMode: 'steam',
-    runtimeSource: 'portable-fixed',
+    desktopBuildMetadataPath: path.join(workspacePath, 'reports', 'desktop-store-build-win-x64-signed.json'),
     desktopVersion: '0.3.0',
     desktopTag: 'v0.3.0',
     desktopRef: 'refs/tags/v0.3.0',

@@ -80,8 +80,8 @@ export async function finalizeAppxSigning({
     artifactPath: signedArtifactPath,
     platformId,
     metadata: {
-      distributionMode: buildMetadata.distributionMode,
-      runtimeSource: buildMetadata.runtimeSource,
+      desktopProduced: true,
+      desktopBuildMetadataPath: buildMetadata.desktopBuildMetadataPath ?? null,
       desktopVersion: buildMetadata.desktopVersion,
       desktopTag: buildMetadata.desktopTag,
       desktopRef: buildMetadata.desktopRef,

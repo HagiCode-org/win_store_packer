@@ -1,21 +1,64 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadStorePackageConfig, normalizeStorePackageVersion, resolveStoreSigningConfig } from '../scripts/lib/store-config.mjs';
+import os from 'node:os';
+import path from 'node:path';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import {
+  loadDesktopStoreConfig,
+  loadStorePackageConfig,
+  normalizeStorePackageVersion,
+  resolveStoreSigningConfig,
+} from '../scripts/lib/store-config.mjs';
 
 test('normalizeStorePackageVersion derives a four-part Windows package version from a Desktop tag', async () => {
   const storePackageConfig = await loadStorePackageConfig();
   assert.equal(normalizeStorePackageVersion('v0.1.56', storePackageConfig.packageVersion), '0.1.56.0');
 });
 
-test('loadStorePackageConfig exposes the AppX capabilities required by Hagicode Desktop', async () => {
+test('loadStorePackageConfig exposes packer defaults plus the desktop build contract reference', async () => {
   const storePackageConfig = await loadStorePackageConfig();
-  assert.deepEqual(storePackageConfig.appx?.capabilities, [
-    'runFullTrust',
-    'internetClient',
-    'internetClientServer',
-    'privateNetworkClientServer'
-  ]);
+  assert.equal(storePackageConfig.desktop.storeConfigPath, 'config/store-package.json');
+  assert.equal(storePackageConfig.desktop.buildCommand, 'build:win:store');
+  assert.equal(storePackageConfig.desktop.runtimeInjectionPath, 'resources/portable-fixed/current');
   assert.equal(storePackageConfig.signing.skipFinalAppxSigning, false);
+});
+
+test('loadDesktopStoreConfig validates the desktop-owned Store metadata separately', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'desktop-store-config-'));
+  const configPath = path.join(tempRoot, 'config', 'store-package.json');
+  await mkdir(path.dirname(configPath), { recursive: true });
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      sourceElectronBuilderConfigPath: 'electron-builder.yml',
+      inputDirectory: 'pkg/win-unpacked',
+      outputDirectory: 'pkg',
+      stageDirectory: 'build/msix-stage',
+      assetsDirectory: 'resources/appx',
+      metadataOutputPath: 'pkg/store-build-metadata.json',
+      runtimeInjectionPath: 'resources/portable-fixed/current',
+      packageIdentity: {
+        displayName: 'Hagicode',
+        publisherDisplayName: 'newbe36524',
+        publisher: 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F',
+        identityName: 'newbe36524.Hagicode',
+        backgroundColor: 'transparent',
+        languages: ['en-US', 'zh-CN'],
+        addAutoLaunchExtension: false,
+      },
+      appx: {
+        minVersion: '10.0.19041.0',
+        maxVersionTested: '10.0.22621.0',
+        capabilities: ['runFullTrust', 'internetClient'],
+      },
+    }, null, 2),
+    'utf8'
+  );
+
+  const desktopConfig = await loadDesktopStoreConfig(tempRoot, 'config/store-package.json');
+  assert.equal(desktopConfig.config.packageIdentity.identityName, 'newbe36524.Hagicode');
+  assert.deepEqual(desktopConfig.config.packageIdentity.languages, ['en-US', 'zh-CN']);
+  assert.deepEqual(desktopConfig.config.appx.capabilities, ['runFullTrust', 'internetClient']);
 });
 
 test('normalizeStorePackageVersion rejects non-stable Desktop tags', async () => {

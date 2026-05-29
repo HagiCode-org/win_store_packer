@@ -77,8 +77,11 @@ export function validateReleasePlan(plan, { planPath = '[inline]' } = {}) {
   requireObject(downloads.server, 'plan.downloads.server');
 
   const store = requireObject(plan.store, 'plan.store');
-  requireObject(store.packageIdentity, 'plan.store.packageIdentity');
   requireArray(store.supportedWindowsTargets, 'plan.store.supportedWindowsTargets');
+  const desktopStore = requireObject(store.desktop, 'plan.store.desktop');
+  requireNonEmptyString(desktopStore.storeConfigPath, 'plan.store.desktop.storeConfigPath');
+  requireNonEmptyString(desktopStore.buildCommand, 'plan.store.desktop.buildCommand');
+  requireNonEmptyString(desktopStore.runtimeInjectionPath, 'plan.store.desktop.runtimeInjectionPath');
 
   const platforms = validatePlatforms(plan);
   for (const platformId of platforms) {

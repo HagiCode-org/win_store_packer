@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { cleanDir, copyDir, ensureDir, readJson, writeJson } from './lib/fs-utils.mjs';
+import { cleanDir, ensureDir, readJson, writeJson } from './lib/fs-utils.mjs';
 import { resolveAssetDownloadUrl, downloadFromSource, sanitizeUrlForLogs } from './lib/azure-blob.mjs';
 import { extractArchive } from './lib/archive.mjs';
 import { resolveRuntimeRoot, validateServerPayloadRoot } from './lib/payload.mjs';
@@ -26,10 +26,8 @@ export async function stageServerPayload({
 
   const downloadPath = path.join(workspaceManifest.downloadDirectory, `${platformId}-${asset.name}`);
   const extractionPath = path.join(workspaceManifest.extractDirectory, 'server');
-  const targetPath = workspaceManifest.runtimeInjectionRoot;
   await ensureDir(workspaceManifest.downloadDirectory);
   await cleanDir(extractionPath);
-  await cleanDir(targetPath);
 
   const assetSource = resolveAssetDownloadUrl({
     asset,
@@ -45,7 +43,6 @@ export async function stageServerPayload({
   }
 
   const validation = await validateServerPayloadRoot(runtimeRoot, platformId);
-  await copyDir(runtimeRoot, targetPath);
 
   const validationReport = {
     validationPassed: true,
@@ -60,7 +57,8 @@ export async function stageServerPayload({
     downloadPath,
     extractionPath,
     validatedPayloadRoot: validation.runtimeRoot,
-    embeddedTargetRoot: targetPath,
+    payloadRootForDesktopBuild: validation.runtimeRoot,
+    desktopRuntimeInjectionRoot: workspaceManifest.runtimeInjectionRoot,
     requiredPaths: validation.requiredPaths
   };
   const validationReportPath = path.join(resolvedWorkspacePath, `payload-validation-${platformId}.json`);
@@ -71,12 +69,13 @@ export async function stageServerPayload({
     `- Server version: ${workspaceManifest.serverVersion}`,
     `- Desktop tag: ${workspaceManifest.desktopTag}`,
     `- Download source: ${sanitizeUrlForLogs(assetSource)}`,
-    `- Target path: ${targetPath}`
+    `- Validated payload root: ${validation.runtimeRoot}`,
+    `- Desktop runtime injection root: ${workspaceManifest.runtimeInjectionRoot}`
   ]);
 
   return {
     validationReportPath,
-    stagedCurrentPath: targetPath
+    payloadRootForDesktopBuild: validation.runtimeRoot
   };
 }
 

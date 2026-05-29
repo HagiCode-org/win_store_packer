@@ -57,16 +57,18 @@ export async function buildStoreSubmissionUpdate({
   const publicationResult = await readJson(publicationResultPath);
   const releaseMetadata = await readJson(releaseMetadataPath);
   const uploadedAssetUrls = buildUploadedAssetMap(publicationResult);
-  const languages = [...plan.store.packageIdentity.languages];
-
   const packages = releaseMetadata.artifacts
     .filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName))
-    .filter((artifact) => artifact.primaryForStoreSubmission === true)
+    .filter((artifact) => artifact.variant === releaseMetadata.publication?.submissionReadyVariant)
     .map((artifact) => {
       const packageUrl = uploadedAssetUrls.get(artifact.fileName);
       if (!packageUrl) {
         throw new Error(`Missing published asset URL for ${artifact.fileName}.`);
       }
+
+      const languages = Array.isArray(artifact.languages) && artifact.languages.length > 0
+        ? artifact.languages
+        : ['en-US'];
 
       return {
         packageUrl,
@@ -87,7 +89,7 @@ export async function buildStoreSubmissionUpdate({
   await appendSummary([
     '## Microsoft Store submission payload prepared',
     `- Packages: ${packages.length}`,
-    `- Languages: ${languages.join(', ')}`,
+    `- Languages: ${packages[0]?.languages.join(', ') ?? 'en-US'}`,
     `- Release tag: ${plan.release.tag}`,
     `- Primary package: ${packages[0]?.packageUrl ?? 'none'}`
   ]);
