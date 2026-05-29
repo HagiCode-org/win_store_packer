@@ -46,7 +46,7 @@ function normalizeArtifactVariant(value) {
   return normalized;
 }
 
-async function executeDesktopBuildSteps(steps, cwd) {
+async function executeDesktopBuildSteps(steps, cwd, env = process.env) {
   for (const [index, step] of steps.entries()) {
     const stepLabel = `step ${index + 1}/${steps.length}: ${step.name}`;
     console.log(`[build-appx] ${stepLabel}`);
@@ -60,7 +60,7 @@ async function executeDesktopBuildSteps(steps, cwd) {
     heartbeat.unref?.();
 
     try {
-      await runCommand(step.command, step.args, { cwd });
+      await runCommand(step.command, step.args, { cwd, env });
     } finally {
       clearInterval(heartbeat);
     }
@@ -250,7 +250,14 @@ export async function buildAppx({
     platform: process.platform,
     forwardArgs: desktopForwardArgs,
   });
-  await executeDesktopBuildSteps(desktopBuildSteps, workspaceManifest.desktopWorkspace);
+
+  const desktopBuildEnv = { ...process.env };
+  if (signingConfig.enabled && signingConfig.publisher && !desktopBuildEnv.WINDOWS_PACKAGE_PUBLISHER) {
+    // Keep the desktop-owned MSIX manifest publisher aligned with the signing certificate subject.
+    desktopBuildEnv.WINDOWS_PACKAGE_PUBLISHER = signingConfig.publisher;
+  }
+
+  await executeDesktopBuildSteps(desktopBuildSteps, workspaceManifest.desktopWorkspace, desktopBuildEnv);
 
   const desktopBuildMetadata = validateDesktopBuildMetadata(
     await readJson(desktopBuildMetadataPath),

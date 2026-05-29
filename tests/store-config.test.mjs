@@ -125,6 +125,26 @@ test('resolveStoreSigningConfig prefers AZURE_CODESIGN_APPX_PUBLISHER for the Ap
   assert.equal(signingConfig.publisherName, 'CN=Hagicode Publisher, O=HagiCode, C=US');
 });
 
+test('resolveStoreSigningConfig accepts WINDOWS_PACKAGE_PUBLISHER as a publisher subject fallback', async () => {
+  const storePackageConfig = await loadStorePackageConfig();
+  const signingConfig = resolveStoreSigningConfig({
+    storePackageConfig,
+    signingMode: 'required',
+    env: {
+      WINDOWS_PACKAGE_PUBLISHER: 'CN=Hagicode Publisher, O=HagiCode, C=US',
+      AZURE_CLIENT_ID: 'client-id',
+      AZURE_TENANT_ID: 'tenant-id',
+      AZURE_CLIENT_SECRET: 'client-secret',
+      AZURE_CODESIGN_ENDPOINT: 'https://example.test',
+      AZURE_CODESIGN_ACCOUNT_NAME: 'account-name',
+      AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: 'profile-name'
+    }
+  });
+
+  assert.equal(signingConfig.publisher, 'CN=Hagicode Publisher, O=HagiCode, C=US');
+  assert.deepEqual(signingConfig.publisherSubjectEnvFallbacks, ['AZURE_CODESIGN_APPX_PUBLISHER', 'WINDOWS_PACKAGE_PUBLISHER']);
+});
+
 test('resolveStoreSigningConfig reports missing Azure Trusted Signing options separately from auth envs', async () => {
   const storePackageConfig = await loadStorePackageConfig();
   assert.throws(

@@ -26,6 +26,15 @@ function gitEnv() {
   };
 }
 
+function restoreEnv(name, previousValue) {
+  if (previousValue === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = previousValue;
+}
+
 async function createTaggedDesktopRepo(tempRoot, tag = 'v0.3.0') {
   const sourcePath = fixturePath('desktop-source');
   const repoPath = path.join(tempRoot, 'hagicode-desktop');
@@ -327,6 +336,9 @@ test('signed packaging records post-processing signing state without changing th
   const previousAzureEndpoint = process.env.AZURE_CODESIGN_ENDPOINT;
   const previousAzureAccountName = process.env.AZURE_CODESIGN_ACCOUNT_NAME;
   const previousAzureProfileName = process.env.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME;
+  const previousAzureAppxPublisher = process.env.AZURE_CODESIGN_APPX_PUBLISHER;
+  const previousWindowsPackagePublisher = process.env.WINDOWS_PACKAGE_PUBLISHER;
+  const customPublisher = 'CN=Hagicode Publisher, O=HagiCode, C=US';
 
   process.env.AZURE_CLIENT_ID = 'client-id';
   process.env.AZURE_TENANT_ID = 'tenant-id';
@@ -334,6 +346,8 @@ test('signed packaging records post-processing signing state without changing th
   process.env.AZURE_CODESIGN_ENDPOINT = 'https://example.test';
   process.env.AZURE_CODESIGN_ACCOUNT_NAME = 'account-name';
   process.env.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME = 'profile-name';
+  process.env.AZURE_CODESIGN_APPX_PUBLISHER = customPublisher;
+  delete process.env.WINDOWS_PACKAGE_PUBLISHER;
 
   try {
     await buildAppx({
@@ -345,25 +359,30 @@ test('signed packaging records post-processing signing state without changing th
       forceDryRun: true
     });
   } finally {
-    process.env.AZURE_CLIENT_ID = previousAzureClientId;
-    process.env.AZURE_TENANT_ID = previousAzureTenantId;
-    process.env.AZURE_CLIENT_SECRET = previousAzureClientSecret;
-    process.env.AZURE_CODESIGN_ENDPOINT = previousAzureEndpoint;
-    process.env.AZURE_CODESIGN_ACCOUNT_NAME = previousAzureAccountName;
-    process.env.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME = previousAzureProfileName;
+    restoreEnv('AZURE_CLIENT_ID', previousAzureClientId);
+    restoreEnv('AZURE_TENANT_ID', previousAzureTenantId);
+    restoreEnv('AZURE_CLIENT_SECRET', previousAzureClientSecret);
+    restoreEnv('AZURE_CODESIGN_ENDPOINT', previousAzureEndpoint);
+    restoreEnv('AZURE_CODESIGN_ACCOUNT_NAME', previousAzureAccountName);
+    restoreEnv('AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME', previousAzureProfileName);
+    restoreEnv('AZURE_CODESIGN_APPX_PUBLISHER', previousAzureAppxPublisher);
+    restoreEnv('WINDOWS_PACKAGE_PUBLISHER', previousWindowsPackagePublisher);
   }
 
   const workspaceManifest = await readJson(path.join(workspacePath, 'workspace-manifest.json'));
   const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.signed.yml'), 'utf8');
   const buildMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64-signed.json'));
+  const desktopBuildMetadata = await readJson(buildMetadata.desktopBuildMetadataPath);
 
   assert.match(overlayConfigText, /identityName: newbe36524\.Hagicode/);
+  assert.match(overlayConfigText, /publisher: CN=Hagicode Publisher, O=HagiCode, C=US/);
   assert.doesNotMatch(overlayConfigText, /azureSignOptions:/);
   assert.equal(buildMetadata.signing.skipFinalAppxSigning, false);
   assert.equal(buildMetadata.signing.finalArtifactSigningExpected, true);
   assert.equal(buildMetadata.storePackageExtension, '.msix');
   assert.equal(buildMetadata.signing.mode, 'required');
   assert.equal(buildMetadata.signing.status, 'synthetic');
+  assert.equal(desktopBuildMetadata.store.publisher, customPublisher);
 
   const externalSigningBuild = await buildAppx({
     planPath,

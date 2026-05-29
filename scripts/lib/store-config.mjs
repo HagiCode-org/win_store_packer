@@ -235,9 +235,11 @@ export function resolveStoreSigningConfig({
   const enabled = mode !== 'disabled';
   const required = mode === 'required';
   const external = mode === 'external';
-  const configuredPublisher = signing.publisherSubjectEnvVar
-    ? (env[signing.publisherSubjectEnvVar]?.trim() || null)
-    : null;
+  const publisherSubjectEnvCandidates = [signing.publisherSubjectEnvVar, 'WINDOWS_PACKAGE_PUBLISHER']
+    .filter((candidate, index, values) => candidate && values.indexOf(candidate) === index);
+  const configuredPublisher = publisherSubjectEnvCandidates
+    .map((candidate) => env[candidate]?.trim() || null)
+    .find(Boolean) ?? null;
   const defaultPublisher = configuredPublisher ?? signing.publisherSubject ?? null;
   const normalizedPublisher = defaultPublisher ? stripOptionalWrappingQuotes(defaultPublisher) : null;
   const publisherName = signing.azure.publisherName ?? normalizedPublisher;
@@ -251,6 +253,7 @@ export function resolveStoreSigningConfig({
     publisher: normalizedPublisher,
     publisherName,
     publisherSubjectEnvVar: signing.publisherSubjectEnvVar ?? null,
+    publisherSubjectEnvFallbacks: publisherSubjectEnvCandidates,
     skipFinalAppxSigning: signing.skipFinalAppxSigning,
     verificationScriptRelativePath: signing.verificationScriptRelativePath,
     azure: {

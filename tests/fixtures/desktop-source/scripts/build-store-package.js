@@ -117,6 +117,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'));
   const storeConfig = JSON.parse(await readFile(options.storeConfigPath, 'utf8'));
+  const publisherOverride = String(process.env.WINDOWS_PACKAGE_PUBLISHER || '').trim() || storeConfig.packageIdentity.publisher;
   const artifactOutputDir = options.artifactOutputDir ?? path.join(projectRoot, storeConfig.outputDirectory);
   const metadataOutputPath = options.metadataOutputPath ?? path.join(projectRoot, storeConfig.metadataOutputPath);
   const overlayOutputPath = options.overlayOutputPath ?? path.join(projectRoot, 'electron-builder.store.yml');
@@ -134,6 +135,7 @@ async function main() {
       `buildVersion: ${packageVersion}`,
       'appx:',
       `  identityName: ${storeConfig.packageIdentity.identityName}`,
+      `  publisher: ${publisherOverride}`,
       '  capabilities:',
       ...storeConfig.appx.capabilities.map((capability) => `    - ${capability}`),
     ].join('\n') + '\n',
@@ -148,7 +150,13 @@ async function main() {
   });
   await writeFile(
     path.join(stagingDirectory, 'store-package-identity.json'),
-    JSON.stringify({ packageIdentity: storeConfig.packageIdentity, packageVersion }, null, 2) + '\n',
+    JSON.stringify({
+      packageIdentity: {
+        ...storeConfig.packageIdentity,
+        publisher: publisherOverride,
+      },
+      packageVersion,
+    }, null, 2) + '\n',
     'utf8'
   );
 
@@ -172,7 +180,7 @@ async function main() {
     store: {
       displayName: storeConfig.packageIdentity.displayName,
       publisherDisplayName: storeConfig.packageIdentity.publisherDisplayName,
-      publisher: storeConfig.packageIdentity.publisher,
+      publisher: publisherOverride,
       identityName: storeConfig.packageIdentity.identityName,
       languages: [...storeConfig.packageIdentity.languages],
       capabilities: [...storeConfig.appx.capabilities],
