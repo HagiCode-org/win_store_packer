@@ -317,7 +317,7 @@ export async function buildMsix({
 
   const packageLockPath = path.join(workspaceManifest.desktopWorkspace, 'package-lock.json');
   const skipDesktopWorkspaceInstall = process.env.WIN_STORE_PACKER_SKIP_DESKTOP_NPM_CI === '1';
-  if (!shouldDryRun && !skipDesktopWorkspaceInstall && await pathExists(packageLockPath)) {
+  if (!skipDesktopWorkspaceInstall && await pathExists(packageLockPath)) {
     await runCommand(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci'], { cwd: workspaceManifest.desktopWorkspace });
   }
 
