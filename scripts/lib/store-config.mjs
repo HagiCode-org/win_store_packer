@@ -115,11 +115,12 @@ function validateSigningConfig(config) {
 export function validateDesktopStoreConfig(config) {
   requireObject(config, 'desktopStoreConfig');
   const packageIdentity = requireObject(config.packageIdentity, 'desktopStoreConfig.packageIdentity');
-  const msix = requireObject(config.msix, 'desktopStoreConfig.msix');
+  const sourceForgeConfigPath = config.sourceForgeConfigPath ?? config.sourceElectronBuilderConfigPath;
+  const msix = requireObject(config.msix ?? config.appx, 'desktopStoreConfig.msix');
 
   return {
     ...config,
-    sourceForgeConfigPath: requireNonEmptyString(config.sourceForgeConfigPath, 'desktopStoreConfig.sourceForgeConfigPath'),
+    sourceForgeConfigPath: requireNonEmptyString(sourceForgeConfigPath, 'desktopStoreConfig.sourceForgeConfigPath'),
     inputDirectory: requireNonEmptyString(config.inputDirectory, 'desktopStoreConfig.inputDirectory'),
     outputDirectory: requireNonEmptyString(config.outputDirectory, 'desktopStoreConfig.outputDirectory'),
     stageDirectory: requireNonEmptyString(config.stageDirectory, 'desktopStoreConfig.stageDirectory'),

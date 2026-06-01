@@ -62,6 +62,45 @@ test('loadDesktopStoreConfig validates the desktop-owned Store metadata separate
   assert.deepEqual(desktopConfig.config.msix.capabilities, ['runFullTrust', 'internetClient']);
 });
 
+test('loadDesktopStoreConfig accepts legacy desktop Store metadata that still uses appx fields', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'desktop-store-config-legacy-'));
+  const configPath = path.join(tempRoot, 'config', 'store-package.json');
+  await mkdir(path.dirname(configPath), { recursive: true });
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      sourceElectronBuilderConfigPath: 'electron-builder.yml',
+      inputDirectory: 'pkg/win-unpacked',
+      outputDirectory: 'pkg',
+      stageDirectory: 'build/msix-stage',
+      assetsDirectory: 'resources/appx',
+      metadataOutputPath: 'pkg/store-build-metadata.json',
+      runtimeInjectionPath: 'resources/portable-fixed/current',
+      packageIdentity: {
+        displayName: 'Hagicode',
+        publisherDisplayName: 'newbe36524',
+        publisher: 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F',
+        identityName: 'newbe36524.Hagicode',
+        backgroundColor: 'transparent',
+        languages: ['en-US', 'zh-CN'],
+        addAutoLaunchExtension: false,
+      },
+      appx: {
+        minVersion: '10.0.17763.0',
+        maxVersionTested: '10.0.19045.0',
+        capabilities: ['runFullTrust', 'internetClient'],
+      },
+    }, null, 2),
+    'utf8'
+  );
+
+  const desktopConfig = await loadDesktopStoreConfig(tempRoot, 'config/store-package.json');
+  assert.equal(desktopConfig.config.sourceForgeConfigPath, 'electron-builder.yml');
+  assert.equal(desktopConfig.config.packageIdentity.identityName, 'newbe36524.Hagicode');
+  assert.equal(desktopConfig.config.msix.minVersion, '10.0.17763.0');
+  assert.deepEqual(desktopConfig.config.msix.capabilities, ['runFullTrust', 'internetClient']);
+});
+
 test('normalizeStorePackageVersion rejects non-stable Desktop tags', async () => {
   const storePackageConfig = await loadStorePackageConfig();
   assert.throws(
