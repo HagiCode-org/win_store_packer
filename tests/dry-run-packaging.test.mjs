@@ -7,7 +7,7 @@ import { cp, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { createArchive, validateZipPaths } from '../scripts/lib/archive.mjs';
 import { runCommand } from '../scripts/lib/command.mjs';
 import { readJson, writeJson } from '../scripts/lib/fs-utils.mjs';
-import { buildAppx } from '../scripts/build-appx.mjs';
+import { buildMsix } from '../scripts/build-msix.mjs';
 import { preparePackagingWorkspace } from '../scripts/prepare-packaging-workspace.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -194,7 +194,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   ]);
 
   await runCommand('node', [
-    path.join(repoRoot, 'scripts', 'build-appx.mjs'),
+    path.join(repoRoot, 'scripts', 'build-msix.mjs'),
     '--plan',
     planPath,
     '--platform',
@@ -259,14 +259,16 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(storePackageListing, /Package\.appxmanifest|store-package-identity\.json/);
   assert.equal(path.basename(storePackagePath), 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix');
 
-  const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.unsigned.yml'), 'utf8');
-  assert.match(overlayConfigText, /extends: electron-builder\.yml/);
-  assert.match(overlayConfigText, /buildVersion: 0\.3\.0\.0/);
-  assert.match(overlayConfigText, /identityName: newbe36524\.Hagicode/);
-  assert.match(overlayConfigText, /capabilities:\n(?:    - .+\n)+/);
-  assert.match(overlayConfigText, /    - internetClient/);
-  assert.match(overlayConfigText, /    - internetClientServer/);
-  assert.match(overlayConfigText, /    - privateNetworkClientServer/);
+  const overlayConfig = await readJson(path.join(workspaceManifest.desktopWorkspace, 'forge.store.unsigned.json'));
+  assert.equal(overlayConfig.extends, 'forge.config.js');
+  assert.equal(overlayConfig.buildVersion, '0.3.0.0');
+  assert.equal(overlayConfig.packageIdentity.identityName, 'newbe36524.Hagicode');
+  assert.deepEqual(overlayConfig.msix.capabilities, [
+    'runFullTrust',
+    'internetClient',
+    'internetClientServer',
+    'privateNetworkClientServer'
+  ]);
   assert.match(storePackagePath, /\.msix$/);
 });
 
@@ -314,7 +316,7 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
   ]);
 
   await runCommand('node', [
-    path.join(repoRoot, 'scripts', 'build-appx.mjs'),
+    path.join(repoRoot, 'scripts', 'build-msix.mjs'),
     '--plan',
     planPath,
     '--platform',
@@ -355,8 +357,8 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
   assert.equal(releaseMetadata.desktop.checkoutRef, 'main');
   assert.equal(releaseMetadata.publication.mode, 'workflow-artifact');
 
-  const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.unsigned.yml'), 'utf8');
-  assert.match(overlayConfigText, /buildVersion: 0\.3\.1\.0/);
+  const overlayConfig = await readJson(path.join(workspaceManifest.desktopWorkspace, 'forge.store.unsigned.json'));
+  assert.equal(overlayConfig.buildVersion, '0.3.1.0');
 });
 
 test('workspace preparation fails when the expected desktop tag is missing', async () => {
@@ -380,7 +382,7 @@ test('workspace preparation fails when the expected desktop tag is missing', asy
   );
 });
 
-test('build-appx fails early when signed packaging is required but Azure signing configuration is missing', async () => {
+test('build-msix fails early when signed packaging is required but Azure signing configuration is missing', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-signing-config-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -414,7 +416,7 @@ test('build-appx fails early when signed packaging is required but Azure signing
 
   await assert.rejects(
     () =>
-      buildAppx({
+      buildMsix({
         planPath,
         workspacePath,
         platformId: 'win-x64',
@@ -477,7 +479,7 @@ test('signed packaging records post-processing signing state without changing th
   delete process.env.WINDOWS_PACKAGE_PUBLISHER;
 
   try {
-    await buildAppx({
+    await buildMsix({
       planPath,
       workspacePath,
       platformId: 'win-x64',
@@ -497,13 +499,13 @@ test('signed packaging records post-processing signing state without changing th
   }
 
   const workspaceManifest = await readJson(path.join(workspacePath, 'workspace-manifest.json'));
-  const overlayConfigText = await readFile(path.join(workspaceManifest.desktopWorkspace, 'electron-builder.store.signed.yml'), 'utf8');
+  const overlayConfig = await readJson(path.join(workspaceManifest.desktopWorkspace, 'forge.store.signed.json'));
   const buildMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64-signed.json'));
   const desktopBuildMetadata = await readJson(buildMetadata.desktopBuildMetadataPath);
 
-  assert.match(overlayConfigText, /identityName: newbe36524\.Hagicode/);
-  assert.match(overlayConfigText, /publisher: CN=Hagicode Publisher, O=HagiCode, C=US/);
-  assert.doesNotMatch(overlayConfigText, /azureSignOptions:/);
+  assert.equal(overlayConfig.packageIdentity.identityName, 'newbe36524.Hagicode');
+  assert.equal(overlayConfig.packageIdentity.publisher, customPublisher);
+  assert.equal(Object.hasOwn(overlayConfig, 'azureSignOptions'), false);
   assert.equal(buildMetadata.signing.skipFinalAppxSigning, false);
   assert.equal(buildMetadata.signing.finalArtifactSigningExpected, true);
   assert.equal(buildMetadata.storePackageExtension, '.msix');
@@ -512,7 +514,7 @@ test('signed packaging records post-processing signing state without changing th
   assert.equal(path.basename(buildMetadata.publishedArtifactPath), 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix');
   assert.equal(desktopBuildMetadata.store.publisher, customPublisher);
 
-  const externalSigningBuild = await buildAppx({
+  const externalSigningBuild = await buildMsix({
     planPath,
     workspacePath,
     platformId: 'win-x64',

@@ -21,7 +21,7 @@ Desktop owns these responsibilities:
 - Store package identity and capability metadata in `config/store-package.json`
 - Store overlay generation
 - payload injection into the packaged runtime layout
-- AppX/MSIX package generation
+- MSIX package generation
 - desktop-originated build metadata
 
 ## Configuration
@@ -57,7 +57,7 @@ Defines workflow defaults such as:
 1. resolve a build plan from Desktop and Server indexes
 2. prepare a tagged Desktop workspace
 3. download and validate the Server payload
-4. run `scripts/build-appx.mjs`, which forwards to Desktop `npm run build:win:store`
+4. run `scripts/build-msix.mjs`, which forwards to Desktop `npm run build:win:store`
 5. optionally finalize signing for the `signed` variant
 6. publish GitHub release assets and release metadata
 
@@ -135,7 +135,7 @@ node scripts/stage-server-payload.mjs \
 Invoke the Desktop Store build contract:
 
 ```bash
-node scripts/build-appx.mjs \
+node scripts/build-msix.mjs \
   --plan build/build-plan.json \
   --platform win-x64 \
   --workspace build/store-win-x64 \
@@ -145,7 +145,7 @@ node scripts/build-appx.mjs \
 Finalize a signed artifact after external signing:
 
 ```bash
-node scripts/finalize-appx-signing.mjs \
+node scripts/finalize-msix-signing.mjs \
   --workspace build/store-win-x64 \
   --platform win-x64 \
   --artifact-variant signed \
@@ -172,7 +172,7 @@ Per-workspace outputs include:
 - `reports/desktop-store-build-<platform>-<variant>.json`
 - `build-metadata-<platform>-<variant>.json`
 - `artifact-inventory-<platform>-<variant>.json`
-- `release-assets/*.appx` or `release-assets/*.msix`
+- `release-assets/*.msix`
 
 Publication outputs include:
 

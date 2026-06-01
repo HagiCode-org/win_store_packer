@@ -13,7 +13,7 @@ function contentTypeFromPath(filePath) {
   if (lowerPath.endsWith('.json')) {
     return 'application/json; charset=utf-8';
   }
-  if (lowerPath.endsWith('.appx') || lowerPath.endsWith('.msix')) {
+  if (lowerPath.endsWith('.msix')) {
     return 'application/vnd.ms-appx';
   }
   return 'application/octet-stream';

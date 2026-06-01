@@ -15,7 +15,7 @@ function buildBootstrapReleaseBody(plan) {
     `- Desktop version: ${plan.upstream.desktop.version}`,
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
     `- Server version: ${plan.upstream.server.version}`,
-    '- AppX assets: pending'
+    '- MSIX assets: pending'
   ].join('\n');
 }
 

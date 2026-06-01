@@ -16,7 +16,7 @@ async function verifySignedArtifact(verificationScriptPath, artifactPath) {
   });
 }
 
-export async function finalizeAppxSigning({
+export async function finalizeMsixSigning({
   workspacePath,
   platformId,
   artifactVariant = 'signed',
@@ -31,7 +31,7 @@ export async function finalizeAppxSigning({
 
   if (normalizedVariant !== 'signed') {
     await appendSummary([
-      `### AppX signing finalization skipped for ${platformId} (${normalizedVariant})`,
+      `### MSIX signing finalization skipped for ${platformId} (${normalizedVariant})`,
       '- Variant does not require signature verification.'
     ]);
     return {
@@ -43,7 +43,7 @@ export async function finalizeAppxSigning({
 
   if (!buildMetadata.signing?.enabled) {
     await appendSummary([
-      `### AppX signing skipped for ${platformId}`,
+      `### MSIX signing skipped for ${platformId}`,
       '- Signing mode: disabled',
       `- Published artifact: ${path.basename(buildMetadata.publishedArtifactPath)}`
     ]);
@@ -57,7 +57,7 @@ export async function finalizeAppxSigning({
   const signedArtifactPath = buildMetadata.publishedArtifactPath;
   if (!signedArtifactPath || !(await pathExists(signedArtifactPath))) {
     if (requireSigned || buildMetadata.signing.required) {
-      throw new Error(`Missing signed AppX artifact for ${platformId} at ${signedArtifactPath ?? '[unset]'}.`);
+      throw new Error(`Missing signed MSIX artifact for ${platformId} at ${signedArtifactPath ?? '[unset]'}.`);
     }
 
     return {
@@ -114,7 +114,7 @@ export async function finalizeAppxSigning({
   await appendSummary(
     finalArtifactSigningExpected
       ? [
-          `### AppX signing finalized for ${platformId}`,
+          `### MSIX signing finalized for ${platformId}`,
           `- Signed sideload artifact: ${path.basename(signedArtifactPath)}`,
           `- Store package version: ${buildMetadata.storePackageVersion}`
         ]
@@ -144,10 +144,10 @@ export async function main() {
   });
 
   if (!values.workspace || !values.platform) {
-    throw new Error('finalize-appx-signing requires --workspace and --platform.');
+    throw new Error('finalize-msix-signing requires --workspace and --platform.');
   }
 
-  const result = await finalizeAppxSigning({
+  const result = await finalizeMsixSigning({
     workspacePath: values.workspace,
     platformId: values.platform,
     artifactVariant: values['artifact-variant'] ?? 'signed',
@@ -163,7 +163,7 @@ if (isDirectExecution) {
   main().catch(async (error) => {
     annotateError(error.message);
     await appendSummary([
-      '## AppX signing finalization failed',
+      '## MSIX signing finalization failed',
       `- ${error.message}`
     ]);
     console.error(error);

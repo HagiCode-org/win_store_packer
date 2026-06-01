@@ -17,7 +17,7 @@ import {
 } from './lib/store-config.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 
-const STORE_PACKAGE_EXTENSIONS = new Set(['.appx', '.msix']);
+const STORE_PACKAGE_EXTENSIONS = new Set(['.msix']);
 
 function requireObject(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -145,12 +145,12 @@ async function synchronizeDesktopWorkspaceVersion({ desktopWorkspace, desktopTag
 async function executeDesktopBuildSteps(steps, cwd, env = process.env) {
   for (const [index, step] of steps.entries()) {
     const stepLabel = `step ${index + 1}/${steps.length}: ${step.name}`;
-    console.log(`[build-appx] ${stepLabel}`);
+    console.log(`[build-msix] ${stepLabel}`);
 
     const startedAt = Date.now();
     const heartbeat = setInterval(() => {
       const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
-      console.log(`[build-appx] still running ${stepLabel} (${elapsedSeconds}s elapsed)`);
+      console.log(`[build-msix] still running ${stepLabel} (${elapsedSeconds}s elapsed)`);
     }, 30_000);
 
     heartbeat.unref?.();
@@ -162,7 +162,7 @@ async function executeDesktopBuildSteps(steps, cwd, env = process.env) {
     }
 
     const completedSeconds = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
-    console.log(`[build-appx] completed ${stepLabel} (${completedSeconds}s)`);
+    console.log(`[build-msix] completed ${stepLabel} (${completedSeconds}s)`);
   }
 }
 
@@ -178,7 +178,7 @@ function validateDesktopBuildMetadata(metadata, { desktopWorkspace }) {
     const artifactPath = resolveDesktopMetadataPath(entry.path, desktopWorkspace);
     const extension = path.extname(artifactPath).toLowerCase();
     if (!STORE_PACKAGE_EXTENSIONS.has(extension)) {
-      throw new Error(`desktopBuildMetadata.artifacts[${index}] must reference an .appx or .msix file. Received ${artifactPath}.`);
+      throw new Error(`desktopBuildMetadata.artifacts[${index}] must reference an .msix file. Received ${artifactPath}.`);
     }
 
     return {
@@ -257,7 +257,7 @@ function deriveInitialSigningState({ desktopBuildMetadata, signingConfig, dryRun
   };
 }
 
-export async function buildAppx({
+export async function buildMsix({
   planPath,
   workspacePath,
   platformId,
@@ -311,7 +311,7 @@ export async function buildAppx({
   });
   if (desktopVersionSync.changed) {
     console.log(
-      `[build-appx] synchronized desktop workspace version to ${desktopVersionSync.expectedVersion} from tag ${workspaceManifest.desktopTag}`
+      `[build-msix] synchronized desktop workspace version to ${desktopVersionSync.expectedVersion} from tag ${workspaceManifest.desktopTag}`
     );
   }
 
@@ -330,7 +330,7 @@ export async function buildAppx({
   );
   const overlayOutputPath = path.join(
     workspaceManifest.desktopWorkspace,
-    `electron-builder.store.${normalizedArtifactVariant}.yml`
+    `forge.store.${normalizedArtifactVariant}.json`
   );
   const desktopForwardArgs = [
     '--store-config-path',
@@ -536,10 +536,10 @@ export async function main() {
   });
 
   if (!values.plan || !values.platform || !values.workspace) {
-    throw new Error('build-appx requires --plan, --platform, and --workspace.');
+    throw new Error('build-msix requires --plan, --platform, and --workspace.');
   }
 
-  const result = await buildAppx({
+  const result = await buildMsix({
     planPath: values.plan,
     workspacePath: values.workspace,
     platformId: values.platform,
@@ -557,7 +557,7 @@ if (isDirectExecution) {
   main().catch(async (error) => {
     annotateError(error.message);
     await appendSummary([
-      '## Store package build failed',
+      '## MSIX package build failed',
       `- ${error.message}`
     ]);
     console.error(error);

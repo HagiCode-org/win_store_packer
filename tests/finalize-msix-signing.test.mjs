@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
 import { mkdtemp, writeFile } from 'node:fs/promises';
-import { finalizeAppxSigning } from '../scripts/finalize-appx-signing.mjs';
+import { finalizeMsixSigning } from '../scripts/finalize-msix-signing.mjs';
 import { readJson, writeJson } from '../scripts/lib/fs-utils.mjs';
 
-test('finalizeAppxSigning skips final package verification when configured to keep the artifact unsigned', async () => {
+test('finalizeMsixSigning skips final package verification when configured to keep the artifact unsigned', async () => {
   const workspacePath = await mkdtemp(path.join(os.tmpdir(), 'win-store-finalize-'));
   const artifactPath = path.join(workspacePath, 'fixture-signed.msix');
   const buildMetadataPath = path.join(workspacePath, 'build-metadata-win-x64-signed.json');
@@ -41,7 +41,7 @@ test('finalizeAppxSigning skips final package verification when configured to ke
     artifacts: []
   });
 
-  await finalizeAppxSigning({
+  await finalizeMsixSigning({
     workspacePath,
     platformId: 'win-x64',
     artifactVariant: 'signed',

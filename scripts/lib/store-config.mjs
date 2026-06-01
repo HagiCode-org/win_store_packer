@@ -115,11 +115,11 @@ function validateSigningConfig(config) {
 export function validateDesktopStoreConfig(config) {
   requireObject(config, 'desktopStoreConfig');
   const packageIdentity = requireObject(config.packageIdentity, 'desktopStoreConfig.packageIdentity');
-  const appx = requireObject(config.appx, 'desktopStoreConfig.appx');
+  const msix = requireObject(config.msix, 'desktopStoreConfig.msix');
 
   return {
     ...config,
-    sourceElectronBuilderConfigPath: requireNonEmptyString(config.sourceElectronBuilderConfigPath, 'desktopStoreConfig.sourceElectronBuilderConfigPath'),
+    sourceForgeConfigPath: requireNonEmptyString(config.sourceForgeConfigPath, 'desktopStoreConfig.sourceForgeConfigPath'),
     inputDirectory: requireNonEmptyString(config.inputDirectory, 'desktopStoreConfig.inputDirectory'),
     outputDirectory: requireNonEmptyString(config.outputDirectory, 'desktopStoreConfig.outputDirectory'),
     stageDirectory: requireNonEmptyString(config.stageDirectory, 'desktopStoreConfig.stageDirectory'),
@@ -135,10 +135,10 @@ export function validateDesktopStoreConfig(config) {
       languages: optionalStringArray(packageIdentity.languages, 'desktopStoreConfig.packageIdentity.languages') ?? ['en-US'],
       addAutoLaunchExtension: requireBoolean(packageIdentity.addAutoLaunchExtension, 'desktopStoreConfig.packageIdentity.addAutoLaunchExtension'),
     },
-    appx: {
-      minVersion: optionalNonEmptyString(appx.minVersion, 'desktopStoreConfig.appx.minVersion'),
-      maxVersionTested: optionalNonEmptyString(appx.maxVersionTested, 'desktopStoreConfig.appx.maxVersionTested'),
-      capabilities: optionalStringArray(appx.capabilities, 'desktopStoreConfig.appx.capabilities') ?? [],
+    msix: {
+      minVersion: optionalNonEmptyString(msix.minVersion, 'desktopStoreConfig.msix.minVersion'),
+      maxVersionTested: optionalNonEmptyString(msix.maxVersionTested, 'desktopStoreConfig.msix.maxVersionTested'),
+      capabilities: optionalStringArray(msix.capabilities, 'desktopStoreConfig.msix.capabilities') ?? [],
     },
   };
 }

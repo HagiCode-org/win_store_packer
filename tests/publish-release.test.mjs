@@ -157,7 +157,7 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
   assert.equal(metadata.publication.desktopUnsignedArtifact, path.basename(unsignedMsixPath));
   assert.equal(metadata.publication.signedArtifact, path.basename(signedMsixPath));
   assert.equal(metadata.publication.submissionReadyVariant, 'signed');
-  assert.equal(metadata.artifacts.filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName)).length, 2);
+  assert.equal(metadata.artifacts.filter((artifact) => /\.msix$/i.test(artifact.fileName)).length, 2);
   assert.equal(metadata.artifacts.find((artifact) => artifact.fileName === path.basename(signedMsixPath))?.variant, 'signed');
 });
 

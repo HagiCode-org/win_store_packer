@@ -59,7 +59,7 @@ async function validateDesktopWorkspace({ desktopWorkspace, storePackageConfig }
   });
   if (!buildStrategy.isCompatible) {
     throw new Error(
-      'Desktop workspace is missing the direct Store build contract required for AppX packaging.'
+      'Desktop workspace is missing the direct Store build contract required for MSIX packaging.'
     );
   }
 

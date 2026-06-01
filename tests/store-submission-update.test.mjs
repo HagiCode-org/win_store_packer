@@ -75,14 +75,14 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
     artifacts: [
       {
         platform: 'win-x64',
-        fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx',
+        fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix',
         variant: 'unsigned',
         signed: false,
         languages: ['en-US', 'zh-CN']
       },
       {
         platform: 'win-x64',
-        fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx',
+        fileName: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix',
         variant: 'signed',
         signed: true,
         languages: ['en-US', 'zh-CN']
@@ -99,12 +99,12 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
     releaseTag: 'store-desktop-v0.3.0-server-v0.1.0-beta.34',
     uploadedAssets: [
       {
-        name: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx',
-        url: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx'
+        name: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix',
+        url: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix'
       },
       {
-        name: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx',
-        url: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.appx'
+        name: 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix',
+        url: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix'
       },
       {
         name: 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json',
@@ -122,7 +122,7 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
   assert.deepEqual(result.payload, {
     packages: [
       {
-        packageUrl: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.appx',
+        packageUrl: 'https://github.com/HagiCode-org/win_store_packer/releases/download/store-desktop-v0.3.0-server-v0.1.0-beta.34/hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix',
         languages: ['en-US', 'zh-CN'],
         architectures: ['X64']
       }

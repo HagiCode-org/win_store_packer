@@ -260,7 +260,7 @@ jobs:
           AZURE_CODESIGN_ACCOUNT_NAME: ${{ vars.AZURE_CODESIGN_ACCOUNT_NAME || secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
           AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME || secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
         run: |
-          node scripts/build-appx.mjs \
+          node scripts/build-msix.mjs \
             --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
             --platform "${{ matrix.target.platform }}" \
             --workspace "$STORE_WORKSPACE" \
@@ -284,7 +284,7 @@ jobs:
           $releaseDir = Join-Path $env:STORE_WORKSPACE 'release-assets'
           $catalogPath = Join-Path $env:STORE_WORKSPACE 'windows-signable-artifacts.txt'
           $workspaceRoot = [System.IO.Path]::GetFullPath($env:STORE_WORKSPACE)
-          $files = @(Get-ChildItem -LiteralPath $releaseDir -File | Where-Object { $_.Extension -in '.msix', '.appx' } | Sort-Object FullName -Unique)
+          $files = @(Get-ChildItem -LiteralPath $releaseDir -File | Where-Object { $_.Extension -eq '.msix' } | Sort-Object FullName -Unique)
 
           if ($files.Count -eq 0) {
             throw 'No packaged Store artifacts were found for signing.'
@@ -323,7 +323,7 @@ jobs:
             args+=(--require-signed)
           fi
 
-          node scripts/finalize-appx-signing.mjs "${args[@]}"
+          node scripts/finalize-msix-signing.mjs "${args[@]}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6

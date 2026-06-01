@@ -26,7 +26,7 @@ test('resolveDesktopStoreBuildStrategy accepts the current desktop packaging pip
   });
   await writeFile(
     path.join(workspacePath, 'config', 'store-package.json'),
-    JSON.stringify({ packageIdentity: { identityName: 'fixture.Hagicode' }, appx: {} }, null, 2),
+    JSON.stringify({ packageIdentity: { identityName: 'fixture.Hagicode' }, msix: {} }, null, 2),
     'utf8'
   );
 

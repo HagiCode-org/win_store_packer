@@ -30,11 +30,11 @@ test('loadDesktopStoreConfig validates the desktop-owned Store metadata separate
   await writeFile(
     configPath,
     JSON.stringify({
-      sourceElectronBuilderConfigPath: 'electron-builder.yml',
+      sourceForgeConfigPath: 'forge.config.js',
       inputDirectory: 'pkg/win-unpacked',
       outputDirectory: 'pkg',
       stageDirectory: 'build/msix-stage',
-      assetsDirectory: 'resources/appx',
+      assetsDirectory: 'resources/msix',
       metadataOutputPath: 'pkg/store-build-metadata.json',
       runtimeInjectionPath: 'resources/portable-fixed/current',
       packageIdentity: {
@@ -46,7 +46,7 @@ test('loadDesktopStoreConfig validates the desktop-owned Store metadata separate
         languages: ['en-US', 'zh-CN'],
         addAutoLaunchExtension: false,
       },
-      appx: {
+      msix: {
         minVersion: '10.0.19041.0',
         maxVersionTested: '10.0.22621.0',
         capabilities: ['runFullTrust', 'internetClient'],
@@ -56,9 +56,10 @@ test('loadDesktopStoreConfig validates the desktop-owned Store metadata separate
   );
 
   const desktopConfig = await loadDesktopStoreConfig(tempRoot, 'config/store-package.json');
+  assert.equal(desktopConfig.config.sourceForgeConfigPath, 'forge.config.js');
   assert.equal(desktopConfig.config.packageIdentity.identityName, 'newbe36524.Hagicode');
   assert.deepEqual(desktopConfig.config.packageIdentity.languages, ['en-US', 'zh-CN']);
-  assert.deepEqual(desktopConfig.config.appx.capabilities, ['runFullTrust', 'internetClient']);
+  assert.deepEqual(desktopConfig.config.msix.capabilities, ['runFullTrust', 'internetClient']);
 });
 
 test('normalizeStorePackageVersion rejects non-stable Desktop tags', async () => {

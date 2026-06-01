@@ -58,7 +58,7 @@ export async function buildStoreSubmissionUpdate({
   const releaseMetadata = await readJson(releaseMetadataPath);
   const uploadedAssetUrls = buildUploadedAssetMap(publicationResult);
   const packages = releaseMetadata.artifacts
-    .filter((artifact) => /\.(appx|msix)$/i.test(artifact.fileName))
+    .filter((artifact) => /\.msix$/i.test(artifact.fileName))
     .filter((artifact) => artifact.variant === releaseMetadata.publication?.submissionReadyVariant)
     .map((artifact) => {
       const packageUrl = uploadedAssetUrls.get(artifact.fileName);
@@ -78,7 +78,7 @@ export async function buildStoreSubmissionUpdate({
     });
 
   if (packages.length === 0) {
-    throw new Error('No primary AppX package was found for Store submission.');
+    throw new Error('No primary MSIX package was found for Store submission.');
   }
 
   const updatePayload = { packages };

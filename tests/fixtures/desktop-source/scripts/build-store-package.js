@@ -120,7 +120,7 @@ async function main() {
   const publisherOverride = String(process.env.WINDOWS_PACKAGE_PUBLISHER || '').trim() || storeConfig.packageIdentity.publisher;
   const artifactOutputDir = options.artifactOutputDir ?? path.join(projectRoot, storeConfig.outputDirectory);
   const metadataOutputPath = options.metadataOutputPath ?? path.join(projectRoot, storeConfig.metadataOutputPath);
-  const overlayOutputPath = options.overlayOutputPath ?? path.join(projectRoot, 'electron-builder.store.yml');
+  const overlayOutputPath = options.overlayOutputPath ?? path.join(projectRoot, 'forge.store-config.json');
   const runtimeInjectionPath = options.runtimeInjectionPath ?? path.join(projectRoot, storeConfig.runtimeInjectionPath);
   const serverPayloadPath = options.serverPayloadPath ?? runtimeInjectionPath;
   const packageVersion = `${packageJson.version}.0`;
@@ -130,15 +130,17 @@ async function main() {
   await mkdir(path.dirname(overlayOutputPath), { recursive: true });
   await writeFile(
     overlayOutputPath,
-    [
-      'extends: electron-builder.yml',
-      `buildVersion: ${packageVersion}`,
-      'appx:',
-      `  identityName: ${storeConfig.packageIdentity.identityName}`,
-      `  publisher: ${publisherOverride}`,
-      '  capabilities:',
-      ...storeConfig.appx.capabilities.map((capability) => `    - ${capability}`),
-    ].join('\n') + '\n',
+    JSON.stringify({
+      extends: storeConfig.sourceForgeConfigPath,
+      buildVersion: packageVersion,
+      packageIdentity: {
+        ...storeConfig.packageIdentity,
+        publisher: publisherOverride,
+      },
+      msix: {
+        ...storeConfig.msix,
+      },
+    }, null, 2) + '\n',
     'utf8'
   );
 
@@ -183,9 +185,9 @@ async function main() {
       publisher: publisherOverride,
       identityName: storeConfig.packageIdentity.identityName,
       languages: [...storeConfig.packageIdentity.languages],
-      capabilities: [...storeConfig.appx.capabilities],
-      minVersion: storeConfig.appx.minVersion,
-      maxVersionTested: storeConfig.appx.maxVersionTested,
+      capabilities: [...storeConfig.msix.capabilities],
+      minVersion: storeConfig.msix.minVersion,
+      maxVersionTested: storeConfig.msix.maxVersionTested,
     },
     artifacts: [
       {
