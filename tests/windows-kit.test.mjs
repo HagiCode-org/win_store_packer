@@ -44,7 +44,7 @@ test('resolvePreferredWindowsKitVersion falls back to the newest installed SDK w
   assert.equal(version, '10.0.22621.0');
 });
 
-test('resolveWindowsKitOverride returns an explicit Forge override on Windows runners', async () => {
+test('resolveWindowsKitOverride selects an installed SDK version on Windows runners', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'windows-kits-'));
   await mkdir(path.join(tempRoot, '10.0.19041.0'), { recursive: true });
   await mkdir(path.join(tempRoot, '10.0.22621.0'), { recursive: true });
@@ -58,7 +58,6 @@ test('resolveWindowsKitOverride returns an explicit Forge override on Windows ru
 
   assert.deepEqual(override, {
     version: '10.0.19041.0',
-    windowsKitPath: path.join(tempRoot, '10.0.19041.0'),
     availableVersions: ['10.0.22621.0', '10.0.19041.0'],
   });
 });

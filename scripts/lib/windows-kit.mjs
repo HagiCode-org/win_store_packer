@@ -91,7 +91,6 @@ export async function resolveWindowsKitOverride({
 
   return {
     version,
-    windowsKitPath: path.join(windowsKitsBinRoot, version),
     availableVersions,
   };
 }

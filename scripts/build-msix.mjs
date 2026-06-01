@@ -380,9 +380,8 @@ export async function buildMsix({
   });
   if (windowsKitOverride) {
     desktopBuildEnv.WINDOWS_KIT_VERSION = windowsKitOverride.version;
-    desktopBuildEnv.WINDOWS_KIT_PATH = windowsKitOverride.windowsKitPath;
     console.log(
-      `[build-msix] selected Windows SDK ${windowsKitOverride.version} (${windowsKitOverride.windowsKitPath})`
+      `[build-msix] selected Windows SDK ${windowsKitOverride.version}`
     );
   }
 
