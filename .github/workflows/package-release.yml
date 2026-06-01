@@ -192,7 +192,7 @@ jobs:
           echo "ELECTRON_BUILDER_CACHE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron-builder" >> "$GITHUB_ENV"
 
       - name: Validate external signing configuration
-        if: success() && matrix.variant == 'signed'
+        if: success() && matrix.variant == 'signed' && needs.resolve_plan.outputs.dry_run != 'true'
         shell: bash
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -268,7 +268,7 @@ jobs:
             --signing-mode "$STORE_SIGNING_MODE"
 
       - name: Azure login for external signing
-        if: success() && matrix.variant == 'signed'
+        if: success() && matrix.variant == 'signed' && needs.resolve_plan.outputs.dry_run != 'true'
         uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -276,7 +276,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Collect Windows package catalog
-        if: success() && matrix.variant == 'signed'
+        if: success() && matrix.variant == 'signed' && needs.resolve_plan.outputs.dry_run != 'true'
         id: msix_catalog
         shell: pwsh
         run: |
@@ -298,7 +298,7 @@ jobs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value 'EOF'
 
       - name: Sign MSIX artifacts with Artifact Signing
-        if: success() && matrix.variant == 'signed'
+        if: success() && matrix.variant == 'signed' && needs.resolve_plan.outputs.dry_run != 'true'
         uses: azure/artifact-signing-action@v2
         with:
           endpoint: ${{ secrets.AZURE_CODESIGN_ENDPOINT }}
@@ -311,6 +311,7 @@ jobs:
           cache-dependencies: true
 
       - name: Finalize Store package metadata
+        if: success() && (matrix.variant != 'signed' || needs.resolve_plan.outputs.dry_run != 'true')
         shell: bash
         run: |
           args=(
