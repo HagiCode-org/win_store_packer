@@ -7,6 +7,7 @@ import {
   loadDesktopStoreConfig,
   loadStorePackageConfig,
   normalizeStorePackageVersion,
+  resolveDesktopOverlayFileName,
   resolveStoreSigningConfig,
 } from '../scripts/lib/store-config.mjs';
 
@@ -56,10 +57,12 @@ test('loadDesktopStoreConfig validates the desktop-owned Store metadata separate
   );
 
   const desktopConfig = await loadDesktopStoreConfig(tempRoot, 'config/store-package.json');
+  assert.equal(desktopConfig.config.sourceConfigFormat, 'forge');
   assert.equal(desktopConfig.config.sourceForgeConfigPath, 'forge.config.js');
   assert.equal(desktopConfig.config.packageIdentity.identityName, 'newbe36524.Hagicode');
   assert.deepEqual(desktopConfig.config.packageIdentity.languages, ['en-US', 'zh-CN']);
   assert.deepEqual(desktopConfig.config.msix.capabilities, ['runFullTrust', 'internetClient']);
+  assert.equal(resolveDesktopOverlayFileName(desktopConfig.config, 'unsigned'), 'forge.store.unsigned.json');
 });
 
 test('loadDesktopStoreConfig accepts legacy desktop Store metadata that still uses appx fields', async () => {
@@ -95,10 +98,12 @@ test('loadDesktopStoreConfig accepts legacy desktop Store metadata that still us
   );
 
   const desktopConfig = await loadDesktopStoreConfig(tempRoot, 'config/store-package.json');
+  assert.equal(desktopConfig.config.sourceConfigFormat, 'electron-builder');
   assert.equal(desktopConfig.config.sourceForgeConfigPath, 'electron-builder.yml');
   assert.equal(desktopConfig.config.packageIdentity.identityName, 'newbe36524.Hagicode');
   assert.equal(desktopConfig.config.msix.minVersion, '10.0.17763.0');
   assert.deepEqual(desktopConfig.config.msix.capabilities, ['runFullTrust', 'internetClient']);
+  assert.equal(resolveDesktopOverlayFileName(desktopConfig.config, 'signed'), 'electron-builder.store.signed.yml');
 });
 
 test('normalizeStorePackageVersion rejects non-stable Desktop tags', async () => {

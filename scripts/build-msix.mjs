@@ -14,6 +14,7 @@ import {
   loadStorePackageConfig,
   normalizeStoreSigningMode,
   normalizeStorePackageVersion,
+  resolveDesktopOverlayFileName,
   resolveStoreSigningConfig,
 } from './lib/store-config.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
@@ -336,7 +337,7 @@ export async function buildMsix({
   );
   const overlayOutputPath = path.join(
     workspaceManifest.desktopWorkspace,
-    `forge.store.${normalizedArtifactVariant}.json`
+    resolveDesktopOverlayFileName(desktopStoreConfig, normalizedArtifactVariant)
   );
   const desktopForwardArgs = [
     '--store-config-path',

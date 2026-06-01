@@ -115,11 +115,13 @@ function validateSigningConfig(config) {
 export function validateDesktopStoreConfig(config) {
   requireObject(config, 'desktopStoreConfig');
   const packageIdentity = requireObject(config.packageIdentity, 'desktopStoreConfig.packageIdentity');
+  const isLegacyElectronBuilderConfig = config.sourceElectronBuilderConfigPath !== undefined;
   const sourceForgeConfigPath = config.sourceForgeConfigPath ?? config.sourceElectronBuilderConfigPath;
   const msix = requireObject(config.msix ?? config.appx, 'desktopStoreConfig.msix');
 
   return {
     ...config,
+    sourceConfigFormat: isLegacyElectronBuilderConfig ? 'electron-builder' : 'forge',
     sourceForgeConfigPath: requireNonEmptyString(sourceForgeConfigPath, 'desktopStoreConfig.sourceForgeConfigPath'),
     inputDirectory: requireNonEmptyString(config.inputDirectory, 'desktopStoreConfig.inputDirectory'),
     outputDirectory: requireNonEmptyString(config.outputDirectory, 'desktopStoreConfig.outputDirectory'),
@@ -142,6 +144,21 @@ export function validateDesktopStoreConfig(config) {
       capabilities: optionalStringArray(msix.capabilities, 'desktopStoreConfig.msix.capabilities') ?? [],
     },
   };
+}
+
+export function resolveDesktopOverlayFileName(desktopStoreConfig, artifactVariant = 'unsigned') {
+  const config = validateDesktopStoreConfig(desktopStoreConfig);
+  const normalizedArtifactVariant = requireNonEmptyString(artifactVariant, 'artifactVariant').toLowerCase();
+
+  if (!['unsigned', 'signed'].includes(normalizedArtifactVariant)) {
+    throw new Error(`Unsupported artifact variant ${JSON.stringify(artifactVariant)}. Expected unsigned or signed.`);
+  }
+
+  if (config.sourceConfigFormat === 'electron-builder') {
+    return `electron-builder.store.${normalizedArtifactVariant}.yml`;
+  }
+
+  return `forge.store.${normalizedArtifactVariant}.json`;
 }
 
 export function validateStorePackageConfig(config) {
