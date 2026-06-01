@@ -10,12 +10,14 @@ import { buildStoreArtifactName } from './lib/platforms.mjs';
 import { loadReleasePlan } from './lib/release-plan.mjs';
 import { buildDesktopStoreSteps, resolveDesktopStoreBuildStrategy } from './lib/desktop-build.mjs';
 import {
+  loadDesktopStoreConfig,
   loadStorePackageConfig,
   normalizeStoreSigningMode,
   normalizeStorePackageVersion,
   resolveStoreSigningConfig,
 } from './lib/store-config.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
+import { resolveWindowsKitOverride } from './lib/windows-kit.mjs';
 
 const STORE_PACKAGE_EXTENSIONS = new Set(['.msix']);
 
@@ -269,6 +271,10 @@ export async function buildMsix({
   const storePackageConfig = await loadStorePackageConfig();
   const resolvedWorkspacePath = path.resolve(workspacePath);
   const workspaceManifest = await readJson(path.join(resolvedWorkspacePath, 'workspace-manifest.json'));
+  const { config: desktopStoreConfig } = await loadDesktopStoreConfig(
+    workspaceManifest.desktopWorkspace,
+    workspaceManifest.desktopStoreConfigRelativePath ?? storePackageConfig.desktop.storeConfigPath
+  );
   const payloadValidationPath = path.join(resolvedWorkspacePath, `payload-validation-${platformId}.json`);
   const payloadValidation = await readJson(payloadValidationPath);
   const normalizedArtifactVariant = normalizeArtifactVariant(artifactVariant);
@@ -362,6 +368,21 @@ export async function buildMsix({
   if (signingConfig.enabled && signingConfig.publisher && !desktopBuildEnv.WINDOWS_PACKAGE_PUBLISHER) {
     // Keep the desktop-owned MSIX manifest publisher aligned with the signing certificate subject.
     desktopBuildEnv.WINDOWS_PACKAGE_PUBLISHER = signingConfig.publisher;
+  }
+
+  const windowsKitOverride = await resolveWindowsKitOverride({
+    env: desktopBuildEnv,
+    preferredVersions: [
+      desktopStoreConfig.msix.maxVersionTested,
+      desktopStoreConfig.msix.minVersion,
+    ],
+  });
+  if (windowsKitOverride) {
+    desktopBuildEnv.WINDOWS_KIT_VERSION = windowsKitOverride.version;
+    desktopBuildEnv.WINDOWS_KIT_PATH = windowsKitOverride.windowsKitPath;
+    console.log(
+      `[build-msix] selected Windows SDK ${windowsKitOverride.version} (${windowsKitOverride.windowsKitPath})`
+    );
   }
 
   await executeDesktopBuildSteps(desktopBuildSteps, workspaceManifest.desktopWorkspace, desktopBuildEnv);
