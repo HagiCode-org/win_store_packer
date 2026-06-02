@@ -60,6 +60,10 @@ function optionalStringArray(value, label) {
   return requireArray(value, label).map((entry, index) => requireNonEmptyString(entry, `${label}[${index}]`));
 }
 
+function normalizeMsixCapabilities(value, label) {
+  return [...new Set(['runFullTrust', ...(optionalStringArray(value, label) ?? [])])];
+}
+
 function stripOptionalWrappingQuotes(value) {
   const normalized = requireNonEmptyString(value, 'publisherSubject');
   if (
@@ -141,7 +145,7 @@ export function validateDesktopStoreConfig(config) {
     msix: {
       minVersion: optionalNonEmptyString(msix.minVersion, 'desktopStoreConfig.msix.minVersion'),
       maxVersionTested: optionalNonEmptyString(msix.maxVersionTested, 'desktopStoreConfig.msix.maxVersionTested'),
-      capabilities: optionalStringArray(msix.capabilities, 'desktopStoreConfig.msix.capabilities') ?? [],
+      capabilities: normalizeMsixCapabilities(msix.capabilities, 'desktopStoreConfig.msix.capabilities'),
     },
   };
 }

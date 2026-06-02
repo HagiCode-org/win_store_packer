@@ -106,6 +106,46 @@ test('loadDesktopStoreConfig accepts legacy desktop Store metadata that still us
   assert.equal(resolveDesktopOverlayFileName(desktopConfig.config, 'signed'), 'electron-builder.store.signed.yml');
 });
 
+test('loadDesktopStoreConfig injects runFullTrust when desktop metadata omits it', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'desktop-store-config-fulltrust-'));
+  const configPath = path.join(tempRoot, 'config', 'store-package.json');
+  await mkdir(path.dirname(configPath), { recursive: true });
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      sourceForgeConfigPath: 'forge.config.js',
+      inputDirectory: 'pkg/win-unpacked',
+      outputDirectory: 'pkg',
+      stageDirectory: 'build/msix-stage',
+      assetsDirectory: 'resources/msix',
+      metadataOutputPath: 'pkg/store-build-metadata.json',
+      runtimeInjectionPath: 'resources/portable-fixed/current',
+      packageIdentity: {
+        displayName: 'Hagicode',
+        publisherDisplayName: 'newbe36524',
+        publisher: 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F',
+        identityName: 'newbe36524.Hagicode',
+        backgroundColor: 'transparent',
+        languages: ['en-US', 'zh-CN'],
+        addAutoLaunchExtension: false,
+      },
+      msix: {
+        minVersion: '10.0.19041.0',
+        maxVersionTested: '10.0.22621.0',
+        capabilities: ['internetClient', 'privateNetworkClientServer'],
+      },
+    }, null, 2),
+    'utf8'
+  );
+
+  const desktopConfig = await loadDesktopStoreConfig(tempRoot, 'config/store-package.json');
+  assert.deepEqual(desktopConfig.config.msix.capabilities, [
+    'runFullTrust',
+    'internetClient',
+    'privateNetworkClientServer',
+  ]);
+});
+
 test('normalizeStorePackageVersion rejects non-stable Desktop tags', async () => {
   const storePackageConfig = await loadStorePackageConfig();
   assert.throws(
