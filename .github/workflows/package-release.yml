@@ -370,7 +370,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           pattern: store-package-*
-          merge-multiple: true
           path: ${{ runner.temp }}/publish-input
 
       - name: Publish release or stage workflow metadata
