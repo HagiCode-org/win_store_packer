@@ -336,7 +336,7 @@ jobs:
             ${{ env.STORE_WORKSPACE }}/payload-validation-${{ matrix.target.platform }}.json
             ${{ env.STORE_WORKSPACE }}/workspace-validation-${{ matrix.target.platform }}.json
             ${{ env.STORE_WORKSPACE }}/reports/desktop-store-build-${{ matrix.target.platform }}-${{ matrix.variant }}.json
-            ${{ env.STORE_WORKSPACE }}/release-assets
+            ${{ env.STORE_WORKSPACE }}/release-assets/*.msix
           if-no-files-found: error
 
   publish:
