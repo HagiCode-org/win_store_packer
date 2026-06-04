@@ -361,6 +361,80 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
   assert.equal(overlayConfig.buildVersion, '0.3.1.0');
 });
 
+test('dry-run packaging preserves PSF-enabled desktop build outputs when the environment is forwarded through win_store_packer', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-psf-packaging-'));
+  const planPath = path.join(tempRoot, 'build-plan.json');
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const desktopRepoPath = await createTaggedDesktopRepo(tempRoot, 'v0.3.0', '0.1.0');
+  const serverArchivePath = await createServerArchive(tempRoot);
+  const previousPsfEnabled = process.env.HAGICODE_ENABLE_PSF;
+  const previousPsfDir = process.env.HAGICODE_PSF_DIR;
+  const psfDir = path.join(tempRoot, 'psf-bin');
+  await writeJson(planPath, createPlan(tempRoot));
+
+  process.env.HAGICODE_ENABLE_PSF = 'true';
+  process.env.HAGICODE_PSF_DIR = psfDir;
+
+  try {
+    await runCommand('node', [
+      path.join(repoRoot, 'scripts', 'prepare-packaging-workspace.mjs'),
+      '--plan',
+      planPath,
+      '--platform',
+      'win-x64',
+      '--workspace',
+      workspacePath,
+      '--desktop-source',
+      desktopRepoPath
+    ]);
+
+    await runCommand('node', [
+      path.join(repoRoot, 'scripts', 'stage-server-payload.mjs'),
+      '--plan',
+      planPath,
+      '--platform',
+      'win-x64',
+      '--workspace',
+      workspacePath,
+      '--server-asset-source',
+      serverArchivePath
+    ]);
+
+    await runCommand('node', [
+      path.join(repoRoot, 'scripts', 'build-msix.mjs'),
+      '--plan',
+      planPath,
+      '--platform',
+      'win-x64',
+      '--workspace',
+      workspacePath
+    ]);
+  } finally {
+    restoreEnv('HAGICODE_ENABLE_PSF', previousPsfEnabled);
+    restoreEnv('HAGICODE_PSF_DIR', previousPsfDir);
+  }
+
+  const desktopBuildMetadata = await readJson(path.join(workspacePath, 'reports', 'desktop-store-build-win-x64-unsigned.json'));
+  const inventory = await readJson(path.join(workspacePath, 'artifact-inventory-win-x64-unsigned.json'));
+
+  assert.equal(desktopBuildMetadata.psf.enabled, true);
+  assert.equal(desktopBuildMetadata.psf.directory, psfDir);
+  assert.deepEqual(desktopBuildMetadata.psf.files, [
+    'PsfLauncher64.exe',
+    'PsfRuntime64.dll',
+    'ProcessLauncherFixup64.dll',
+    'FileRedirectionFixup64.dll',
+  ]);
+
+  const storePackagePath = inventory.artifacts[0].outputPath;
+  const storePackageListing = (await validateZipPaths(storePackagePath)).join('\n');
+  assert.match(storePackageListing, /config\.json/);
+  assert.match(storePackageListing, /PsfLauncher64\.exe/);
+  assert.match(storePackageListing, /PsfRuntime64\.dll/);
+  assert.match(storePackageListing, /ProcessLauncherFixup64\.dll/);
+  assert.match(storePackageListing, /FileRedirectionFixup64\.dll/);
+});
+
 test('workspace preparation fails when the expected desktop tag is missing', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-missing-tag-'));
   const planPath = path.join(tempRoot, 'build-plan.json');

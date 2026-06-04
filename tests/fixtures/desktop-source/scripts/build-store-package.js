@@ -4,6 +4,16 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const PSF_REQUIRED_FILES = [
+  'PsfLauncher64.exe',
+  'PsfRuntime64.dll',
+  'ProcessLauncherFixup64.dll',
+  'FileRedirectionFixup64.dll',
+];
+
+function isPsfEnabled() {
+  return String(process.env.HAGICODE_ENABLE_PSF || '').trim().toLowerCase() === 'true';
+}
 
 function parseArgs(argv) {
   const options = {
@@ -126,6 +136,8 @@ async function main() {
   const packageVersion = `${packageJson.version}.0`;
   const stagingDirectory = path.join(artifactOutputDir, '.fixture-store-package');
   const artifactPath = path.join(artifactOutputDir, `${packageJson.productName}-${packageJson.version}-${options.platformId}.msix`);
+  const psfEnabled = isPsfEnabled();
+  const psfDirectory = String(process.env.HAGICODE_PSF_DIR || '').trim() || null;
 
   await mkdir(path.dirname(overlayOutputPath), { recursive: true });
   await writeFile(
@@ -162,6 +174,40 @@ async function main() {
     'utf8'
   );
 
+  if (psfEnabled) {
+    await writeFile(
+      path.join(stagingDirectory, 'config.json'),
+      JSON.stringify({
+        applications: [
+          {
+            id: 'app',
+            executable: 'app\\Hagicode Desktop.exe',
+            workingDirectory: 'app',
+          },
+        ],
+        processes: [
+          {
+            executable: '.*',
+            fixups: [
+              {
+                dll: 'ProcessLauncherFixup64.dll',
+                config: {
+                  preventBreakaway: true,
+                  inheritPackageIdentity: true,
+                },
+              },
+            ],
+          },
+        ],
+      }, null, 2) + '\n',
+      'utf8'
+    );
+
+    for (const fileName of PSF_REQUIRED_FILES) {
+      await writeFile(path.join(stagingDirectory, fileName), 'fixture-psf\n', 'utf8');
+    }
+  }
+
   await mkdir(artifactOutputDir, { recursive: true });
   await rm(artifactPath, { force: true });
   await createArchive(stagingDirectory, artifactPath);
@@ -179,6 +225,11 @@ async function main() {
     effectiveRuntimeInjectionPath: runtimeInjectionPath,
     serverPayloadPath,
     serverPayloadRoot: serverPayloadPath,
+    psf: {
+      enabled: psfEnabled,
+      directory: psfDirectory,
+      files: psfEnabled ? [...PSF_REQUIRED_FILES] : [],
+    },
     store: {
       displayName: storeConfig.packageIdentity.displayName,
       publisherDisplayName: storeConfig.packageIdentity.publisherDisplayName,
