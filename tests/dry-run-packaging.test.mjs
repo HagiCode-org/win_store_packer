@@ -361,6 +361,68 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
   assert.equal(overlayConfig.buildVersion, '0.3.1.0');
 });
 
+test('unsigned packaging ignores inherited MSIX identity overrides and keeps the desktop Store publisher', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-unsigned-publisher-'));
+  const planPath = path.join(tempRoot, 'build-plan.json');
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const desktopRepoPath = await createTaggedDesktopRepo(tempRoot);
+  const serverArchivePath = await createServerArchive(tempRoot);
+  const previousWindowsPackagePublisher = process.env.WINDOWS_PACKAGE_PUBLISHER;
+  const customPublisher = 'CN=Rong Huang, O=Rong Huang, L=Owasso, S=Oklahoma, C=US';
+  const officialPublisher = 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F';
+
+  await writeJson(planPath, createPlan(tempRoot));
+
+  await runCommand('node', [
+    path.join(repoRoot, 'scripts', 'prepare-packaging-workspace.mjs'),
+    '--plan',
+    planPath,
+    '--platform',
+    'win-x64',
+    '--workspace',
+    workspacePath,
+    '--desktop-source',
+    desktopRepoPath
+  ]);
+
+  await runCommand('node', [
+    path.join(repoRoot, 'scripts', 'stage-server-payload.mjs'),
+    '--plan',
+    planPath,
+    '--platform',
+    'win-x64',
+    '--workspace',
+    workspacePath,
+    '--server-asset-source',
+    serverArchivePath
+  ]);
+
+  process.env.WINDOWS_PACKAGE_PUBLISHER = customPublisher;
+
+  try {
+    await buildMsix({
+      planPath,
+      workspacePath,
+      platformId: 'win-x64',
+      artifactVariant: 'unsigned',
+      forceDryRun: true,
+    });
+  } finally {
+    restoreEnv('WINDOWS_PACKAGE_PUBLISHER', previousWindowsPackagePublisher);
+  }
+
+  const workspaceManifest = await readJson(path.join(workspacePath, 'workspace-manifest.json'));
+  const overlayConfig = await readJson(path.join(workspaceManifest.desktopWorkspace, 'forge.store.unsigned.json'));
+  const buildMetadata = await readJson(path.join(workspacePath, 'build-metadata-win-x64-unsigned.json'));
+  const desktopBuildMetadata = await readJson(buildMetadata.desktopBuildMetadataPath);
+
+  assert.equal(buildMetadata.signing.mode, 'disabled');
+  assert.equal(overlayConfig.packageIdentity.publisher, officialPublisher);
+  assert.equal(desktopBuildMetadata.store.publisher, officialPublisher);
+  assert.notEqual(overlayConfig.packageIdentity.publisher, customPublisher);
+  assert.notEqual(desktopBuildMetadata.store.publisher, customPublisher);
+});
+
 test('dry-run packaging preserves PSF-enabled desktop build outputs when the environment is forwarded through win_store_packer', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-psf-packaging-'));
   const planPath = path.join(tempRoot, 'build-plan.json');

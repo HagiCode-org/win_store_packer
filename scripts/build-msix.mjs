@@ -52,6 +52,17 @@ function normalizeArtifactVariant(value) {
   return normalized;
 }
 
+const UNSIGNED_MSIX_IDENTITY_OVERRIDE_ENV_VARS = [
+  'WINDOWS_PACKAGE_PUBLISHER',
+  'WINDOWS_PACKAGE_IDENTITY',
+  'WINDOWS_PACKAGE_DISPLAY_NAME',
+  'WINDOWS_PACKAGE_PUBLISHER_DISPLAY_NAME',
+  'WINDOWS_PACKAGE_DESCRIPTION',
+  'WINDOWS_PACKAGE_BACKGROUND_COLOR',
+  'WINDOWS_PACKAGE_MIN_VERSION',
+  'WINDOWS_PACKAGE_MAX_TESTED_VERSION',
+];
+
 function appendSuffixBeforeExtension(fileName, suffix) {
   const extension = path.extname(fileName);
   if (!extension) {
@@ -366,6 +377,14 @@ export async function buildMsix({
   });
 
   const desktopBuildEnv = { ...process.env };
+  if (normalizedArtifactVariant === 'unsigned') {
+    // Unsigned submission packages must keep the desktop-owned Store identity,
+    // even when the parent workflow environment carries signing overrides.
+    for (const envVarName of UNSIGNED_MSIX_IDENTITY_OVERRIDE_ENV_VARS) {
+      delete desktopBuildEnv[envVarName];
+    }
+  }
+
   if (signingConfig.enabled && signingConfig.publisher && !desktopBuildEnv.WINDOWS_PACKAGE_PUBLISHER) {
     // Keep the desktop-owned MSIX manifest publisher aligned with the signing certificate subject.
     desktopBuildEnv.WINDOWS_PACKAGE_PUBLISHER = signingConfig.publisher;
