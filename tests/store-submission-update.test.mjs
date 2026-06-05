@@ -22,15 +22,15 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
     },
     upstream: {
       desktop: {
-        version: 'v0.3.0',
-        tag: 'v0.3.0',
+        sourceMode: 'main',
+        version: 'v0.3.1',
+        tag: 'v0.3.1',
+        baseVersion: 'v0.3.0',
+        baseTag: 'v0.3.0',
+        checkoutRef: 'main',
+        checkoutType: 'branch',
         manifestUrl: 'https://index.hagicode.com/desktop/index.json',
-        assetsByPlatform: {
-          'win-x64': {
-            name: 'hagicode.desktop.0.3.0-unpacked.zip',
-            path: 'v0.3.0/hagicode.desktop.0.3.0-unpacked.zip'
-          }
-        }
+        assetsByPlatform: {}
       },
       server: {
         version: '0.1.0-beta.34',
@@ -66,8 +66,10 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
     },
     handoff: {
       schema: 'win-store-packer-handoff/v1',
-      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
-      consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' }
+      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'sync-version-plan' },
+      consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
+      assetName: 'release-plan.json',
+      source: 'draft-release-asset'
     }
   });
 

@@ -74,19 +74,14 @@ async function createServerArchive(tempRoot) {
 }
 
 function createPlan(tempRoot, options = {}) {
-  const desktopVersion = options.desktopVersion ?? 'v0.3.0';
+  const desktopVersion = options.desktopVersion ?? 'v0.3.1';
   const desktopTag = options.desktopTag ?? desktopVersion;
-  const desktopBaseVersion = options.desktopBaseVersion ?? desktopVersion;
+  const desktopBaseVersion = options.desktopBaseVersion ?? 'v0.3.0';
   const desktopBaseTag = options.desktopBaseTag ?? desktopBaseVersion;
-  const desktopCheckoutRef = options.desktopCheckoutRef ?? `refs/tags/${desktopTag}`;
-  const desktopCheckoutType = options.desktopCheckoutType ?? 'git-tag';
-  const desktopAssetsByPlatform = options.desktopAssetsByPlatform ?? {
-    'win-x64': {
-      name: 'hagicode.desktop.0.3.0-unpacked.zip',
-      path: 'v0.3.0/hagicode.desktop.0.3.0-unpacked.zip'
-    }
-  };
-  const publicationMode = options.publicationMode ?? 'github-release';
+  const desktopCheckoutRef = options.desktopCheckoutRef ?? 'main';
+  const desktopCheckoutType = options.desktopCheckoutType ?? 'branch';
+  const desktopAssetsByPlatform = options.desktopAssetsByPlatform ?? {};
+  const publicationMode = 'github-release';
   const releaseTag = options.releaseTag ?? PACKER_RELEASE_TAG;
 
   return {
@@ -111,7 +106,7 @@ function createPlan(tempRoot, options = {}) {
     upstream: {
       desktop: {
         sourceType: 'index',
-        sourceMode: options.desktopSourceMode ?? 'release',
+        sourceMode: 'main',
         manifestUrl: 'https://index.hagicode.com/desktop/index.json',
         version: desktopVersion,
         tag: desktopTag,
@@ -160,8 +155,10 @@ function createPlan(tempRoot, options = {}) {
     },
     handoff: {
       schema: 'win-store-packer-handoff/v1',
-      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
-      consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' }
+      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'sync-version-plan' },
+      consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
+      assetName: 'release-plan.json',
+      source: 'draft-release-asset'
     }
   };
 }
@@ -229,12 +226,15 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   const releaseMetadata = await readJson(path.join(publishOutputDir, `${PACKER_RELEASE_TAG}.release-metadata.json`));
   const desktopBuildMetadata = await readJson(buildMetadata.desktopBuildMetadataPath);
 
-  assert.equal(workspaceManifest.desktopTag, 'v0.3.0');
+  assert.equal(workspaceManifest.desktopTag, 'v0.3.1');
+  assert.equal(workspaceManifest.desktopCheckoutRef, 'main');
+  assert.equal(workspaceManifest.desktopCheckoutType, 'branch');
+  assert.equal(workspaceManifest.desktopBaseVersion, 'v0.3.0');
   assert.equal(workspaceManifest.canonicalVersionInput, PACKER_RELEASE_TAG);
   assert.equal(workspaceManifest.windowsStoreVersion, PACKER_RELEASE_TAG);
   assert.equal(workspaceManifest.desktopBuildCommand, 'build:win:store');
   assert.equal(workspaceManifest.desktopStoreConfigRelativePath, 'config/store-package.json');
-  assert.equal((await readJson(workspaceManifest.packageJsonPath)).version, '0.3.0');
+  assert.equal((await readJson(workspaceManifest.packageJsonPath)).version, '0.3.1');
   assert.equal((await readJson(workspaceManifest.packageJsonPath)).hagicodeDesktop.windowsStoreVersion, PACKER_RELEASE_TAG);
   assert.equal(workspaceReport.validationPassed, true);
   assert.equal(workspaceReport.checks.desktopBuildContractPresent, true);
@@ -263,13 +263,15 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(dryRunReport.releaseTag, PACKER_RELEASE_TAG);
   assert.equal(dryRunReport.canonicalVersionInput, PACKER_RELEASE_TAG);
   assert.equal(dryRunReport.windowsStoreVersion, PACKER_RELEASE_TAG);
-  assert.equal(dryRunReport.desktopVersion, 'v0.3.0');
-  assert.equal(dryRunReport.desktopTag, 'v0.3.0');
+  assert.equal(dryRunReport.desktopVersion, 'v0.3.1');
+  assert.equal(dryRunReport.desktopTag, 'v0.3.1');
   assert.equal(dryRunReport.storePackageVersion, '1.4.0.0');
   assert.equal(releaseMetadata.canonicalVersionInput, PACKER_RELEASE_TAG);
   assert.equal(releaseMetadata.windowsStoreVersion, PACKER_RELEASE_TAG);
   assert.equal(releaseMetadata.storePackageVersion, '1.4.0.0');
   assert.equal(releaseMetadata.desktop.windowsStoreVersion, PACKER_RELEASE_TAG);
+  assert.equal(releaseMetadata.desktop.baseVersion, 'v0.3.0');
+  assert.equal(releaseMetadata.desktop.checkoutRef, 'main');
   assert.equal(releaseMetadata.desktop.storeConfigPath.endsWith('config/store-package.json'), true);
 
   const storePackagePath = inventory.artifacts[0].outputPath;
@@ -299,7 +301,6 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
   const desktopRepoPath = await createTaggedDesktopRepo(tempRoot, 'v0.3.0', '0.1.0');
   const serverArchivePath = await createServerArchive(tempRoot);
   await writeJson(planPath, createPlan(tempRoot, {
-    desktopSourceMode: 'main',
     desktopVersion: 'v0.3.1',
     desktopTag: 'v0.3.1',
     desktopBaseVersion: 'v0.3.0',
@@ -307,7 +308,6 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
     desktopCheckoutRef: 'main',
     desktopCheckoutType: 'branch',
     desktopAssetsByPlatform: {},
-    publicationMode: 'workflow-artifact',
     releaseTag: NEXT_PACKER_RELEASE_TAG
   }));
 
@@ -381,7 +381,7 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
   assert.equal(releaseMetadata.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
   assert.equal(releaseMetadata.desktop.baseVersion, 'v0.3.0');
   assert.equal(releaseMetadata.desktop.checkoutRef, 'main');
-  assert.equal(releaseMetadata.publication.mode, 'workflow-artifact');
+  assert.equal(releaseMetadata.publication.mode, 'github-release');
 
   const overlayConfig = await readJson(path.join(workspaceManifest.desktopWorkspace, 'forge.store.unsigned.json'));
   assert.equal(overlayConfig.buildVersion, '1.4.1.0');
@@ -523,13 +523,14 @@ test('dry-run packaging preserves PSF-enabled desktop build outputs when the env
   assert.match(storePackageListing, /FileRedirectionFixup64\.dll/);
 });
 
-test('workspace preparation fails when the expected desktop tag is missing', async () => {
+test('workspace preparation fails when the plan does not advance beyond the Desktop base tag', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-missing-tag-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
   const desktopRepoPath = await createTaggedDesktopRepo(tempRoot, 'v0.2.0');
   const plan = createPlan(tempRoot);
   plan.upstream.desktop.tag = 'v0.3.0';
+  plan.upstream.desktop.version = 'v0.3.0';
   await writeJson(planPath, plan);
 
   await assert.rejects(
@@ -540,7 +541,7 @@ test('workspace preparation fails when the expected desktop tag is missing', asy
         workspacePath,
         desktopSourcePath: desktopRepoPath
       }),
-    /Desktop tag v0\.3\.0 is not available/
+    /must advance beyond the latest published Desktop release/i
   );
 });
 

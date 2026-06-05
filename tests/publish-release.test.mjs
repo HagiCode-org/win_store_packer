@@ -82,7 +82,17 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
       server: {}
     },
     upstream: {
-      desktop: { version: 'v0.3.0', tag: 'v0.3.0', manifestUrl: 'https://index.hagicode.com/desktop/index.json', assetsByPlatform: { 'win-x64': { name: 'desktop.zip', path: 'desktop.zip' } } },
+      desktop: {
+        sourceMode: 'main',
+        version: 'v0.3.1',
+        tag: 'v0.3.1',
+        baseVersion: 'v0.3.0',
+        baseTag: 'v0.3.0',
+        checkoutRef: 'main',
+        checkoutType: 'branch',
+        manifestUrl: 'https://index.hagicode.com/desktop/index.json',
+        assetsByPlatform: {}
+      },
       server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } }
     },
     store: {
@@ -108,8 +118,10 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
     },
     handoff: {
       schema: 'win-store-packer-handoff/v1',
-      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
-      consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' }
+      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'sync-version-plan' },
+      consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
+      assetName: 'release-plan.json',
+      source: 'draft-release-asset'
     }
   });
 
@@ -233,7 +245,17 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
       server: {}
     },
     upstream: {
-      desktop: { version: 'v0.3.0', tag: 'v0.3.0', manifestUrl: 'https://index.hagicode.com/desktop/index.json', assetsByPlatform: { 'win-x64': { name: 'desktop.zip', path: 'desktop.zip' } } },
+      desktop: {
+        sourceMode: 'main',
+        version: 'v0.3.1',
+        tag: 'v0.3.1',
+        baseVersion: 'v0.3.0',
+        baseTag: 'v0.3.0',
+        checkoutRef: 'main',
+        checkoutType: 'branch',
+        manifestUrl: 'https://index.hagicode.com/desktop/index.json',
+        assetsByPlatform: {}
+      },
       server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } }
     },
     store: {
@@ -259,8 +281,10 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
     },
     handoff: {
       schema: 'win-store-packer-handoff/v1',
-      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
-      consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' }
+      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'sync-version-plan' },
+      consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
+      assetName: 'release-plan.json',
+      source: 'draft-release-asset'
     }
   });
 
