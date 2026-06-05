@@ -74,14 +74,6 @@ export function normalizeGitTag(value) {
   return `v${normalized.replace(/^v/i, '')}`;
 }
 
-export function normalizeReleaseTagComponent(value) {
-  return normalizeGitTag(value).replace(/[^A-Za-z0-9._-]+/g, '-');
-}
-
-export function deriveStoreReleaseTag(desktopVersion, serverVersion) {
-  return `store-desktop-${normalizeReleaseTagComponent(desktopVersion)}-server-${normalizeReleaseTagComponent(serverVersion)}`;
-}
-
 export function buildStoreArtifactName(releaseTag, platformId, variant = null, extension = '.msix') {
   const safeReleaseTag = String(releaseTag).replace(/[^A-Za-z0-9._-]+/g, '-');
   const suffix = variant ? `-${String(variant).replace(/[^A-Za-z0-9._-]+/g, '-')}` : '';

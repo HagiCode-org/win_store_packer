@@ -30,6 +30,8 @@ export async function main() {
   const releasePlan = await loadReleasePlan(values.plan);
   await writeGithubOutputs({
     release_tag: releasePlan.releaseTag,
+    canonical_version_input: releasePlan.canonicalVersionInput,
+    windows_store_version: releasePlan.windowsStoreVersion,
     dry_run: releasePlan.dryRun,
     should_build: releasePlan.shouldBuild,
     platform_matrix: JSON.stringify(releasePlan.plan.platformMatrix),
@@ -40,6 +42,9 @@ export async function main() {
   await appendSummary([
     '## win_store_packer release plan accepted',
     `- Release tag: ${releasePlan.releaseTag}`,
+    `- Canonical version input: ${releasePlan.canonicalVersionInput}`,
+    `- Windows Store version: ${releasePlan.windowsStoreVersion}`,
+    `- Version source: ${releasePlan.versionSource}`,
     `- Plan: ${path.resolve(values.plan)}`,
     `- Dry run: ${releasePlan.dryRun ? 'true' : 'false'}`,
     `- Platforms: ${releasePlan.platforms.join(', ')}`
@@ -49,6 +54,9 @@ export async function main() {
     JSON.stringify(
       {
         releaseTag: releasePlan.releaseTag,
+        canonicalVersionInput: releasePlan.canonicalVersionInput,
+        windowsStoreVersion: releasePlan.windowsStoreVersion,
+        versionSource: releasePlan.versionSource,
         dryRun: releasePlan.dryRun,
         shouldBuild: releasePlan.shouldBuild,
         platformMatrix: releasePlan.plan.platformMatrix,

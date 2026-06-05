@@ -82,8 +82,8 @@ function isValidDistinguishedName(value) {
 function validatePackageVersionConfig(config) {
   const packageVersion = requireObject(config, 'storePackageConfig.packageVersion');
   const source = requireNonEmptyString(packageVersion.source, 'storePackageConfig.packageVersion.source');
-  if (source !== 'desktop-tag') {
-    throw new Error(`storePackageConfig.packageVersion.source must be "desktop-tag"; received ${JSON.stringify(source)}.`);
+  if (source !== 'packer-tag') {
+    throw new Error(`storePackageConfig.packageVersion.source must be "packer-tag"; received ${JSON.stringify(source)}.`);
   }
   return {
     source,
@@ -215,16 +215,16 @@ export async function loadWorkflowDefaults() {
   return validateWorkflowDefaults(await readJson(WORKFLOW_DEFAULTS_PATH));
 }
 
-export function normalizeStorePackageVersion(desktopTag, packageVersionConfig = { source: 'desktop-tag', revision: 0 }) {
-  const rawTag = requireNonEmptyString(desktopTag, 'desktopTag').replace(/^refs\/tags\//i, '');
+export function normalizeStorePackageVersion(versionTag, packageVersionConfig = { source: 'packer-tag', revision: 0 }) {
+  const rawTag = requireNonEmptyString(versionTag, 'versionTag').replace(/^refs\/tags\//i, '');
   const normalized = rawTag.replace(/^v/i, '');
   if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(normalized)) {
-    throw new Error(`Invalid Desktop tag ${JSON.stringify(desktopTag)}. Expected a stable tag like v1.2.3 so a Store-safe numeric package version can be derived.`);
+    throw new Error(`Invalid packer tag ${JSON.stringify(versionTag)}. Expected a stable tag like v1.2.3 so a Store-safe numeric package version can be derived.`);
   }
 
   const versionParts = normalized.split('.').map((part) => Number(part));
   if (versionParts.some((part) => !Number.isInteger(part) || part < 0 || part > 65535)) {
-    throw new Error(`Invalid Desktop tag ${JSON.stringify(desktopTag)}. Store package version components must be integers between 0 and 65535.`);
+    throw new Error(`Invalid packer tag ${JSON.stringify(versionTag)}. Store package version components must be integers between 0 and 65535.`);
   }
 
   if (versionParts.length === 3) {

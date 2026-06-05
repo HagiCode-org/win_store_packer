@@ -4,7 +4,7 @@
     "win-x64"
   ],
   "packageVersion": {
-    "source": "desktop-tag",
+    "source": "packer-tag",
     "revision": 0
   },
   "signing": {

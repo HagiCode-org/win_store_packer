@@ -11,13 +11,14 @@ import {
   resolveStoreSigningConfig,
 } from '../scripts/lib/store-config.mjs';
 
-test('normalizeStorePackageVersion derives a four-part Windows package version from a Desktop tag', async () => {
+test('normalizeStorePackageVersion derives a four-part Windows package version from a packer tag', async () => {
   const storePackageConfig = await loadStorePackageConfig();
   assert.equal(normalizeStorePackageVersion('v0.1.56', storePackageConfig.packageVersion), '0.1.56.0');
 });
 
 test('loadStorePackageConfig exposes packer defaults plus the desktop build contract reference', async () => {
   const storePackageConfig = await loadStorePackageConfig();
+  assert.equal(storePackageConfig.packageVersion.source, 'packer-tag');
   assert.equal(storePackageConfig.desktop.storeConfigPath, 'config/store-package.json');
   assert.equal(storePackageConfig.desktop.buildCommand, 'build:win:store');
   assert.equal(storePackageConfig.desktop.runtimeInjectionPath, 'resources/portable-fixed/current');
@@ -146,7 +147,7 @@ test('loadDesktopStoreConfig injects runFullTrust when desktop metadata omits it
   ]);
 });
 
-test('normalizeStorePackageVersion rejects non-stable Desktop tags', async () => {
+test('normalizeStorePackageVersion rejects non-stable packer tags', async () => {
   const storePackageConfig = await loadStorePackageConfig();
   assert.throws(
     () => normalizeStorePackageVersion('v0.1.56-beta.1', storePackageConfig.packageVersion),

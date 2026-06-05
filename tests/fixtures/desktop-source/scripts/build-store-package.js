@@ -80,6 +80,18 @@ function run(command, args, cwd) {
   });
 }
 
+function resolveWindowsStoreVersion(packageJson) {
+  const packageWindowsStoreVersion = typeof packageJson?.hagicodeDesktop?.windowsStoreVersion === 'string'
+    ? packageJson.hagicodeDesktop.windowsStoreVersion.trim()
+    : '';
+  const envWindowsStoreVersion = String(process.env.HAGICODE_WINDOWS_STORE_VERSION || '').trim();
+  if (envWindowsStoreVersion) {
+    return envWindowsStoreVersion;
+  }
+
+  return packageWindowsStoreVersion || null;
+}
+
 async function createArchive(sourceDirectory, destinationArchive) {
   if (process.platform === 'win32') {
     await run('powershell.exe', [
@@ -133,7 +145,9 @@ async function main() {
   const overlayOutputPath = options.overlayOutputPath ?? path.join(projectRoot, 'forge.store-config.json');
   const runtimeInjectionPath = options.runtimeInjectionPath ?? path.join(projectRoot, storeConfig.runtimeInjectionPath);
   const serverPayloadPath = options.serverPayloadPath ?? runtimeInjectionPath;
-  const packageVersion = `${packageJson.version}.0`;
+  const windowsStoreVersion = resolveWindowsStoreVersion(packageJson);
+  const packageVersionSource = windowsStoreVersion || packageJson.version;
+  const packageVersion = `${packageVersionSource.replace(/^v/i, '')}.0`;
   const stagingDirectory = path.join(artifactOutputDir, '.fixture-store-package');
   const artifactPath = path.join(artifactOutputDir, `${packageJson.productName}-${packageJson.version}-${options.platformId}.msix`);
   const psfEnabled = isPsfEnabled();
@@ -165,6 +179,7 @@ async function main() {
   await writeFile(
     path.join(stagingDirectory, 'store-package-identity.json'),
     JSON.stringify({
+      windowsStoreVersion,
       packageIdentity: {
         ...storeConfig.packageIdentity,
         publisher: publisherOverride,
@@ -218,6 +233,7 @@ async function main() {
     platform: options.platformId,
     buildMode: options.dryRun ? 'desktop-store-build-dry-run' : 'desktop-store-build-command',
     desktopVersion: packageJson.version,
+    windowsStoreVersion,
     desktopSourceRef: 'fixture-desktop-ref',
     storePackageVersion: packageVersion,
     storeConfigPath: options.storeConfigPath,

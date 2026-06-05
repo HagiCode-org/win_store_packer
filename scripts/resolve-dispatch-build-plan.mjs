@@ -25,6 +25,7 @@ export async function resolveDispatchBuildPlan({
   token,
   repositories,
   desktopAzureSasUrl,
+  packerReleaseTag,
   serverAzureSasUrl,
   findStoreRelease,
   fetchImpl
@@ -41,10 +42,17 @@ export async function resolveDispatchBuildPlan({
   const workflowDefaults = await loadWorkflowDefaults();
   const resolvedOutputPath = path.resolve(outputPath ?? 'build/build-plan.json');
   await ensureDir(path.dirname(resolvedOutputPath));
+  const resolvedEventPayload = {
+    ...eventPayload,
+    inputs: {
+      ...(eventPayload?.inputs ?? {}),
+      ...(packerReleaseTag ? { packer_release_tag: packerReleaseTag } : {}),
+    }
+  };
 
   const plan = await buildPlan({
     eventName,
-    eventPayload,
+    eventPayload: resolvedEventPayload,
     token,
     repositories: {
       ...repositories,
@@ -64,6 +72,8 @@ export async function resolveDispatchBuildPlan({
   await writeGithubOutputs({
     plan_path: resolvedOutputPath,
     release_tag: plan.release.tag,
+    canonical_version_input: plan.release.canonicalVersionInput,
+    windows_store_version: plan.release.windowsStoreVersion,
     should_build: plan.build.shouldBuild,
     dry_run: plan.build.dryRun,
     platform_matrix: JSON.stringify(plan.platformMatrix)
@@ -78,6 +88,9 @@ export async function resolveDispatchBuildPlan({
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
     `- Desktop checkout ref: ${plan.upstream.desktop.checkoutRef}`,
     `- Desktop base version: ${plan.upstream.desktop.baseVersion}`,
+    `- Canonical version input: ${plan.release.canonicalVersionInput}`,
+    `- Windows Store version: ${plan.release.windowsStoreVersion}`,
+    `- Version source: ${plan.release.versionSource}`,
     `- Server manifest source: ${plan.upstream.server.manifestUrl}`,
     `- Server version: ${plan.upstream.server.version}`,
     `- Platforms: ${plan.platforms.join(', ')}`,
@@ -107,7 +120,8 @@ export async function main() {
       'desktop-index-url': { type: 'string' },
       'server-index-url': { type: 'string' },
       'desktop-azure-sas-url': { type: 'string' },
-      'server-azure-sas-url': { type: 'string' }
+      'server-azure-sas-url': { type: 'string' },
+      'packer-release-tag': { type: 'string' }
     }
   });
 
@@ -143,6 +157,7 @@ export async function main() {
     eventPayload,
     outputPath: values.output,
     token,
+    packerReleaseTag: values['packer-release-tag'] ?? process.env.WIN_STORE_PACKER_RELEASE_TAG ?? process.env.PACKER_RELEASE_TAG,
     repositories,
     desktopAzureSasUrl,
     serverAzureSasUrl
@@ -153,6 +168,8 @@ export async function main() {
       {
         outputPath: result.outputPath,
         releaseTag: result.plan.release.tag,
+        canonicalVersionInput: result.plan.release.canonicalVersionInput,
+        windowsStoreVersion: result.plan.release.windowsStoreVersion,
         shouldBuild: result.plan.build.shouldBuild,
         desktopTag: result.plan.upstream.desktop.tag,
         desktopCheckoutRef: result.plan.upstream.desktop.checkoutRef,

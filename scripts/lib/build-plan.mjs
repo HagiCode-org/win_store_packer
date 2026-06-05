@@ -8,13 +8,13 @@ import {
 import {
   createPlatformMatrix,
   DEFAULT_PLATFORMS,
-  deriveStoreReleaseTag,
   normalizeGitTag,
   normalizePlatforms
 } from './platforms.mjs';
 import { loadStorePackageConfig } from './store-config.mjs';
 
 export const WIN_STORE_PACKER_HANDOFF_SCHEMA = 'win-store-packer-handoff/v1';
+export const CANONICAL_PACKER_TAG_VERSION_SOURCE = 'release-drafter-packer-tag';
 export const DESKTOP_SOURCE_MODES = {
   RELEASE: 'release',
   MAIN: 'main'
@@ -48,6 +48,10 @@ function normalizeBoolean(value, defaultValue = false) {
 
 function coalesce(...values) {
   return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
+}
+
+function normalizePackerReleaseTag(value) {
+  return normalizeGitTag(value);
 }
 
 function normalizeDesktopSourceMode(value, defaultValue = DESKTOP_SOURCE_MODES.RELEASE) {
@@ -156,6 +160,14 @@ export function normalizeTriggerInputs({ eventName, eventPayload, defaultPlatfor
   );
   const desktopSelector = coalesce(inputs.desktop_version, inputs.desktop_tag, clientPayload.desktopVersion, clientPayload.desktopTag);
   const serverSelector = coalesce(inputs.server_version, inputs.server_tag, clientPayload.serverVersion, clientPayload.serverTag);
+  const packerReleaseTag = coalesce(
+    inputs.packer_release_tag,
+    inputs.packer_tag,
+    clientPayload.packerReleaseTag,
+    clientPayload.packer_release_tag,
+    process.env.WIN_STORE_PACKER_RELEASE_TAG,
+    process.env.PACKER_RELEASE_TAG
+  );
   const platforms = coalesce(inputs.platforms, clientPayload.platforms);
   const forceRebuild = normalizeBoolean(coalesce(inputs.force_rebuild, clientPayload.forceRebuild, clientPayload.force_rebuild), false);
   const dryRun = normalizeBoolean(coalesce(inputs.dry_run, clientPayload.dryRun, clientPayload.dry_run), false);
@@ -165,6 +177,7 @@ export function normalizeTriggerInputs({ eventName, eventPayload, defaultPlatfor
     desktopSourceMode,
     desktopSelector,
     serverSelector,
+    packerReleaseTag: packerReleaseTag ? normalizePackerReleaseTag(packerReleaseTag) : null,
     selectedPlatforms: normalizePlatforms(platforms, defaultPlatforms),
     forceRebuild,
     dryRun,
@@ -172,6 +185,7 @@ export function normalizeTriggerInputs({ eventName, eventPayload, defaultPlatfor
       desktop_source: desktopSourceMode,
       desktop_version: desktopSelector ?? null,
       server_version: serverSelector ?? null,
+      packer_release_tag: packerReleaseTag ?? null,
       platforms: platforms ?? null,
       force_rebuild: forceRebuild,
       dry_run: dryRun
@@ -236,7 +250,10 @@ export async function buildPlan({
   const publicationMode = trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN
     ? PUBLICATION_MODES.WORKFLOW_ARTIFACT
     : PUBLICATION_MODES.GITHUB_RELEASE;
-  const releaseTag = deriveStoreReleaseTag(desktopTag, serverRelease.version);
+  const releaseTag = trigger.packerReleaseTag;
+  if (!releaseTag) {
+    throw new Error('buildPlan requires a packer Release Drafter tag via trigger input or WIN_STORE_PACKER_RELEASE_TAG.');
+  }
   const existingRelease = publicationMode === PUBLICATION_MODES.GITHUB_RELEASE
     ? await findStoreRelease(packerRepository, releaseTag, token, { fetchImpl })
     : null;
@@ -308,6 +325,9 @@ export async function buildPlan({
       repository: packerRepository,
       tag: releaseTag,
       name: `Windows Store ${releaseTag}`,
+      canonicalVersionInput: releaseTag,
+      windowsStoreVersion: releaseTag,
+      versionSource: CANONICAL_PACKER_TAG_VERSION_SOURCE,
       exists: releaseExists,
       url: existingRelease?.html_url ?? null,
       notesTitle: `Windows Store ${releaseTag}`

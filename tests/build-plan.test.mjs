@@ -14,6 +14,9 @@ const DESKTOP_AZURE_SAS_URL = 'https://example.blob.core.windows.net/desktop?sp=
 const SERVER_AZURE_SAS_URL = 'https://example.blob.core.windows.net/server?sp=racwl&sig=test-token';
 const DESKTOP_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/desktop/index.json?sp=racwl&sig=test-token';
 const SERVER_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/server/index.json?sp=racwl&sig=test-token';
+const PACKER_RELEASE_TAG = 'v1.4.0';
+const NEXT_PACKER_RELEASE_TAG = 'v1.4.1';
+const LEGACY_PACKER_RELEASE_TAG = 'v1.3.9';
 
 function createFetchStub({ requests = [] } = {}) {
   return async (url) => {
@@ -63,10 +66,10 @@ function createFetchStub({ requests = [] } = {}) {
   };
 }
 
-test('buildPlan resolves latest Desktop and Server versions and records the Desktop git tag', async () => {
+test('buildPlan resolves latest Desktop and Server versions while taking the Windows Store version from the packer release tag', async () => {
   const plan = await buildPlan({
     eventName: 'workflow_dispatch',
-    eventPayload: { inputs: {} },
+    eventPayload: { inputs: { packer_release_tag: PACKER_RELEASE_TAG } },
     repositories: {
       desktop: DESKTOP_INDEX_URL,
       server: SERVER_INDEX_URL,
@@ -86,8 +89,11 @@ test('buildPlan resolves latest Desktop and Server versions and records the Desk
   assert.equal(plan.upstream.desktop.tag, 'v0.3.0');
   assert.equal(plan.upstream.desktop.checkoutRef, 'refs/tags/v0.3.0');
   assert.equal(plan.upstream.desktop.checkoutType, 'git-tag');
+  assert.equal(plan.release.canonicalVersionInput, PACKER_RELEASE_TAG);
+  assert.equal(plan.release.windowsStoreVersion, PACKER_RELEASE_TAG);
+  assert.equal(plan.release.versionSource, 'release-drafter-packer-tag');
   assert.equal(plan.upstream.server.version, '0.1.0-beta.34');
-  assert.equal(plan.release.tag, 'store-desktop-v0.3.0-server-v0.1.0-beta.34');
+  assert.equal(plan.release.tag, PACKER_RELEASE_TAG);
   assert.equal(plan.publication.mode, 'github-release');
   assert.equal(plan.build.shouldBuild, true);
   assert.equal(plan.build.forceRebuild, false);
@@ -100,7 +106,8 @@ test('buildPlan supports manual desktop main builds with the next Desktop revisi
     eventName: 'workflow_dispatch',
     eventPayload: {
       inputs: {
-        desktop_source: 'main'
+        desktop_source: 'main',
+        packer_release_tag: NEXT_PACKER_RELEASE_TAG,
       }
     },
     repositories: {
@@ -128,9 +135,12 @@ test('buildPlan supports manual desktop main builds with the next Desktop revisi
   assert.equal(plan.upstream.desktop.tag, 'v0.3.1');
   assert.equal(plan.upstream.desktop.checkoutRef, 'main');
   assert.equal(plan.upstream.desktop.checkoutType, 'branch');
+  assert.equal(plan.release.canonicalVersionInput, NEXT_PACKER_RELEASE_TAG);
+  assert.equal(plan.release.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
+  assert.equal(plan.release.versionSource, 'release-drafter-packer-tag');
   assert.deepEqual(plan.upstream.desktop.assetsByPlatform, {});
   assert.equal(plan.upstream.server.version, '0.1.0-beta.34');
-  assert.equal(plan.release.tag, 'store-desktop-v0.3.1-server-v0.1.0-beta.34');
+  assert.equal(plan.release.tag, NEXT_PACKER_RELEASE_TAG);
   assert.equal(plan.publication.mode, 'workflow-artifact');
   assert.equal(plan.release.exists, false);
   assert.equal(plan.build.shouldBuild, true);
@@ -142,7 +152,7 @@ test('buildPlan defaults Desktop and Server discovery to direct Azure authority'
   const requests = [];
   const plan = await buildPlan({
     eventName: 'workflow_dispatch',
-    eventPayload: { inputs: {} },
+    eventPayload: { inputs: { packer_release_tag: PACKER_RELEASE_TAG } },
     azureSasUrls: {
       desktop: DESKTOP_AZURE_SAS_URL,
       server: SERVER_AZURE_SAS_URL
@@ -160,7 +170,7 @@ test('buildPlan defaults Desktop and Server discovery to direct Azure authority'
 test('buildPlan skips packaging when the Store release already exists and force_rebuild is disabled', async () => {
   const plan = await buildPlan({
     eventName: 'workflow_dispatch',
-    eventPayload: { inputs: {} },
+    eventPayload: { inputs: { packer_release_tag: PACKER_RELEASE_TAG } },
     repositories: {
       desktop: DESKTOP_INDEX_URL,
       server: SERVER_INDEX_URL,
@@ -171,8 +181,8 @@ test('buildPlan skips packaging when the Store release already exists and force_
       server: SERVER_AZURE_SAS_URL
     },
     findStoreRelease: async () => ({
-      tag_name: 'store-desktop-v0.3.0-server-v0.1.0-beta.34',
-      html_url: 'https://github.com/HagiCode-org/win_store_packer/releases/tag/store-desktop-v0.3.0-server-v0.1.0-beta.34'
+      tag_name: PACKER_RELEASE_TAG,
+      html_url: `https://github.com/HagiCode-org/win_store_packer/releases/tag/${PACKER_RELEASE_TAG}`
     }),
     fetchImpl: createFetchStub(),
     now: '2026-04-21T00:00:00.000Z'
@@ -190,6 +200,7 @@ test('buildPlan respects manual selectors and force_rebuild', async () => {
       inputs: {
         desktop_version: 'v0.2.0',
         server_version: '0.1.0-beta.33',
+        packer_release_tag: LEGACY_PACKER_RELEASE_TAG,
         force_rebuild: true,
         dry_run: true
       }
@@ -204,8 +215,8 @@ test('buildPlan respects manual selectors and force_rebuild', async () => {
       server: SERVER_AZURE_SAS_URL
     },
     findStoreRelease: async () => ({
-      tag_name: 'store-desktop-v0.2.0-server-v0.1.0-beta.33',
-      html_url: 'https://github.com/HagiCode-org/win_store_packer/releases/tag/store-desktop-v0.2.0-server-v0.1.0-beta.33'
+      tag_name: LEGACY_PACKER_RELEASE_TAG,
+      html_url: `https://github.com/HagiCode-org/win_store_packer/releases/tag/${LEGACY_PACKER_RELEASE_TAG}`
     }),
     fetchImpl: createFetchStub(),
     now: '2026-04-21T00:00:00.000Z'
@@ -213,6 +224,8 @@ test('buildPlan respects manual selectors and force_rebuild', async () => {
 
   assert.equal(plan.upstream.desktop.version, 'v0.2.0');
   assert.equal(plan.upstream.server.version, '0.1.0-beta.33');
+  assert.equal(plan.release.canonicalVersionInput, LEGACY_PACKER_RELEASE_TAG);
+  assert.equal(plan.release.windowsStoreVersion, LEGACY_PACKER_RELEASE_TAG);
   assert.equal(plan.release.exists, true);
   assert.equal(plan.build.shouldBuild, true);
   assert.equal(plan.build.forceRebuild, true);
@@ -226,6 +239,7 @@ test('buildPlan falls back to a Desktop git tag when the selected release is new
       inputs: {
         desktop_version: 'v0.1.59',
         server_version: '0.1.0-beta.33',
+        packer_release_tag: NEXT_PACKER_RELEASE_TAG,
         force_rebuild: true
       }
     },
@@ -248,10 +262,15 @@ test('buildPlan falls back to a Desktop git tag when the selected release is new
   assert.equal(plan.upstream.desktop.sourceType, 'git-tag');
   assert.equal(plan.upstream.desktop.sourceAuthority, 'git-tag-fallback');
   assert.deepEqual(plan.upstream.desktop.assetsByPlatform, {});
-  assert.equal(plan.release.tag, 'store-desktop-v0.1.59-server-v0.1.0-beta.33');
+  assert.equal(plan.release.tag, NEXT_PACKER_RELEASE_TAG);
+  assert.equal(plan.release.canonicalVersionInput, NEXT_PACKER_RELEASE_TAG);
+  assert.equal(plan.release.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
 
   const validated = validateReleasePlan(plan);
-  assert.equal(validated.releaseTag, 'store-desktop-v0.1.59-server-v0.1.0-beta.33');
+  assert.equal(validated.releaseTag, NEXT_PACKER_RELEASE_TAG);
+  assert.equal(validated.canonicalVersionInput, NEXT_PACKER_RELEASE_TAG);
+  assert.equal(validated.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
+  assert.equal(validated.versionSource, 'release-drafter-packer-tag');
   assert.deepEqual(validated.platforms, ['win-x64']);
 });
 
@@ -263,6 +282,7 @@ test('resolveDispatchBuildPlan writes the normalized plan artifact', async () =>
     eventName: 'workflow_dispatch',
     eventPayload: { inputs: {} },
     outputPath,
+    packerReleaseTag: PACKER_RELEASE_TAG,
     repositories: {
       desktop: DESKTOP_INDEX_URL,
       server: SERVER_INDEX_URL,
@@ -276,5 +296,7 @@ test('resolveDispatchBuildPlan writes the normalized plan artifact', async () =>
 
   const writtenPlan = await readJson(outputPath);
   assert.equal(result.plan.release.tag, writtenPlan.release.tag);
+  assert.equal(result.plan.release.canonicalVersionInput, writtenPlan.release.canonicalVersionInput);
+  assert.equal(result.plan.release.windowsStoreVersion, writtenPlan.release.windowsStoreVersion);
   assert.equal(writtenPlan.upstream.desktop.tag, 'v0.3.0');
 });

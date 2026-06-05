@@ -1,7 +1,10 @@
 import path from 'node:path';
 import { readJson } from './fs-utils.mjs';
 import { createPlatformMatrix, getPlatformConfig } from './platforms.mjs';
-import { WIN_STORE_PACKER_HANDOFF_SCHEMA } from './build-plan.mjs';
+import {
+  CANONICAL_PACKER_TAG_VERSION_SOURCE,
+  WIN_STORE_PACKER_HANDOFF_SCHEMA,
+} from './build-plan.mjs';
 
 function requireObject(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -90,6 +93,21 @@ export function validateReleasePlan(plan, { planPath = '[inline]' } = {}) {
   const release = requireObject(plan.release, 'plan.release');
   requireNonEmptyString(release.tag, 'plan.release.tag');
   requireNonEmptyString(release.repository, 'plan.release.repository');
+  const canonicalVersionInput = requireNonEmptyString(release.canonicalVersionInput, 'plan.release.canonicalVersionInput');
+  const windowsStoreVersion = requireNonEmptyString(release.windowsStoreVersion, 'plan.release.windowsStoreVersion');
+  const versionSource = requireEnum(
+    release.versionSource,
+    [CANONICAL_PACKER_TAG_VERSION_SOURCE],
+    'plan.release.versionSource'
+  );
+
+  if (windowsStoreVersion !== canonicalVersionInput) {
+    throw new Error('plan.release.windowsStoreVersion must match plan.release.canonicalVersionInput.');
+  }
+
+  const upstream = requireObject(plan.upstream, 'plan.upstream');
+  const desktop = requireObject(upstream.desktop, 'plan.upstream.desktop');
+  requireNonEmptyString(desktop.tag, 'plan.upstream.desktop.tag');
 
   const build = requireObject(plan.build, 'plan.build');
   requireBoolean(build.shouldBuild, 'plan.build.shouldBuild');
@@ -123,6 +141,9 @@ export function validateReleasePlan(plan, { planPath = '[inline]' } = {}) {
     },
     planPath,
     releaseTag: release.tag,
+    canonicalVersionInput,
+    windowsStoreVersion,
+    versionSource,
     dryRun: build.dryRun,
     shouldBuild: build.shouldBuild,
     forceRebuild: build.forceRebuild,

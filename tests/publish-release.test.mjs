@@ -6,6 +6,8 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { publishRelease } from '../scripts/publish-release.mjs';
 import { writeJson } from '../scripts/lib/fs-utils.mjs';
 
+const PACKER_RELEASE_TAG = 'v1.4.0';
+
 test('publishRelease creates or updates a GitHub release and uploads the store package and metadata assets', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-publish-'));
   const artifactsDir = path.join(tempRoot, 'artifacts');
@@ -13,8 +15,8 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
   const planPath = path.join(tempRoot, 'build-plan.json');
   const signedArtifactsDir = path.join(artifactsDir, 'signed');
   const unsignedArtifactsDir = path.join(artifactsDir, 'unsigned');
-  const unsignedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix');
-  const signedMsixPath = path.join(artifactsDir, 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix');
+  const unsignedMsixPath = path.join(artifactsDir, 'hagicode-store-v1.4.0-win-x64-unsigned.msix');
+  const signedMsixPath = path.join(artifactsDir, 'hagicode-store-v1.4.0-win-x64-signed.msix');
   await mkdir(signedArtifactsDir, { recursive: true });
   await mkdir(unsignedArtifactsDir, { recursive: true });
   await writeFile(unsignedMsixPath, 'fixture-unsigned');
@@ -22,7 +24,7 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
   await writeJson(path.join(unsignedArtifactsDir, 'artifact-inventory-win-x64-unsigned.json'), {
     platform: 'win-x64',
     artifactVariant: 'unsigned',
-    storePackageVersion: '0.3.0.0',
+    storePackageVersion: '1.4.0.0',
     artifacts: [
       {
         platform: 'win-x64',
@@ -41,7 +43,7 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
   await writeJson(path.join(signedArtifactsDir, 'artifact-inventory-win-x64-signed.json'), {
     platform: 'win-x64',
     artifactVariant: 'signed',
-    storePackageVersion: '0.3.0.0',
+    storePackageVersion: '1.4.0.0',
     artifacts: [
       {
         platform: 'win-x64',
@@ -57,7 +59,7 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
       }
     ]
   });
-  await writeJson(path.join(unsignedArtifactsDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.asset-upload-result.json'), {
+  await writeJson(path.join(unsignedArtifactsDir, `${PACKER_RELEASE_TAG}.asset-upload-result.json`), {
     uploadedAssets: [
       {
         name: path.basename(unsignedMsixPath),
@@ -65,7 +67,7 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
       }
     ]
   });
-  await writeJson(path.join(signedArtifactsDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.asset-upload-result.json'), {
+  await writeJson(path.join(signedArtifactsDir, `${PACKER_RELEASE_TAG}.asset-upload-result.json`), {
     uploadedAssets: [
       {
         name: path.basename(signedMsixPath),
@@ -93,8 +95,11 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
     },
     release: {
       repository: 'HagiCode-org/win_store_packer',
-      tag: 'store-desktop-v0.3.0-server-v0.1.0-beta.34',
-      name: 'Windows Store store-desktop-v0.3.0-server-v0.1.0-beta.34'
+      tag: PACKER_RELEASE_TAG,
+      name: `Windows Store ${PACKER_RELEASE_TAG}`,
+      canonicalVersionInput: PACKER_RELEASE_TAG,
+      windowsStoreVersion: PACKER_RELEASE_TAG,
+      versionSource: 'release-drafter-packer-tag'
     },
     build: {
       shouldBuild: true,
@@ -119,7 +124,7 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
     if (String(url).endsWith('/repos/HagiCode-org/win_store_packer/releases')) {
       return Response.json({
         id: 42,
-        html_url: 'https://github.com/HagiCode-org/win_store_packer/releases/tag/store-desktop-v0.3.0-server-v0.1.0-beta.34',
+        html_url: `https://github.com/HagiCode-org/win_store_packer/releases/tag/${PACKER_RELEASE_TAG}`,
         upload_url: 'https://uploads.github.com/repos/HagiCode-org/win_store_packer/releases/42/assets{?name,label}',
         assets: []
       });
@@ -150,9 +155,12 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
   assert.ok(requests.some((request) => request.url.includes('/releases') && request.method === 'POST'));
   assert.ok(requests.some((request) => request.url.includes('uploads.github.com') && request.method === 'POST'));
 
-  const metadataPath = path.join(outputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json');
+  const metadataPath = path.join(outputDir, `${PACKER_RELEASE_TAG}.release-metadata.json`);
   const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
-  assert.equal(metadata.storePackageVersion, '0.3.0.0');
+  assert.equal(metadata.canonicalVersionInput, PACKER_RELEASE_TAG);
+  assert.equal(metadata.windowsStoreVersion, PACKER_RELEASE_TAG);
+  assert.equal(metadata.storePackageVersion, '1.4.0.0');
+  assert.equal(metadata.desktop.windowsStoreVersion, PACKER_RELEASE_TAG);
   assert.equal(metadata.desktop.storeConfigPath, 'config/store-package.json');
   assert.equal(metadata.publication.desktopUnsignedArtifact, path.basename(unsignedMsixPath));
   assert.equal(metadata.publication.signedArtifact, path.basename(signedMsixPath));
@@ -171,8 +179,8 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
   const unsignedArtifactDir = path.join(artifactsDir, 'store-package-win-x64-unsigned', 'release-assets');
   const signedInventoryDir = path.join(artifactsDir, 'store-package-win-x64-signed');
   const unsignedInventoryDir = path.join(artifactsDir, 'store-package-win-x64-unsigned');
-  const signedFileName = 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-signed.msix';
-  const unsignedFileName = 'hagicode-store-store-desktop-v0.3.0-server-v0.1.0-beta.34-win-x64-unsigned.msix';
+  const signedFileName = 'hagicode-store-v1.4.0-win-x64-signed.msix';
+  const unsignedFileName = 'hagicode-store-v1.4.0-win-x64-unsigned.msix';
   const signedMsixPath = path.join(signedArtifactDir, signedFileName);
   const unsignedMsixPath = path.join(unsignedArtifactDir, unsignedFileName);
 
@@ -183,7 +191,7 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
   await writeJson(path.join(unsignedInventoryDir, 'artifact-inventory-win-x64-unsigned.json'), {
     platform: 'win-x64',
     artifactVariant: 'unsigned',
-    storePackageVersion: '0.3.0.0',
+    storePackageVersion: '1.4.0.0',
     artifacts: [
       {
         platform: 'win-x64',
@@ -202,7 +210,7 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
   await writeJson(path.join(signedInventoryDir, 'artifact-inventory-win-x64-signed.json'), {
     platform: 'win-x64',
     artifactVariant: 'signed',
-    storePackageVersion: '0.3.0.0',
+    storePackageVersion: '1.4.0.0',
     artifacts: [
       {
         platform: 'win-x64',
@@ -238,8 +246,11 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
     },
     release: {
       repository: 'HagiCode-org/win_store_packer',
-      tag: 'store-desktop-v0.3.0-server-v0.1.0-beta.34',
-      name: 'Windows Store store-desktop-v0.3.0-server-v0.1.0-beta.34'
+      tag: PACKER_RELEASE_TAG,
+      name: `Windows Store ${PACKER_RELEASE_TAG}`,
+      canonicalVersionInput: PACKER_RELEASE_TAG,
+      windowsStoreVersion: PACKER_RELEASE_TAG,
+      versionSource: 'release-drafter-packer-tag'
     },
     build: {
       shouldBuild: true,
@@ -260,13 +271,15 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
   });
 
   assert.equal(result.dryRun, true);
-  const dryRunReportPath = path.join(outputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.publish-dry-run.json');
+  const dryRunReportPath = path.join(outputDir, `${PACKER_RELEASE_TAG}.publish-dry-run.json`);
   const dryRunReport = JSON.parse(await readFile(dryRunReportPath, 'utf8'));
   assert.equal(dryRunReport.uploads.find((upload) => upload.fileName === signedFileName)?.filePath, signedMsixPath);
   assert.equal(dryRunReport.uploads.find((upload) => upload.fileName === unsignedFileName)?.filePath, unsignedMsixPath);
 
-  const metadataPath = path.join(outputDir, 'store-desktop-v0.3.0-server-v0.1.0-beta.34.release-metadata.json');
+  const metadataPath = path.join(outputDir, `${PACKER_RELEASE_TAG}.release-metadata.json`);
   const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
+  assert.equal(metadata.canonicalVersionInput, PACKER_RELEASE_TAG);
+  assert.equal(metadata.windowsStoreVersion, PACKER_RELEASE_TAG);
   assert.equal(metadata.artifacts.find((artifact) => artifact.fileName === signedFileName)?.uploadPath, signedMsixPath);
   assert.equal(metadata.artifacts.find((artifact) => artifact.fileName === unsignedFileName)?.uploadPath, unsignedMsixPath);
 });

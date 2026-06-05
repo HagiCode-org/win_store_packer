@@ -9,7 +9,7 @@ Desktop now owns Store packaging. This repository does not render Store overlays
 `win_store_packer` keeps these responsibilities:
 
 - resolve Desktop and Server versions from the release indexes
-- map the Desktop version to the exact Desktop Git tag
+- resolve the packer Release Drafter tag and use it as the canonical Windows Store version input
 - prepare a tagged Desktop worktree for packaging
 - download, extract, and validate the Server payload
 - invoke `npm run build:win:store` in the Desktop workspace
@@ -20,6 +20,7 @@ Desktop owns these responsibilities:
 
 - Store package identity and capability metadata in `config/store-package.json`
 - Store overlay generation
+- Windows Store version metadata injected into Desktop builds
 - payload injection into the packaged runtime layout
 - MSIX package generation
 - desktop-originated build metadata
@@ -40,6 +41,8 @@ This repository now stores workflow-facing defaults plus the Desktop contract re
 
 Store identity fields such as `identityName`, `publisher`, `languages`, and `capabilities` no longer live here. They are loaded from the tagged Desktop repository.
 
+The canonical upstream version input remains `release.canonicalVersionInput`, which must equal the `win_store_packer` Release Drafter tag and is mirrored into `release.windowsStoreVersion` for downstream metadata checks.
+
 ### `config/workflow-defaults.json`
 
 Defines workflow defaults such as:
@@ -55,11 +58,12 @@ Defines workflow defaults such as:
 `.github/workflows/package-release.yml` now follows this flow:
 
 1. resolve a build plan from Desktop and Server indexes
-2. prepare a tagged Desktop workspace
-3. download and validate the Server payload
-4. run `scripts/build-msix.mjs`, which forwards to Desktop `npm run build:win:store`
-5. optionally finalize signing for the `signed` variant
-6. publish GitHub release assets and release metadata
+2. resolve the next packer Release Drafter tag
+3. prepare a tagged Desktop workspace
+4. download and validate the Server payload
+5. inject the canonical Windows Store version into the Desktop workspace metadata and run `scripts/build-msix.mjs`, which forwards to Desktop `npm run build:win:store`
+6. optionally finalize signing for the `signed` variant
+7. publish GitHub release assets and release metadata
 
 The workflow no longer replays Desktop packaging internals such as overlay rendering or packer-owned MSIX generation.
 
@@ -108,6 +112,7 @@ Resolve a build plan:
 ```bash
 node scripts/resolve-dispatch-build-plan.mjs \
   --event-name workflow_dispatch \
+  --packer-release-tag "v1.4.0" \
   --desktop-azure-sas-url "<desktop-sas>" \
   --server-azure-sas-url "<server-sas>" \
   --output build/build-plan.json
@@ -173,6 +178,12 @@ Per-workspace outputs include:
 - `build-metadata-<platform>-<variant>.json`
 - `artifact-inventory-<platform>-<variant>.json`
 - `release-assets/*.msix`
+
+Those workspace and publication artifacts now repeat the same three values for verification:
+
+- the canonical `win_store_packer` Release Drafter tag
+- the mirrored Windows Store version
+- the normalized Windows Store package version
 
 Publication outputs include:
 

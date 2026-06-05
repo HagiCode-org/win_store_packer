@@ -114,7 +114,7 @@ async function normalizePublishedArtifacts({ artifacts, outputDirectory, release
 }
 
 function toDesktopPackageJsonVersion(desktopTag, packageVersionConfig) {
-  return normalizeStorePackageVersion(desktopTag, packageVersionConfig).split('.').slice(0, 3).join('.');
+  return normalizeStorePackageVersion(desktopTag, { ...packageVersionConfig, source: 'packer-tag' }).split('.').slice(0, 3).join('.');
 }
 
 async function synchronizeDesktopWorkspaceVersion({ desktopWorkspace, desktopTag, packageVersionConfig }) {
@@ -152,6 +152,29 @@ async function synchronizeDesktopWorkspaceVersion({ desktopWorkspace, desktopTag
 
   return {
     expectedVersion,
+    changed,
+  };
+}
+
+async function synchronizeDesktopWorkspaceWindowsStoreVersion({ desktopWorkspace, windowsStoreVersion }) {
+  const packageJsonPath = path.join(desktopWorkspace, 'package.json');
+  const packageJson = await readJson(packageJsonPath);
+  const hagicodeDesktopMetadata = packageJson.hagicodeDesktop && typeof packageJson.hagicodeDesktop === 'object'
+    ? packageJson.hagicodeDesktop
+    : {};
+  let changed = false;
+
+  if (String(hagicodeDesktopMetadata.windowsStoreVersion ?? '').trim() !== windowsStoreVersion) {
+    packageJson.hagicodeDesktop = {
+      ...hagicodeDesktopMetadata,
+      windowsStoreVersion,
+    };
+    await writeJson(packageJsonPath, packageJson);
+    changed = true;
+  }
+
+  return {
+    windowsStoreVersion,
     changed,
   };
 }
@@ -213,6 +236,9 @@ function validateDesktopBuildMetadata(metadata, { desktopWorkspace }) {
     ...normalized,
     buildMode: requireNonEmptyString(normalized.buildMode, 'desktopBuildMetadata.buildMode'),
     desktopVersion: requireNonEmptyString(normalized.desktopVersion, 'desktopBuildMetadata.desktopVersion'),
+    windowsStoreVersion: normalized.windowsStoreVersion
+      ? requireNonEmptyString(normalized.windowsStoreVersion, 'desktopBuildMetadata.windowsStoreVersion')
+      : null,
     desktopSourceRef: requireNonEmptyString(normalized.desktopSourceRef, 'desktopBuildMetadata.desktopSourceRef'),
     storePackageVersion: requireNonEmptyString(normalized.storePackageVersion, 'desktopBuildMetadata.storePackageVersion'),
     storeConfigPath: requireNonEmptyString(normalized.storeConfigPath, 'desktopBuildMetadata.storeConfigPath'),
@@ -333,6 +359,16 @@ export async function buildMsix({
     );
   }
 
+  const desktopWindowsStoreSync = await synchronizeDesktopWorkspaceWindowsStoreVersion({
+    desktopWorkspace: workspaceManifest.desktopWorkspace,
+    windowsStoreVersion: workspaceManifest.windowsStoreVersion,
+  });
+  if (desktopWindowsStoreSync.changed) {
+    console.log(
+      `[build-msix] injected Windows Store version ${desktopWindowsStoreSync.windowsStoreVersion} into the desktop workspace metadata`
+    );
+  }
+
   const packageLockPath = path.join(workspaceManifest.desktopWorkspace, 'package-lock.json');
   const skipDesktopWorkspaceInstall = process.env.WIN_STORE_PACKER_SKIP_DESKTOP_NPM_CI === '1';
   if (!skipDesktopWorkspaceInstall && await pathExists(packageLockPath)) {
@@ -377,6 +413,7 @@ export async function buildMsix({
   });
 
   const desktopBuildEnv = { ...process.env };
+  desktopBuildEnv.HAGICODE_WINDOWS_STORE_VERSION = workspaceManifest.windowsStoreVersion;
   if (normalizedArtifactVariant === 'unsigned') {
     // Unsigned submission packages must keep the desktop-owned Store identity,
     // even when the parent workflow environment carries signing overrides.
@@ -410,6 +447,12 @@ export async function buildMsix({
     await readJson(desktopBuildMetadataPath),
     { desktopWorkspace: workspaceManifest.desktopWorkspace }
   );
+
+  if (desktopBuildMetadata.windowsStoreVersion !== workspaceManifest.windowsStoreVersion) {
+    throw new Error(
+      `Desktop build metadata Windows Store version ${JSON.stringify(desktopBuildMetadata.windowsStoreVersion)} does not match the canonical workspace Windows Store version ${JSON.stringify(workspaceManifest.windowsStoreVersion)}.`
+    );
+  }
 
   if (!(await pathExists(desktopBuildMetadata.primaryArtifactPath))) {
     throw new Error(`Desktop build did not produce the expected Store package artifact: ${desktopBuildMetadata.primaryArtifactPath}`);
@@ -453,6 +496,8 @@ export async function buildMsix({
           desktopBuildMode: publishedDesktopBuildMetadata.buildMode,
           desktopVersion: workspaceManifest.desktopVersion,
           desktopTag: workspaceManifest.desktopTag,
+          canonicalVersionInput: workspaceManifest.canonicalVersionInput,
+          windowsStoreVersion: workspaceManifest.windowsStoreVersion,
           desktopRef: workspaceManifest.desktopRef,
           desktopSourceRef: publishedDesktopBuildMetadata.desktopSourceRef,
           serverVersion: workspaceManifest.serverVersion,
@@ -489,6 +534,8 @@ export async function buildMsix({
     desktopBuildMode: publishedDesktopBuildMetadata.buildMode,
     desktopVersion: workspaceManifest.desktopVersion,
     desktopTag: workspaceManifest.desktopTag,
+    canonicalVersionInput: workspaceManifest.canonicalVersionInput,
+    windowsStoreVersion: workspaceManifest.windowsStoreVersion,
     desktopRef: workspaceManifest.desktopRef,
     serverVersion: workspaceManifest.serverVersion,
     releaseTag: workspaceManifest.releaseTag,
@@ -523,6 +570,8 @@ export async function buildMsix({
     platform: platformId,
     artifactVariant: normalizedArtifactVariant,
     releaseTag: workspaceManifest.releaseTag,
+    canonicalVersionInput: workspaceManifest.canonicalVersionInput,
+    windowsStoreVersion: workspaceManifest.windowsStoreVersion,
     storePackageVersion: desktopBuildMetadata.storePackageVersion,
     storeConfigPath: desktopBuildMetadata.storeConfigPath,
     desktopBuildMetadataPath,
@@ -546,6 +595,7 @@ export async function buildMsix({
     `### Store package build prepared for ${platformId} (${normalizedArtifactVariant})`,
     `- Release tag: ${workspaceManifest.releaseTag}`,
     `- Desktop tag: ${workspaceManifest.desktopTag}`,
+    `- Windows Store version: ${workspaceManifest.windowsStoreVersion}`,
     `- Server version: ${workspaceManifest.serverVersion}`,
     `- Store config path: ${desktopBuildMetadata.storeConfigPath}`,
     `- Store package version: ${desktopBuildMetadata.storePackageVersion}`,
