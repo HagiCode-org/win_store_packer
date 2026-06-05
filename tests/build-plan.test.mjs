@@ -5,8 +5,10 @@ import path from 'node:path';
 import { mkdtemp } from 'node:fs/promises';
 import {
   DEFAULT_PLAN_PRODUCER_WORKFLOW,
+  PUBLICATION_MODES,
   RELEASE_PLAN_ASSET_NAME,
   RELEASE_PLAN_HANDOFF_SOURCE,
+  WORKFLOW_ARTIFACT_HANDOFF_SOURCE,
   buildPlan
 } from '../scripts/lib/build-plan.mjs';
 import { readJson } from '../scripts/lib/fs-utils.mjs';
@@ -180,6 +182,35 @@ test('buildPlan keeps server overrides and dry-run metadata for manual verificat
   assert.equal(plan.build.shouldBuild, true);
 });
 
+test('buildPlan supports workflow-artifact main builds for package-release test runs', async () => {
+  const plan = await buildPlan(baseBuildPlanOptions({
+    eventPayload: {
+      inputs: {
+        packer_release_tag: NEXT_PACKER_RELEASE_TAG,
+        dry_run: true,
+      }
+    },
+    publicationMode: PUBLICATION_MODES.WORKFLOW_ARTIFACT,
+    handoffSource: WORKFLOW_ARTIFACT_HANDOFF_SOURCE,
+    producerWorkflow: 'package-release'
+  }));
+
+  assert.equal(plan.release.tag, NEXT_PACKER_RELEASE_TAG);
+  assert.equal(plan.publication.mode, 'workflow-artifact');
+  assert.equal(plan.build.dryRun, true);
+  assert.equal(plan.release.exists, false);
+  assert.equal(plan.handoff.source, 'workflow-artifact');
+  assert.equal(plan.handoff.producer.workflow, 'package-release');
+
+  const validated = validateReleasePlan(plan, {
+    expectedReleaseTag: NEXT_PACKER_RELEASE_TAG,
+    expectedPublicationMode: 'workflow-artifact',
+    expectedHandoffSource: 'workflow-artifact'
+  });
+  assert.equal(validated.publicationMode, 'workflow-artifact');
+  assert.equal(validated.handoffSource, 'workflow-artifact');
+});
+
 test('validateReleasePlan rejects a mismatched expected release tag', async () => {
   const plan = await buildPlan(baseBuildPlanOptions({
     eventPayload: { inputs: { packer_release_tag: NEXT_PACKER_RELEASE_TAG } }
@@ -188,6 +219,15 @@ test('validateReleasePlan rejects a mismatched expected release tag', async () =
   assert.throws(
     () => validateReleasePlan(plan, { expectedReleaseTag: PACKER_RELEASE_TAG }),
     /must match the expected release tag/i
+  );
+});
+
+test('validateReleasePlan rejects a mismatched expected publication mode', async () => {
+  const plan = await buildPlan(baseBuildPlanOptions());
+
+  assert.throws(
+    () => validateReleasePlan(plan, { expectedPublicationMode: 'workflow-artifact' }),
+    /plan\.publication\.mode must be workflow-artifact/i
   );
 });
 
@@ -218,4 +258,36 @@ test('resolveDispatchBuildPlan writes the normalized release-plan artifact', asy
   assert.equal(result.plan.upstream.desktop.tag, 'v0.3.1');
   assert.equal(writtenPlan.handoff.assetName, RELEASE_PLAN_ASSET_NAME);
   assert.equal(writtenPlan.handoff.producer.workflow, 'sync-version-plan');
+});
+
+test('resolveDispatchBuildPlan can force workflow-artifact main build plans', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-build-plan-artifact-'));
+  const outputPath = path.join(tempRoot, 'release-plan.json');
+
+  const result = await resolveDispatchBuildPlan({
+    eventName: 'workflow_dispatch',
+    eventPayload: { inputs: { dry_run: false } },
+    outputPath,
+    producerWorkflow: 'package-release',
+    publicationMode: PUBLICATION_MODES.WORKFLOW_ARTIFACT,
+    handoffSource: WORKFLOW_ARTIFACT_HANDOFF_SOURCE,
+    forceDryRun: true,
+    packerReleaseTag: NEXT_PACKER_RELEASE_TAG,
+    repositories: {
+      desktop: DESKTOP_INDEX_URL,
+      server: SERVER_INDEX_URL,
+      packer: 'HagiCode-org/win_store_packer'
+    },
+    desktopAzureSasUrl: DESKTOP_AZURE_SAS_URL,
+    serverAzureSasUrl: SERVER_AZURE_SAS_URL,
+    findStoreRelease: async () => {
+      throw new Error('workflow-artifact mode should not query published releases');
+    },
+    fetchImpl: createFetchStub()
+  });
+
+  assert.equal(result.plan.publication.mode, 'workflow-artifact');
+  assert.equal(result.plan.build.dryRun, true);
+  assert.equal(result.plan.handoff.source, 'workflow-artifact');
+  assert.equal(result.plan.release.exists, false);
 });

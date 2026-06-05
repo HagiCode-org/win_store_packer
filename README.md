@@ -70,8 +70,15 @@ The workflow no longer replays Desktop packaging internals such as overlay rende
 
 `workflow_dispatch` on `package-release.yml` now accepts:
 
+- `build_mode`: choose `published-release` to reuse an attached `release-plan.json`, or `main` to build from Desktop `main` plus the latest Server payload for testing
 - `release_tag`: the published `win_store_packer` release tag whose attached `release-plan.json` should be reused
 - `dry_run`: optional flag to rebuild and restage metadata without mutating the published GitHub Release
+
+When `build_mode=main`, the workflow:
+
+- resolves the current Release Drafter tag
+- generates a fresh plan from Desktop `main` and the latest eligible Server build
+- forces artifact-only publication so the resulting MSIX packages and release metadata stay in GitHub Actions artifacts for testing
 
 The workflow no longer accepts `desktop_source=release`, Desktop release selectors, or any branch that derived package inputs from release notes text.
 

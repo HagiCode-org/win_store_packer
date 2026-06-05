@@ -4,8 +4,10 @@ import { createPlatformMatrix, getPlatformConfig, normalizeGitTag } from './plat
 import {
   CANONICAL_PACKER_TAG_VERSION_SOURCE,
   DEFAULT_PLAN_CONSUMER_WORKFLOW,
+  PUBLICATION_MODES,
   RELEASE_PLAN_ASSET_NAME,
   RELEASE_PLAN_HANDOFF_SOURCE,
+  WORKFLOW_ARTIFACT_HANDOFF_SOURCE,
   WIN_STORE_PACKER_HANDOFF_SCHEMA,
 } from './build-plan.mjs';
 
@@ -86,7 +88,15 @@ function validateUpstreamAssets(plan, platformId, sourceType, { required = true 
   }
 }
 
-export function validateReleasePlan(plan, { planPath = '[inline]', expectedReleaseTag } = {}) {
+export function validateReleasePlan(
+  plan,
+  {
+    planPath = '[inline]',
+    expectedReleaseTag,
+    expectedPublicationMode,
+    expectedHandoffSource,
+  } = {}
+) {
   requireObject(plan, 'release plan');
   const handoff = requireObject(plan.handoff, 'plan.handoff');
   if (handoff.schema !== WIN_STORE_PACKER_HANDOFF_SCHEMA) {
@@ -104,9 +114,11 @@ export function validateReleasePlan(plan, { planPath = '[inline]', expectedRelea
   if (handoffAssetName !== RELEASE_PLAN_ASSET_NAME) {
     throw new Error(`plan.handoff.assetName must be ${RELEASE_PLAN_ASSET_NAME}.`);
   }
-  if (handoffSource !== RELEASE_PLAN_HANDOFF_SOURCE) {
-    throw new Error(`plan.handoff.source must be ${RELEASE_PLAN_HANDOFF_SOURCE}.`);
-  }
+  requireEnum(
+    handoffSource,
+    [RELEASE_PLAN_HANDOFF_SOURCE, WORKFLOW_ARTIFACT_HANDOFF_SOURCE],
+    'plan.handoff.source'
+  );
   if (consumerWorkflow !== DEFAULT_PLAN_CONSUMER_WORKFLOW) {
     throw new Error(`plan.handoff.consumer.workflow must be ${DEFAULT_PLAN_CONSUMER_WORKFLOW}.`);
   }
@@ -164,7 +176,27 @@ export function validateReleasePlan(plan, { planPath = '[inline]', expectedRelea
   requireObject(downloads.server, 'plan.downloads.server');
 
   const publication = requireObject(plan.publication ?? { mode: 'github-release' }, 'plan.publication');
-  const publicationMode = requireEnum(publication.mode, ['github-release'], 'plan.publication.mode');
+  const publicationMode = requireEnum(
+    publication.mode,
+    [PUBLICATION_MODES.GITHUB_RELEASE, PUBLICATION_MODES.WORKFLOW_ARTIFACT],
+    'plan.publication.mode'
+  );
+
+  if (publicationMode === PUBLICATION_MODES.GITHUB_RELEASE && handoffSource !== RELEASE_PLAN_HANDOFF_SOURCE) {
+    throw new Error(`plan.handoff.source must be ${RELEASE_PLAN_HANDOFF_SOURCE} when plan.publication.mode is ${PUBLICATION_MODES.GITHUB_RELEASE}.`);
+  }
+  if (publicationMode === PUBLICATION_MODES.WORKFLOW_ARTIFACT && handoffSource !== WORKFLOW_ARTIFACT_HANDOFF_SOURCE) {
+    throw new Error(`plan.handoff.source must be ${WORKFLOW_ARTIFACT_HANDOFF_SOURCE} when plan.publication.mode is ${PUBLICATION_MODES.WORKFLOW_ARTIFACT}.`);
+  }
+  if (publicationMode === PUBLICATION_MODES.WORKFLOW_ARTIFACT && build.dryRun !== true) {
+    throw new Error('plan.build.dryRun must be true when plan.publication.mode is workflow-artifact.');
+  }
+  if (expectedPublicationMode && publicationMode !== expectedPublicationMode) {
+    throw new Error(`plan.publication.mode must be ${expectedPublicationMode}; received ${JSON.stringify(publicationMode)} from ${planPath}.`);
+  }
+  if (expectedHandoffSource && handoffSource !== expectedHandoffSource) {
+    throw new Error(`plan.handoff.source must be ${expectedHandoffSource}; received ${JSON.stringify(handoffSource)} from ${planPath}.`);
+  }
 
   const store = requireObject(plan.store, 'plan.store');
   requireArray(store.supportedWindowsTargets, 'plan.store.supportedWindowsTargets');
@@ -195,6 +227,7 @@ export function validateReleasePlan(plan, { planPath = '[inline]', expectedRelea
     forceRebuild: build.forceRebuild,
     publicationMode,
     handoffAssetName,
+    handoffSource,
     platforms
   };
 }

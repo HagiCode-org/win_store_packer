@@ -4,7 +4,12 @@ import { appendFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { parseAzureSasUrl, sanitizeUrlForLogs } from './lib/azure-blob.mjs';
-import { buildPlan, RELEASE_PLAN_ASSET_NAME } from './lib/build-plan.mjs';
+import {
+  buildPlan,
+  PUBLICATION_MODES,
+  RELEASE_PLAN_ASSET_NAME,
+  RELEASE_PLAN_HANDOFF_SOURCE,
+} from './lib/build-plan.mjs';
 import { ensureDir, readJson, writeJson } from './lib/fs-utils.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 import { loadWorkflowDefaults } from './lib/store-config.mjs';
@@ -27,6 +32,9 @@ export async function resolveDispatchBuildPlan({
   desktopAzureSasUrl,
   packerReleaseTag,
   serverAzureSasUrl,
+  publicationMode = PUBLICATION_MODES.GITHUB_RELEASE,
+  handoffSource = RELEASE_PLAN_HANDOFF_SOURCE,
+  forceDryRun = false,
   producerWorkflow,
   findStoreRelease,
   fetchImpl
@@ -48,6 +56,7 @@ export async function resolveDispatchBuildPlan({
     inputs: {
       ...(eventPayload?.inputs ?? {}),
       ...(packerReleaseTag ? { packer_release_tag: packerReleaseTag } : {}),
+      ...(forceDryRun ? { dry_run: true } : {}),
     }
   };
 
@@ -65,6 +74,8 @@ export async function resolveDispatchBuildPlan({
       desktop: desktopAzureSasUrl,
       server: serverAzureSasUrl
     },
+    publicationMode,
+    handoffSource,
     producerWorkflow,
     findStoreRelease,
     fetchImpl
@@ -128,7 +139,10 @@ export async function main() {
       'desktop-azure-sas-url': { type: 'string' },
       'server-azure-sas-url': { type: 'string' },
       'packer-release-tag': { type: 'string' },
-      'producer-workflow': { type: 'string' }
+      'producer-workflow': { type: 'string' },
+      'publication-mode': { type: 'string' },
+      'handoff-source': { type: 'string' },
+      'force-dry-run': { type: 'boolean' }
     }
   });
 
@@ -165,6 +179,9 @@ export async function main() {
     outputPath: values.output,
     token,
     packerReleaseTag: values['packer-release-tag'] ?? process.env.WIN_STORE_PACKER_RELEASE_TAG ?? process.env.PACKER_RELEASE_TAG,
+    publicationMode: values['publication-mode'] ?? process.env.WIN_STORE_PACKER_PUBLICATION_MODE ?? PUBLICATION_MODES.GITHUB_RELEASE,
+    handoffSource: values['handoff-source'] ?? process.env.WIN_STORE_PACKER_HANDOFF_SOURCE ?? RELEASE_PLAN_HANDOFF_SOURCE,
+    forceDryRun: values['force-dry-run'] ?? false,
     producerWorkflow: values['producer-workflow'] ?? process.env.WIN_STORE_PACKER_PLAN_PRODUCER_WORKFLOW,
     repositories,
     desktopAzureSasUrl,

@@ -6,12 +6,20 @@ on:
       - published
   workflow_dispatch:
     inputs:
+      build_mode:
+        description: 'Choose between rebuilding a published release plan or building from desktop main for artifact-only testing.'
+        required: false
+        default: published-release
+        type: choice
+        options:
+          - published-release
+          - main
       release_tag:
-        description: 'Published win_store_packer release tag to rebuild from its attached release-plan.json asset.'
-        required: true
+        description: 'Published win_store_packer release tag to rebuild from its attached release-plan.json asset. Used only when build_mode=published-release.'
+        required: false
         type: string
       dry_run:
-        description: 'Build and stage release metadata without publishing to GitHub Releases.'
+        description: 'Build and stage release metadata without publishing to GitHub Releases. Used only when build_mode=published-release.'
         required: false
         default: false
         type: boolean
@@ -32,11 +40,23 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.target.outputs.release_tag }}
+      build_mode: ${{ steps.target.outputs.build_mode }}
       dry_run: ${{ steps.target.outputs.dry_run }}
+      publication_mode: ${{ steps.target.outputs.publication_mode }}
+      handoff_source: ${{ steps.target.outputs.handoff_source }}
       platform_matrix: ${{ steps.validate.outputs.platform_matrix }}
     steps:
       - name: Checkout win_store_packer
         uses: actions/checkout@v5
+
+      - name: Resolve packer Release Drafter tag for main test builds
+        id: packer_release_drafter
+        if: github.event_name == 'workflow_dispatch' && inputs.build_mode == 'main'
+        uses: release-drafter/release-drafter@v7
+        with:
+          config-name: release-drafter.yml
+          dry-run: true
+          token: ${{ github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -53,24 +73,46 @@ jobs:
         shell: bash
         run: |
           if [ "$GITHUB_EVENT_NAME" = 'release' ]; then
+            build_mode='published-release'
             release_tag='${{ github.event.release.tag_name }}'
             dry_run='false'
+            publication_mode='github-release'
+            handoff_source='draft-release-asset'
           else
-            release_tag='${{ inputs.release_tag }}'
-            dry_run='${{ inputs.dry_run }}'
+            build_mode='${{ inputs.build_mode }}'
+
+            if [ "$build_mode" = 'main' ]; then
+              release_tag='${{ steps.packer_release_drafter.outputs.tag_name }}'
+              dry_run='true'
+              publication_mode='workflow-artifact'
+              handoff_source='workflow-artifact'
+            else
+              release_tag='${{ inputs.release_tag }}'
+              dry_run='${{ inputs.dry_run }}'
+              publication_mode='github-release'
+              handoff_source='draft-release-asset'
+            fi
           fi
 
           if [ -z "$release_tag" ]; then
-            printf '::error::A published release tag is required.\n'
+            if [ "$build_mode" = 'main' ]; then
+              printf '::error::Unable to resolve a Release Drafter tag for the main test build.\n'
+            else
+              printf '::error::A published release tag is required.\n'
+            fi
             exit 1
           fi
 
           {
+            echo "build_mode=$build_mode"
             echo "release_tag=$release_tag"
             echo "dry_run=$dry_run"
+            echo "publication_mode=$publication_mode"
+            echo "handoff_source=$handoff_source"
           } >> "$GITHUB_OUTPUT"
 
       - name: Download attached release plan
+        if: steps.target.outputs.build_mode != 'main'
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -80,13 +122,34 @@ jobs:
             --release-tag "${{ steps.target.outputs.release_tag }}" \
             --output "$RUNNER_TEMP/build-plan/release-plan.json"
 
+      - name: Resolve main test build plan
+        if: steps.target.outputs.build_mode == 'main'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL: ${{ env.DESKTOP_AZURE_SAS_URL }}
+          WIN_STORE_PACKER_SERVER_AZURE_SAS_URL: ${{ env.SERVER_AZURE_SAS_URL }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/build-plan"
+          node scripts/resolve-dispatch-build-plan.mjs \
+            --event-name workflow_dispatch \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --packer-release-tag "${{ steps.target.outputs.release_tag }}" \
+            --producer-workflow package-release \
+            --publication-mode workflow-artifact \
+            --handoff-source workflow-artifact \
+            --force-dry-run \
+            --output "$RUNNER_TEMP/build-plan/release-plan.json"
+
       - name: Validate release plan
         id: validate
         shell: bash
         run: |
           node scripts/resolve-release-plan.mjs \
             --plan "$RUNNER_TEMP/build-plan/release-plan.json" \
-            --expected-release-tag "${{ steps.target.outputs.release_tag }}"
+            --expected-release-tag "${{ steps.target.outputs.release_tag }}" \
+            --expected-publication-mode "${{ steps.target.outputs.publication_mode }}" \
+            --expected-handoff-source "${{ steps.target.outputs.handoff_source }}"
 
       - name: Upload resolved build plan
         uses: actions/upload-artifact@v6

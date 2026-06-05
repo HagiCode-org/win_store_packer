@@ -19,7 +19,9 @@ export async function main() {
   const { values } = parseArgs({
     options: {
       plan: { type: 'string' },
-      'expected-release-tag': { type: 'string' }
+      'expected-release-tag': { type: 'string' },
+      'expected-publication-mode': { type: 'string' },
+      'expected-handoff-source': { type: 'string' }
     },
     strict: true
   });
@@ -29,7 +31,9 @@ export async function main() {
   }
 
   const releasePlan = await loadReleasePlan(values.plan, {
-    expectedReleaseTag: values['expected-release-tag']
+    expectedReleaseTag: values['expected-release-tag'],
+    expectedPublicationMode: values['expected-publication-mode'],
+    expectedHandoffSource: values['expected-handoff-source']
   });
   await writeGithubOutputs({
     release_tag: releasePlan.releaseTag,
@@ -41,6 +45,7 @@ export async function main() {
     publication_mode: releasePlan.publicationMode,
     handoff_schema: WIN_STORE_PACKER_HANDOFF_SCHEMA,
     handoff_asset_name: releasePlan.handoffAssetName,
+    handoff_source: releasePlan.handoffSource,
     desktop_checkout_ref: releasePlan.plan.upstream.desktop.checkoutRef,
     desktop_version: releasePlan.plan.upstream.desktop.version,
     server_version: releasePlan.plan.upstream.server.version
@@ -54,10 +59,13 @@ export async function main() {
     `- Version source: ${releasePlan.versionSource}`,
     `- Plan: ${path.resolve(values.plan)}`,
     `- Release plan asset: ${releasePlan.handoffAssetName}`,
+    `- Handoff source: ${releasePlan.handoffSource}`,
     `- Desktop checkout ref: ${releasePlan.plan.upstream.desktop.checkoutRef}`,
     `- Desktop version: ${releasePlan.plan.upstream.desktop.version}`,
     `- Server version: ${releasePlan.plan.upstream.server.version}`,
     `- Expected release tag: ${releasePlan.expectedReleaseTag ?? '[none]'}`,
+    `- Expected publication mode: ${values['expected-publication-mode'] ?? '[none]'}`,
+    `- Expected handoff source: ${values['expected-handoff-source'] ?? '[none]'}`,
     `- Dry run: ${releasePlan.dryRun ? 'true' : 'false'}`,
     `- Platforms: ${releasePlan.platforms.join(', ')}`
   ]);
@@ -75,6 +83,7 @@ export async function main() {
         publicationMode: releasePlan.publicationMode,
         handoffSchema: WIN_STORE_PACKER_HANDOFF_SCHEMA,
         handoffAssetName: releasePlan.handoffAssetName,
+        handoffSource: releasePlan.handoffSource,
         desktopCheckoutRef: releasePlan.plan.upstream.desktop.checkoutRef,
         desktopVersion: releasePlan.plan.upstream.desktop.version,
         serverVersion: releasePlan.plan.upstream.server.version,

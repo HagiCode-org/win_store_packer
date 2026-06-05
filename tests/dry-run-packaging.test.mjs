@@ -81,7 +81,9 @@ function createPlan(tempRoot, options = {}) {
   const desktopCheckoutRef = options.desktopCheckoutRef ?? 'main';
   const desktopCheckoutType = options.desktopCheckoutType ?? 'branch';
   const desktopAssetsByPlatform = options.desktopAssetsByPlatform ?? {};
-  const publicationMode = 'github-release';
+  const publicationMode = options.publicationMode ?? 'github-release';
+  const handoffSource = options.handoffSource ?? (publicationMode === 'workflow-artifact' ? 'workflow-artifact' : 'draft-release-asset');
+  const producerWorkflow = options.producerWorkflow ?? (publicationMode === 'workflow-artifact' ? 'package-release' : 'sync-version-plan');
   const releaseTag = options.releaseTag ?? PACKER_RELEASE_TAG;
 
   return {
@@ -155,10 +157,10 @@ function createPlan(tempRoot, options = {}) {
     },
     handoff: {
       schema: 'win-store-packer-handoff/v1',
-      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'sync-version-plan' },
+      producer: { repository: 'HagiCode-org/win_store_packer', workflow: producerWorkflow },
       consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
       assetName: 'release-plan.json',
-      source: 'draft-release-asset'
+      source: handoffSource
     }
   };
 }
@@ -308,6 +310,9 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
     desktopCheckoutRef: 'main',
     desktopCheckoutType: 'branch',
     desktopAssetsByPlatform: {},
+    publicationMode: 'workflow-artifact',
+    handoffSource: 'workflow-artifact',
+    producerWorkflow: 'package-release',
     releaseTag: NEXT_PACKER_RELEASE_TAG
   }));
 
@@ -381,7 +386,7 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
   assert.equal(releaseMetadata.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
   assert.equal(releaseMetadata.desktop.baseVersion, 'v0.3.0');
   assert.equal(releaseMetadata.desktop.checkoutRef, 'main');
-  assert.equal(releaseMetadata.publication.mode, 'github-release');
+  assert.equal(releaseMetadata.publication.mode, 'workflow-artifact');
 
   const overlayConfig = await readJson(path.join(workspaceManifest.desktopWorkspace, 'forge.store.unsigned.json'));
   assert.equal(overlayConfig.buildVersion, '1.4.1.0');

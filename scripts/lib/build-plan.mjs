@@ -17,6 +17,7 @@ export const WIN_STORE_PACKER_HANDOFF_SCHEMA = 'win-store-packer-handoff/v1';
 export const CANONICAL_PACKER_TAG_VERSION_SOURCE = 'release-drafter-packer-tag';
 export const RELEASE_PLAN_ASSET_NAME = 'release-plan.json';
 export const RELEASE_PLAN_HANDOFF_SOURCE = 'draft-release-asset';
+export const WORKFLOW_ARTIFACT_HANDOFF_SOURCE = 'workflow-artifact';
 export const DEFAULT_PLAN_PRODUCER_WORKFLOW = 'sync-version-plan';
 export const DEFAULT_PLAN_CONSUMER_WORKFLOW = 'package-release';
 export const DESKTOP_SOURCE_MODES = {
@@ -24,7 +25,8 @@ export const DESKTOP_SOURCE_MODES = {
 };
 
 export const PUBLICATION_MODES = {
-  GITHUB_RELEASE: 'github-release'
+  GITHUB_RELEASE: 'github-release',
+  WORKFLOW_ARTIFACT: 'workflow-artifact'
 };
 
 const DEFAULT_REPOSITORIES = {
@@ -172,6 +174,7 @@ export async function buildPlan({
   fetchImpl,
   findStoreRelease = findReleaseByTag,
   azureSasUrls = {},
+  publicationMode = PUBLICATION_MODES.GITHUB_RELEASE,
   producerWorkflow = DEFAULT_PLAN_PRODUCER_WORKFLOW,
   consumerWorkflow = DEFAULT_PLAN_CONSUMER_WORKFLOW,
   handoffAssetName = RELEASE_PLAN_ASSET_NAME,
@@ -219,12 +222,13 @@ export async function buildPlan({
   const desktopTag = deriveNextDesktopTag(baseDesktopTag);
   const desktopCheckoutRef = 'main';
   const desktopCheckoutType = 'branch';
-  const publicationMode = PUBLICATION_MODES.GITHUB_RELEASE;
   const releaseTag = trigger.packerReleaseTag;
   if (!releaseTag) {
     throw new Error('buildPlan requires a packer Release Drafter tag via trigger input or WIN_STORE_PACKER_RELEASE_TAG.');
   }
-  const existingRelease = await findStoreRelease(packerRepository, releaseTag, token, { fetchImpl });
+  const existingRelease = publicationMode === PUBLICATION_MODES.GITHUB_RELEASE
+    ? await findStoreRelease(packerRepository, releaseTag, token, { fetchImpl })
+    : null;
   const releaseExists = Boolean(existingRelease);
   const shouldBuild = true;
   const skipReason = null;
