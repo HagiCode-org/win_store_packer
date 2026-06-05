@@ -63,6 +63,12 @@ const UNSIGNED_MSIX_IDENTITY_OVERRIDE_ENV_VARS = [
   'WINDOWS_PACKAGE_MAX_TESTED_VERSION',
 ];
 
+const DESKTOP_DISTRIBUTION_METADATA_RELATIVE_PATH = path.join('resources', 'distribution-metadata.json');
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 function appendSuffixBeforeExtension(fileName, suffix) {
   const extension = path.extname(fileName);
   if (!extension) {
@@ -175,6 +181,38 @@ async function synchronizeDesktopWorkspaceWindowsStoreVersion({ desktopWorkspace
 
   return {
     windowsStoreVersion,
+    changed,
+  };
+}
+
+async function synchronizeDesktopWorkspaceDistributionMetadata({ desktopWorkspace, windowsStoreVersion }) {
+  const distributionMetadataPath = path.join(desktopWorkspace, DESKTOP_DISTRIBUTION_METADATA_RELATIVE_PATH);
+  const existingMetadata = await pathExists(distributionMetadataPath)
+    ? await readJson(distributionMetadataPath)
+    : null;
+  const existingExtensions = isRecord(existingMetadata) && isRecord(existingMetadata.extensions)
+    ? existingMetadata.extensions
+    : {};
+  const nextMetadata = {
+    schemaVersion: isRecord(existingMetadata) && Number.isInteger(existingMetadata.schemaVersion)
+      ? existingMetadata.schemaVersion
+      : 1,
+    mode: 'fusion',
+    channel: 'win-store',
+    extensions: {
+      ...existingExtensions,
+      windowsStoreVersion,
+    },
+  };
+  const changed = JSON.stringify(existingMetadata) !== JSON.stringify(nextMetadata);
+
+  if (changed) {
+    await writeJson(distributionMetadataPath, nextMetadata);
+  }
+
+  return {
+    distributionMetadataPath,
+    metadata: nextMetadata,
     changed,
   };
 }
@@ -366,6 +404,16 @@ export async function buildMsix({
   if (desktopWindowsStoreSync.changed) {
     console.log(
       `[build-msix] injected Windows Store version ${desktopWindowsStoreSync.windowsStoreVersion} into the desktop workspace metadata`
+    );
+  }
+
+  const desktopDistributionMetadataSync = await synchronizeDesktopWorkspaceDistributionMetadata({
+    desktopWorkspace: workspaceManifest.desktopWorkspace,
+    windowsStoreVersion: workspaceManifest.windowsStoreVersion,
+  });
+  if (desktopDistributionMetadataSync.changed) {
+    console.log(
+      `[build-msix] synchronized desktop distribution metadata for win-store at ${desktopDistributionMetadataSync.distributionMetadataPath}`
     );
   }
 

@@ -238,6 +238,12 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(workspaceManifest.desktopStoreConfigRelativePath, 'config/store-package.json');
   assert.equal((await readJson(workspaceManifest.packageJsonPath)).version, '0.3.1');
   assert.equal((await readJson(workspaceManifest.packageJsonPath)).hagicodeDesktop.windowsStoreVersion, PACKER_RELEASE_TAG);
+  const workspaceDistributionMetadata = await readJson(
+    path.join(workspaceManifest.desktopWorkspace, 'resources', 'distribution-metadata.json')
+  );
+  assert.equal(workspaceDistributionMetadata.mode, 'fusion');
+  assert.equal(workspaceDistributionMetadata.channel, 'win-store');
+  assert.equal(workspaceDistributionMetadata.extensions.windowsStoreVersion, PACKER_RELEASE_TAG);
   assert.equal(workspaceReport.validationPassed, true);
   assert.equal(workspaceReport.checks.desktopBuildContractPresent, true);
   assert.equal(workspaceReport.buildStrategy.supported, true);
@@ -376,6 +382,12 @@ test('workflow-artifact packaging can build from desktop main using the next Des
   assert.equal(workspaceManifest.desktopBaseVersion, 'v0.3.0');
   assert.equal((await readJson(workspaceManifest.packageJsonPath)).version, '0.3.1');
   assert.equal((await readJson(workspaceManifest.packageJsonPath)).hagicodeDesktop.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
+  const workspaceDistributionMetadata = await readJson(
+    path.join(workspaceManifest.desktopWorkspace, 'resources', 'distribution-metadata.json')
+  );
+  assert.equal(workspaceDistributionMetadata.mode, 'fusion');
+  assert.equal(workspaceDistributionMetadata.channel, 'win-store');
+  assert.equal(workspaceDistributionMetadata.extensions.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
   assert.equal(buildMetadata.desktopVersion, 'v0.3.1');
   assert.equal(buildMetadata.desktopTag, 'v0.3.1');
   assert.equal(buildMetadata.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
