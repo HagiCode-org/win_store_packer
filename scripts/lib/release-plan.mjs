@@ -188,9 +188,6 @@ export function validateReleasePlan(
   if (publicationMode === PUBLICATION_MODES.WORKFLOW_ARTIFACT && handoffSource !== WORKFLOW_ARTIFACT_HANDOFF_SOURCE) {
     throw new Error(`plan.handoff.source must be ${WORKFLOW_ARTIFACT_HANDOFF_SOURCE} when plan.publication.mode is ${PUBLICATION_MODES.WORKFLOW_ARTIFACT}.`);
   }
-  if (publicationMode === PUBLICATION_MODES.WORKFLOW_ARTIFACT && build.dryRun !== true) {
-    throw new Error('plan.build.dryRun must be true when plan.publication.mode is workflow-artifact.');
-  }
   if (expectedPublicationMode && publicationMode !== expectedPublicationMode) {
     throw new Error(`plan.publication.mode must be ${expectedPublicationMode}; received ${JSON.stringify(publicationMode)} from ${planPath}.`);
   }

@@ -217,7 +217,7 @@ export async function publishRelease({
     outputDir: resolvedOutputDir
   });
 
-  const dryRun = forceDryRun || plan.build.dryRun;
+  const dryRun = forceDryRun || plan.build.dryRun || (plan.publication?.mode ?? 'github-release') === 'workflow-artifact';
   const publishedAt = new Date().toISOString();
   if (dryRun) {
     const dryRunReport = {

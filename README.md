@@ -78,6 +78,7 @@ When `build_mode=main`, the workflow:
 
 - resolves the current Release Drafter tag
 - generates a fresh plan from Desktop `main` and the latest eligible Server build
+- performs the normal Desktop Store packaging flow instead of the synthetic dry-run build
 - forces artifact-only publication so the resulting MSIX packages and release metadata stay in GitHub Actions artifacts for testing
 
 The workflow no longer accepts `desktop_source=release`, Desktop release selectors, or any branch that derived package inputs from release notes text.

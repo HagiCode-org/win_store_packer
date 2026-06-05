@@ -187,7 +187,6 @@ test('buildPlan supports workflow-artifact main builds for package-release test 
     eventPayload: {
       inputs: {
         packer_release_tag: NEXT_PACKER_RELEASE_TAG,
-        dry_run: true,
       }
     },
     publicationMode: PUBLICATION_MODES.WORKFLOW_ARTIFACT,
@@ -197,7 +196,7 @@ test('buildPlan supports workflow-artifact main builds for package-release test 
 
   assert.equal(plan.release.tag, NEXT_PACKER_RELEASE_TAG);
   assert.equal(plan.publication.mode, 'workflow-artifact');
-  assert.equal(plan.build.dryRun, true);
+  assert.equal(plan.build.dryRun, false);
   assert.equal(plan.release.exists, false);
   assert.equal(plan.handoff.source, 'workflow-artifact');
   assert.equal(plan.handoff.producer.workflow, 'package-release');

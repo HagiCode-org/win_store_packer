@@ -152,7 +152,7 @@ function createPlan(tempRoot, options = {}) {
     build: {
       shouldBuild: true,
       forceRebuild: false,
-      dryRun: true,
+      dryRun: options.dryRun ?? true,
       skipReason: null
     },
     handoff: {
@@ -296,7 +296,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(storePackagePath, /\.msix$/);
 });
 
-test('dry-run packaging can build from desktop main using the next Desktop revision as the packaged version', async () => {
+test('workflow-artifact packaging can build from desktop main using the next Desktop revision as the packaged version', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-main-packaging-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -313,6 +313,7 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
     publicationMode: 'workflow-artifact',
     handoffSource: 'workflow-artifact',
     producerWorkflow: 'package-release',
+    dryRun: false,
     releaseTag: NEXT_PACKER_RELEASE_TAG
   }));
 
@@ -379,6 +380,7 @@ test('dry-run packaging can build from desktop main using the next Desktop revis
   assert.equal(buildMetadata.desktopTag, 'v0.3.1');
   assert.equal(buildMetadata.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
   assert.equal(buildMetadata.storePackageVersion, '1.4.1.0');
+  assert.equal(buildMetadata.desktopBuildMode, 'desktop-store-build-command');
   assert.equal(inventory.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
   assert.equal(inventory.storePackageVersion, '1.4.1.0');
   assert.equal(path.basename(inventory.artifacts[0].outputPath), 'hagicode-store-v1.4.1-win-x64-unsigned.msix');

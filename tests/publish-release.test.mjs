@@ -307,3 +307,109 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
   assert.equal(metadata.artifacts.find((artifact) => artifact.fileName === signedFileName)?.uploadPath, signedMsixPath);
   assert.equal(metadata.artifacts.find((artifact) => artifact.fileName === unsignedFileName)?.uploadPath, unsignedMsixPath);
 });
+
+test('publishRelease keeps workflow-artifact plans artifact-only even when the build is not a dry run', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-publish-workflow-artifact-'));
+  const artifactsDir = path.join(tempRoot, 'artifacts');
+  const outputDir = path.join(tempRoot, 'output');
+  const planPath = path.join(tempRoot, 'build-plan.json');
+  const artifactDir = path.join(artifactsDir, 'store-package-win-x64-unsigned', 'release-assets');
+  const inventoryDir = path.join(artifactsDir, 'store-package-win-x64-unsigned');
+  const unsignedFileName = 'hagicode-store-v1.4.0-win-x64-unsigned.msix';
+  const unsignedMsixPath = path.join(artifactDir, unsignedFileName);
+
+  await mkdir(artifactDir, { recursive: true });
+  await writeFile(unsignedMsixPath, 'fixture-unsigned');
+  await writeJson(path.join(inventoryDir, 'artifact-inventory-win-x64-unsigned.json'), {
+    platform: 'win-x64',
+    artifactVariant: 'unsigned',
+    storePackageVersion: '1.4.0.0',
+    artifacts: [
+      {
+        platform: 'win-x64',
+        fileName: unsignedFileName,
+        outputPath: 'D:\\a\\_temp\\store-release-win-x64-unsigned\\release-assets\\' + unsignedFileName,
+        sizeBytes: 16,
+        sha256: 'abc',
+        desktopProduced: true,
+        storeConfigPath: 'config/store-package.json',
+        variant: 'unsigned',
+        signed: false,
+        primaryForStoreSubmission: true
+      }
+    ]
+  });
+  await writeJson(planPath, {
+    platforms: ['win-x64'],
+    downloads: {
+      desktop: {},
+      server: {}
+    },
+    upstream: {
+      desktop: {
+        sourceMode: 'main',
+        version: 'v0.3.1',
+        tag: 'v0.3.1',
+        baseVersion: 'v0.3.0',
+        baseTag: 'v0.3.0',
+        checkoutRef: 'main',
+        checkoutType: 'branch',
+        manifestUrl: 'https://index.hagicode.com/desktop/index.json',
+        assetsByPlatform: {}
+      },
+      server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } }
+    },
+    store: {
+      supportedWindowsTargets: ['win-x64'],
+      desktop: {
+        storeConfigPath: 'config/store-package.json',
+        buildCommand: 'build:win:store',
+        runtimeInjectionPath: 'resources/portable-fixed/current'
+      }
+    },
+    publication: {
+      mode: 'workflow-artifact'
+    },
+    release: {
+      repository: 'HagiCode-org/win_store_packer',
+      tag: PACKER_RELEASE_TAG,
+      name: `Windows Store ${PACKER_RELEASE_TAG}`,
+      canonicalVersionInput: PACKER_RELEASE_TAG,
+      windowsStoreVersion: PACKER_RELEASE_TAG,
+      versionSource: 'release-drafter-packer-tag'
+    },
+    build: {
+      shouldBuild: true,
+      forceRebuild: false,
+      dryRun: false
+    },
+    handoff: {
+      schema: 'win-store-packer-handoff/v1',
+      producer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
+      consumer: { repository: 'HagiCode-org/win_store_packer', workflow: 'package-release' },
+      assetName: 'release-plan.json',
+      source: 'workflow-artifact'
+    }
+  });
+
+  let requestedGitHubRelease = false;
+  const fetchImpl = async () => {
+    requestedGitHubRelease = true;
+    throw new Error('workflow-artifact publication should not call GitHub Releases');
+  };
+
+  const result = await publishRelease({
+    planPath,
+    artifactsDir,
+    outputDir,
+    token: 'test-token',
+    fetchImpl
+  });
+
+  assert.equal(result.dryRun, true);
+  assert.equal(requestedGitHubRelease, false);
+
+  const dryRunReportPath = path.join(outputDir, `${PACKER_RELEASE_TAG}.publish-dry-run.json`);
+  const dryRunReport = JSON.parse(await readFile(dryRunReportPath, 'utf8'));
+  assert.equal(dryRunReport.uploads.find((upload) => upload.fileName === unsignedFileName)?.filePath, unsignedMsixPath);
+});

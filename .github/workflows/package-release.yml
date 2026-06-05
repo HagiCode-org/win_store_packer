@@ -83,7 +83,7 @@ jobs:
 
             if [ "$build_mode" = 'main' ]; then
               release_tag='${{ steps.packer_release_drafter.outputs.tag_name }}'
-              dry_run='true'
+              dry_run='false'
               publication_mode='workflow-artifact'
               handoff_source='workflow-artifact'
             else
@@ -138,7 +138,6 @@ jobs:
             --producer-workflow package-release \
             --publication-mode workflow-artifact \
             --handoff-source workflow-artifact \
-            --force-dry-run \
             --output "$RUNNER_TEMP/build-plan/release-plan.json"
 
       - name: Validate release plan
@@ -430,7 +429,7 @@ jobs:
             --output-dir "$RUNNER_TEMP/release-metadata"
           )
 
-          if [ "${{ needs.resolve_plan.outputs.dry_run }}" = 'true' ]; then
+          if [ "${{ needs.resolve_plan.outputs.publication_mode }}" = 'workflow-artifact' ] || [ "${{ needs.resolve_plan.outputs.dry_run }}" = 'true' ]; then
             args+=(--force-dry-run)
           fi
 
