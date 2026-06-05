@@ -1,15 +1,5 @@
 name-template: 'Windows Store v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
-template: |
-  ## What Changed
-
-  $CHANGES
-
-  ## Packaging Scope
-
-  - Windows Store packaging workflow updates
-  - Desktop packaging contract propagation
-  - Store submission and signing pipeline changes
 
 categories:
   - title: 'Features'
@@ -21,11 +11,20 @@ categories:
       - 'fix'
       - 'bug'
       - 'bugfix'
+  - title: 'Documentation'
+    labels:
+      - 'docs'
+      - 'documentation'
   - title: 'Maintenance'
     labels:
       - 'chore'
       - 'dependencies'
       - 'ci'
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&'
+exclude-labels:
+  - 'skip-changelog'
 
 version-resolver:
   major:
@@ -48,3 +47,14 @@ version-resolver:
       - 'documentation'
       - 'docs'
   default: patch
+
+template: |
+  ## What Changed
+
+  $CHANGES
+
+  ## Packaging Scope
+
+  - Windows Store packaging workflow updates
+  - Desktop packaging contract propagation
+  - Store submission and signing pipeline changes
