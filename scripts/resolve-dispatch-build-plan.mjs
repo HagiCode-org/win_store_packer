@@ -4,7 +4,7 @@ import { appendFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { parseAzureSasUrl, sanitizeUrlForLogs } from './lib/azure-blob.mjs';
-import { buildPlan } from './lib/build-plan.mjs';
+import { buildPlan, RELEASE_PLAN_ASSET_NAME } from './lib/build-plan.mjs';
 import { ensureDir, readJson, writeJson } from './lib/fs-utils.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 import { loadWorkflowDefaults } from './lib/store-config.mjs';
@@ -27,6 +27,7 @@ export async function resolveDispatchBuildPlan({
   desktopAzureSasUrl,
   packerReleaseTag,
   serverAzureSasUrl,
+  producerWorkflow,
   findStoreRelease,
   fetchImpl
 } = {}) {
@@ -40,7 +41,7 @@ export async function resolveDispatchBuildPlan({
   parseAzureSasUrl(serverAzureSasUrl);
 
   const workflowDefaults = await loadWorkflowDefaults();
-  const resolvedOutputPath = path.resolve(outputPath ?? 'build/build-plan.json');
+  const resolvedOutputPath = path.resolve(outputPath ?? 'build/release-plan.json');
   await ensureDir(path.dirname(resolvedOutputPath));
   const resolvedEventPayload = {
     ...eventPayload,
@@ -64,6 +65,7 @@ export async function resolveDispatchBuildPlan({
       desktop: desktopAzureSasUrl,
       server: serverAzureSasUrl
     },
+    producerWorkflow,
     findStoreRelease,
     fetchImpl
   });
@@ -76,11 +78,12 @@ export async function resolveDispatchBuildPlan({
     windows_store_version: plan.release.windowsStoreVersion,
     should_build: plan.build.shouldBuild,
     dry_run: plan.build.dryRun,
-    platform_matrix: JSON.stringify(plan.platformMatrix)
+    platform_matrix: JSON.stringify(plan.platformMatrix),
+    handoff_asset_name: plan.handoff.assetName
   });
 
   await appendSummary([
-    '## win_store_packer build plan',
+    '## win_store_packer release plan',
     `- Trigger type: ${plan.trigger.type}`,
     `- Desktop source mode: ${plan.trigger.desktopSourceMode}`,
     `- Desktop manifest source: ${plan.upstream.desktop.manifestUrl}`,
@@ -95,6 +98,9 @@ export async function resolveDispatchBuildPlan({
     `- Server version: ${plan.upstream.server.version}`,
     `- Platforms: ${plan.platforms.join(', ')}`,
     `- Derived release tag: ${plan.release.tag}`,
+    `- Release plan asset: ${plan.handoff.assetName ?? RELEASE_PLAN_ASSET_NAME}`,
+    `- Handoff source: ${plan.handoff.source}`,
+    `- Producer workflow: ${plan.handoff.producer.workflow}`,
     `- Publication mode: ${plan.publication.mode}`,
     `- Desktop Azure SAS: ${sanitizeUrlForLogs(desktopAzureSasUrl)}`,
     `- Server Azure SAS: ${sanitizeUrlForLogs(serverAzureSasUrl)}`,
@@ -121,7 +127,8 @@ export async function main() {
       'server-index-url': { type: 'string' },
       'desktop-azure-sas-url': { type: 'string' },
       'server-azure-sas-url': { type: 'string' },
-      'packer-release-tag': { type: 'string' }
+      'packer-release-tag': { type: 'string' },
+      'producer-workflow': { type: 'string' }
     }
   });
 
@@ -158,6 +165,7 @@ export async function main() {
     outputPath: values.output,
     token,
     packerReleaseTag: values['packer-release-tag'] ?? process.env.WIN_STORE_PACKER_RELEASE_TAG ?? process.env.PACKER_RELEASE_TAG,
+    producerWorkflow: values['producer-workflow'] ?? process.env.WIN_STORE_PACKER_PLAN_PRODUCER_WORKFLOW,
     repositories,
     desktopAzureSasUrl,
     serverAzureSasUrl
@@ -173,7 +181,8 @@ export async function main() {
         shouldBuild: result.plan.build.shouldBuild,
         desktopTag: result.plan.upstream.desktop.tag,
         desktopCheckoutRef: result.plan.upstream.desktop.checkoutRef,
-        publicationMode: result.plan.publication.mode
+        publicationMode: result.plan.publication.mode,
+        handoffAssetName: result.plan.handoff.assetName
       },
       null,
       2
@@ -187,7 +196,7 @@ if (isDirectExecution) {
   main().catch(async (error) => {
     annotateError(error.message);
     await appendSummary([
-      '## win_store_packer build plan failed',
+      '## win_store_packer release plan generation failed',
       `- ${error.message}`
     ]);
     console.error(error);

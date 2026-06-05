@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: win-store-release-draft
+  cancel-in-progress: false
+
 jobs:
   update_release_draft:
     permissions:

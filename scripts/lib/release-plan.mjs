@@ -1,8 +1,11 @@
 import path from 'node:path';
 import { readJson } from './fs-utils.mjs';
-import { createPlatformMatrix, getPlatformConfig } from './platforms.mjs';
+import { createPlatformMatrix, getPlatformConfig, normalizeGitTag } from './platforms.mjs';
 import {
   CANONICAL_PACKER_TAG_VERSION_SOURCE,
+  DEFAULT_PLAN_CONSUMER_WORKFLOW,
+  RELEASE_PLAN_ASSET_NAME,
+  RELEASE_PLAN_HANDOFF_SOURCE,
   WIN_STORE_PACKER_HANDOFF_SCHEMA,
 } from './build-plan.mjs';
 
@@ -83,15 +86,33 @@ function validateUpstreamAssets(plan, platformId, sourceType, { required = true 
   }
 }
 
-export function validateReleasePlan(plan, { planPath = '[inline]' } = {}) {
+export function validateReleasePlan(plan, { planPath = '[inline]', expectedReleaseTag } = {}) {
   requireObject(plan, 'release plan');
   const handoff = requireObject(plan.handoff, 'plan.handoff');
   if (handoff.schema !== WIN_STORE_PACKER_HANDOFF_SCHEMA) {
     throw new Error(`plan.handoff.schema must be ${WIN_STORE_PACKER_HANDOFF_SCHEMA}; received ${JSON.stringify(handoff.schema)} from ${planPath}.`);
   }
+  const producer = requireObject(handoff.producer, 'plan.handoff.producer');
+  requireNonEmptyString(producer.repository, 'plan.handoff.producer.repository');
+  requireNonEmptyString(producer.workflow, 'plan.handoff.producer.workflow');
+  const consumer = requireObject(handoff.consumer, 'plan.handoff.consumer');
+  requireNonEmptyString(consumer.repository, 'plan.handoff.consumer.repository');
+  const consumerWorkflow = requireNonEmptyString(consumer.workflow, 'plan.handoff.consumer.workflow');
+  const handoffAssetName = requireNonEmptyString(handoff.assetName, 'plan.handoff.assetName');
+  const handoffSource = requireNonEmptyString(handoff.source, 'plan.handoff.source');
+
+  if (handoffAssetName !== RELEASE_PLAN_ASSET_NAME) {
+    throw new Error(`plan.handoff.assetName must be ${RELEASE_PLAN_ASSET_NAME}.`);
+  }
+  if (handoffSource !== RELEASE_PLAN_HANDOFF_SOURCE) {
+    throw new Error(`plan.handoff.source must be ${RELEASE_PLAN_HANDOFF_SOURCE}.`);
+  }
+  if (consumerWorkflow !== DEFAULT_PLAN_CONSUMER_WORKFLOW) {
+    throw new Error(`plan.handoff.consumer.workflow must be ${DEFAULT_PLAN_CONSUMER_WORKFLOW}.`);
+  }
 
   const release = requireObject(plan.release, 'plan.release');
-  requireNonEmptyString(release.tag, 'plan.release.tag');
+  const releaseTag = requireNonEmptyString(release.tag, 'plan.release.tag');
   requireNonEmptyString(release.repository, 'plan.release.repository');
   const canonicalVersionInput = requireNonEmptyString(release.canonicalVersionInput, 'plan.release.canonicalVersionInput');
   const windowsStoreVersion = requireNonEmptyString(release.windowsStoreVersion, 'plan.release.windowsStoreVersion');
@@ -104,10 +125,34 @@ export function validateReleasePlan(plan, { planPath = '[inline]' } = {}) {
   if (windowsStoreVersion !== canonicalVersionInput) {
     throw new Error('plan.release.windowsStoreVersion must match plan.release.canonicalVersionInput.');
   }
+  if (expectedReleaseTag && normalizeGitTag(releaseTag) !== normalizeGitTag(expectedReleaseTag)) {
+    throw new Error(
+      `plan.release.tag must match the expected release tag ${normalizeGitTag(expectedReleaseTag)}; received ${JSON.stringify(releaseTag)} from ${planPath}.`
+    );
+  }
 
   const upstream = requireObject(plan.upstream, 'plan.upstream');
   const desktop = requireObject(upstream.desktop, 'plan.upstream.desktop');
-  requireNonEmptyString(desktop.tag, 'plan.upstream.desktop.tag');
+  const desktopSourceMode = requireNonEmptyString(desktop.sourceMode, 'plan.upstream.desktop.sourceMode');
+  const desktopTag = requireNonEmptyString(desktop.tag, 'plan.upstream.desktop.tag');
+  requireNonEmptyString(desktop.version, 'plan.upstream.desktop.version');
+  requireNonEmptyString(desktop.baseVersion, 'plan.upstream.desktop.baseVersion');
+  requireNonEmptyString(desktop.baseTag, 'plan.upstream.desktop.baseTag');
+  requireNonEmptyString(desktop.checkoutRef, 'plan.upstream.desktop.checkoutRef');
+  const desktopCheckoutType = requireNonEmptyString(desktop.checkoutType, 'plan.upstream.desktop.checkoutType');
+
+  if (desktopSourceMode !== 'main') {
+    throw new Error('plan.upstream.desktop.sourceMode must be main.');
+  }
+  if (desktopCheckoutType !== 'branch') {
+    throw new Error('plan.upstream.desktop.checkoutType must be branch for main-mode packaging.');
+  }
+  if (desktop.checkoutRef !== 'main') {
+    throw new Error('plan.upstream.desktop.checkoutRef must be main for main-mode packaging.');
+  }
+  if (normalizeGitTag(desktopTag) === normalizeGitTag(desktop.baseTag)) {
+    throw new Error('plan.upstream.desktop.tag must differ from plan.upstream.desktop.baseTag because the main-mode package version must advance beyond the latest published Desktop release.');
+  }
 
   const build = requireObject(plan.build, 'plan.build');
   requireBoolean(build.shouldBuild, 'plan.build.shouldBuild');
@@ -119,7 +164,7 @@ export function validateReleasePlan(plan, { planPath = '[inline]' } = {}) {
   requireObject(downloads.server, 'plan.downloads.server');
 
   const publication = requireObject(plan.publication ?? { mode: 'github-release' }, 'plan.publication');
-  const publicationMode = requireEnum(publication.mode, ['github-release', 'workflow-artifact'], 'plan.publication.mode');
+  const publicationMode = requireEnum(publication.mode, ['github-release'], 'plan.publication.mode');
 
   const store = requireObject(plan.store, 'plan.store');
   requireArray(store.supportedWindowsTargets, 'plan.store.supportedWindowsTargets');
@@ -144,15 +189,17 @@ export function validateReleasePlan(plan, { planPath = '[inline]' } = {}) {
     canonicalVersionInput,
     windowsStoreVersion,
     versionSource,
+    expectedReleaseTag: expectedReleaseTag ? normalizeGitTag(expectedReleaseTag) : null,
     dryRun: build.dryRun,
     shouldBuild: build.shouldBuild,
     forceRebuild: build.forceRebuild,
     publicationMode,
+    handoffAssetName,
     platforms
   };
 }
 
-export async function loadReleasePlan(planPath) {
+export async function loadReleasePlan(planPath, options = {}) {
   const resolvedPlanPath = path.resolve(planPath);
-  return validateReleasePlan(await readJson(resolvedPlanPath), { planPath: resolvedPlanPath });
+  return validateReleasePlan(await readJson(resolvedPlanPath), { ...options, planPath: resolvedPlanPath });
 }

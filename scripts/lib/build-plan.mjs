@@ -15,14 +15,16 @@ import { loadStorePackageConfig } from './store-config.mjs';
 
 export const WIN_STORE_PACKER_HANDOFF_SCHEMA = 'win-store-packer-handoff/v1';
 export const CANONICAL_PACKER_TAG_VERSION_SOURCE = 'release-drafter-packer-tag';
+export const RELEASE_PLAN_ASSET_NAME = 'release-plan.json';
+export const RELEASE_PLAN_HANDOFF_SOURCE = 'draft-release-asset';
+export const DEFAULT_PLAN_PRODUCER_WORKFLOW = 'sync-version-plan';
+export const DEFAULT_PLAN_CONSUMER_WORKFLOW = 'package-release';
 export const DESKTOP_SOURCE_MODES = {
-  RELEASE: 'release',
   MAIN: 'main'
 };
 
 export const PUBLICATION_MODES = {
-  GITHUB_RELEASE: 'github-release',
-  WORKFLOW_ARTIFACT: 'workflow-artifact'
+  GITHUB_RELEASE: 'github-release'
 };
 
 const DEFAULT_REPOSITORIES = {
@@ -54,13 +56,15 @@ function normalizePackerReleaseTag(value) {
   return normalizeGitTag(value);
 }
 
-function normalizeDesktopSourceMode(value, defaultValue = DESKTOP_SOURCE_MODES.RELEASE) {
+function normalizeDesktopSourceMode(value, defaultValue = DESKTOP_SOURCE_MODES.MAIN) {
   const normalized = String(value ?? defaultValue).trim().toLowerCase();
-  if (Object.values(DESKTOP_SOURCE_MODES).includes(normalized)) {
+  if (normalized === DESKTOP_SOURCE_MODES.MAIN) {
     return normalized;
   }
 
-  return defaultValue;
+  throw new Error(
+    `Unsupported desktop_source ${JSON.stringify(value)}. Only desktop_source=main is supported because release-mode packaging has been removed.`
+  );
 }
 
 function deriveNextDesktopTag(version) {
@@ -105,64 +109,28 @@ function resolveIndexRepository({ sourceType, explicitUrl, azureSasUrl }) {
   };
 }
 
-function createDesktopTagFallbackRelease({ selector, manifestUrl }) {
-  const desktopTag = normalizeGitTag(selector);
-  return {
-    sourceType: 'git-tag',
-    sourceAuthority: 'git-tag-fallback',
-    manifestUrl,
-    manifestPath: null,
-    selector: desktopTag,
-    version: desktopTag,
-    assetsByPlatform: {}
-  };
-}
-
-async function resolveDesktopRelease({
-  repository,
-  selector,
-  platforms,
-  fetchImpl
-}) {
-  try {
-    return await resolveIndexRelease({
-      sourceType: 'desktop',
-      indexUrl: repository.requestUrl,
-      manifestUrl: repository.manifestUrl,
-      sourceAuthority: repository.sourceAuthority,
-      manifestPath: repository.manifestPath,
-      selector,
-      platforms,
-      fetchImpl
-    });
-  } catch (error) {
-    const shouldFallbackToGitTag =
-      Boolean(selector) &&
-      /Unable to find Desktop version matching selector/i.test(error?.message ?? '');
-
-    if (!shouldFallbackToGitTag) {
-      throw error;
-    }
-
-    return createDesktopTagFallbackRelease({
-      selector,
-      manifestUrl: `https://github.com/HagiCode-org/desktop/tree/${normalizeGitTag(selector)}`
-    });
-  }
-}
-
 export function normalizeTriggerInputs({ eventName, eventPayload, defaultPlatforms = DEFAULT_PLATFORMS }) {
   const inputs = eventPayload?.inputs ?? {};
   const clientPayload = eventPayload?.client_payload ?? {};
-  const desktopSourceMode = normalizeDesktopSourceMode(
-    coalesce(inputs.desktop_source, clientPayload.desktopSource, clientPayload.desktop_source),
-    eventName === 'workflow_dispatch' ? DESKTOP_SOURCE_MODES.RELEASE : DESKTOP_SOURCE_MODES.RELEASE
-  );
+  const desktopSourceInput = coalesce(inputs.desktop_source, clientPayload.desktopSource, clientPayload.desktop_source);
   const desktopSelector = coalesce(inputs.desktop_version, inputs.desktop_tag, clientPayload.desktopVersion, clientPayload.desktopTag);
+  if (desktopSelector !== undefined && desktopSelector !== null && String(desktopSelector).trim() !== '') {
+    throw new Error(
+      'Desktop release selectors are no longer supported. The packaging plan always builds from desktop main and derives the next Desktop revision automatically.'
+    );
+  }
+
+  const desktopSourceMode = normalizeDesktopSourceMode(
+    desktopSourceInput,
+    DESKTOP_SOURCE_MODES.MAIN
+  );
   const serverSelector = coalesce(inputs.server_version, inputs.server_tag, clientPayload.serverVersion, clientPayload.serverTag);
   const packerReleaseTag = coalesce(
+    inputs.release_tag,
     inputs.packer_release_tag,
     inputs.packer_tag,
+    clientPayload.releaseTag,
+    clientPayload.release_tag,
     clientPayload.packerReleaseTag,
     clientPayload.packer_release_tag,
     process.env.WIN_STORE_PACKER_RELEASE_TAG,
@@ -183,7 +151,7 @@ export function normalizeTriggerInputs({ eventName, eventPayload, defaultPlatfor
     dryRun,
     rawInputs: {
       desktop_source: desktopSourceMode,
-      desktop_version: desktopSelector ?? null,
+      desktop_version: null,
       server_version: serverSelector ?? null,
       packer_release_tag: packerReleaseTag ?? null,
       platforms: platforms ?? null,
@@ -203,7 +171,11 @@ export async function buildPlan({
   now = new Date().toISOString(),
   fetchImpl,
   findStoreRelease = findReleaseByTag,
-  azureSasUrls = {}
+  azureSasUrls = {},
+  producerWorkflow = DEFAULT_PLAN_PRODUCER_WORKFLOW,
+  consumerWorkflow = DEFAULT_PLAN_CONSUMER_WORKFLOW,
+  handoffAssetName = RELEASE_PLAN_ASSET_NAME,
+  handoffSource = RELEASE_PLAN_HANDOFF_SOURCE
 } = {}) {
   const trigger = normalizeTriggerInputs({ eventName, eventPayload, defaultPlatforms });
   const storePackageConfig = await loadStorePackageConfig();
@@ -221,9 +193,13 @@ export async function buildPlan({
   });
 
   const [desktopRelease, serverRelease] = await Promise.all([
-    resolveDesktopRelease({
-      repository: desktopRepository,
-      selector: trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN ? null : trigger.desktopSelector,
+    resolveIndexRelease({
+      sourceType: 'desktop',
+      indexUrl: desktopRepository.requestUrl,
+      manifestUrl: desktopRepository.manifestUrl,
+      sourceAuthority: desktopRepository.sourceAuthority,
+      manifestPath: desktopRepository.manifestPath,
+      selector: null,
       platforms: trigger.selectedPlatforms,
       fetchImpl
     }),
@@ -240,30 +216,18 @@ export async function buildPlan({
   ]);
 
   const baseDesktopTag = normalizeGitTag(desktopRelease.version);
-  const desktopTag = trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN
-    ? deriveNextDesktopTag(baseDesktopTag)
-    : baseDesktopTag;
-  const desktopCheckoutRef = trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN
-    ? 'main'
-    : `refs/tags/${desktopTag}`;
-  const desktopCheckoutType = trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN ? 'branch' : 'git-tag';
-  const publicationMode = trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN
-    ? PUBLICATION_MODES.WORKFLOW_ARTIFACT
-    : PUBLICATION_MODES.GITHUB_RELEASE;
+  const desktopTag = deriveNextDesktopTag(baseDesktopTag);
+  const desktopCheckoutRef = 'main';
+  const desktopCheckoutType = 'branch';
+  const publicationMode = PUBLICATION_MODES.GITHUB_RELEASE;
   const releaseTag = trigger.packerReleaseTag;
   if (!releaseTag) {
     throw new Error('buildPlan requires a packer Release Drafter tag via trigger input or WIN_STORE_PACKER_RELEASE_TAG.');
   }
-  const existingRelease = publicationMode === PUBLICATION_MODES.GITHUB_RELEASE
-    ? await findStoreRelease(packerRepository, releaseTag, token, { fetchImpl })
-    : null;
+  const existingRelease = await findStoreRelease(packerRepository, releaseTag, token, { fetchImpl });
   const releaseExists = Boolean(existingRelease);
-  const shouldBuild = publicationMode === PUBLICATION_MODES.WORKFLOW_ARTIFACT
-    ? true
-    : !releaseExists || trigger.forceRebuild;
-  const skipReason = shouldBuild
-    ? null
-    : `Store release ${releaseTag} already exists and force_rebuild was not enabled.`;
+  const shouldBuild = true;
+  const skipReason = null;
 
   return {
     schemaVersion: 1,
@@ -302,9 +266,7 @@ export async function buildPlan({
         baseTag: baseDesktopTag,
         checkoutRef: desktopCheckoutRef,
         checkoutType: desktopCheckoutType,
-        assetsByPlatform: trigger.desktopSourceMode === DESKTOP_SOURCE_MODES.MAIN
-          ? {}
-          : desktopRelease.assetsByPlatform
+        assetsByPlatform: {}
       },
       server: {
         ...serverRelease
@@ -342,12 +304,14 @@ export async function buildPlan({
       schema: WIN_STORE_PACKER_HANDOFF_SCHEMA,
       producer: {
         repository: producerRepository,
-        workflow: 'package-release'
+        workflow: producerWorkflow
       },
       consumer: {
         repository: packerRepository,
-        workflow: 'package-release'
-      }
+        workflow: consumerWorkflow
+      },
+      assetName: handoffAssetName,
+      source: handoffSource
     }
   };
 }

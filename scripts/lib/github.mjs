@@ -1,4 +1,6 @@
-import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
+import { ensureDir } from './fs-utils.mjs';
 
 const API_ROOT = 'https://api.github.com';
 
@@ -58,6 +60,33 @@ async function requestJson(endpoint, token, { allowNotFound = false, method = 'G
   return response.json();
 }
 
+async function requestBinary(url, token, { fetchImpl = globalThis.fetch } = {}) {
+  const headers = {
+    Accept: 'application/octet-stream',
+    'User-Agent': 'win-store-packer-automation'
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetchImpl(url, {
+    method: 'GET',
+    headers
+  });
+
+  if (!response.ok) {
+    const responseBody = await response.text();
+    throw new Error(`GitHub asset download failed (${response.status}) for ${url}: ${responseBody}`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+}
+
+export async function listReleases(repository, token, { fetchImpl = globalThis.fetch } = {}) {
+  const releases = await requestJson(`/repos/${repository}/releases?per_page=100`, token, { fetchImpl });
+  return Array.isArray(releases) ? releases.map(normalizeRelease) : [];
+}
+
 export async function getReleaseByTag(repository, tag, token, { allowNotFound = false, fetchImpl = globalThis.fetch } = {}) {
   return normalizeRelease(
     await requestJson(`/repos/${repository}/releases/tags/${encodeURIComponent(tag)}`, token, {
@@ -69,6 +98,22 @@ export async function getReleaseByTag(repository, tag, token, { allowNotFound = 
 
 export async function findReleaseByTag(repository, tag, token, { fetchImpl = globalThis.fetch } = {}) {
   return getReleaseByTag(repository, tag, token, { allowNotFound: true, fetchImpl });
+}
+
+export async function findActiveDraftRelease(repository, token, { fetchImpl = globalThis.fetch } = {}) {
+  const releases = await listReleases(repository, token, { fetchImpl });
+  const draftReleases = releases
+    .filter((release) => release?.draft === true && release?.tag_name)
+    .sort((left, right) => {
+      const leftTime = Date.parse(left?.created_at ?? left?.published_at ?? 0) || 0;
+      const rightTime = Date.parse(right?.created_at ?? right?.published_at ?? 0) || 0;
+      if (leftTime !== rightTime) {
+        return rightTime - leftTime;
+      }
+      return (right?.id ?? 0) - (left?.id ?? 0);
+    });
+
+  return draftReleases[0] ?? null;
 }
 
 export async function createRelease(repository, token, payload, { fetchImpl = globalThis.fetch } = {}) {
@@ -141,7 +186,13 @@ function resolveUploadUrl(uploadUrl, fileName) {
   return `${normalized}${separator}name=${encodeURIComponent(fileName)}`;
 }
 
-export async function uploadReleaseAsset({
+export function findReleaseAssetByName(release, fileName) {
+  return Array.isArray(release?.assets)
+    ? release.assets.find((asset) => asset?.name === fileName) ?? null
+    : null;
+}
+
+export async function replaceReleaseAsset({
   release,
   repository,
   filePath,
@@ -150,9 +201,7 @@ export async function uploadReleaseAsset({
   token,
   fetchImpl = globalThis.fetch
 }) {
-  const existingAsset = Array.isArray(release?.assets)
-    ? release.assets.find((asset) => asset?.name === fileName)
-    : null;
+  const existingAsset = findReleaseAssetByName(release, fileName);
 
   if (existingAsset?.id) {
     await deleteReleaseAsset(repository, existingAsset.id, token, { fetchImpl });
@@ -171,5 +220,75 @@ export async function uploadReleaseAsset({
     throw new Error(`GitHub release asset upload failed (${response.status}) for ${fileName}: ${responseBody}`);
   }
 
-  return normalizeReleaseAsset(await response.json());
+  return {
+    action: existingAsset ? 'replaced' : 'uploaded',
+    asset: normalizeReleaseAsset(await response.json())
+  };
+}
+
+export async function uploadReleaseAsset({
+  release,
+  repository,
+  filePath,
+  fileName,
+  contentType = 'application/octet-stream',
+  token,
+  fetchImpl = globalThis.fetch
+}) {
+  const result = await replaceReleaseAsset({
+    release,
+    repository,
+    filePath,
+    fileName,
+    contentType,
+    token,
+    fetchImpl
+  });
+  return result.asset;
+}
+
+export async function downloadReleaseAsset({
+  asset,
+  outputPath,
+  token,
+  fetchImpl = globalThis.fetch
+}) {
+  if (!asset?.url && !asset?.downloadUrl) {
+    throw new Error(`Release asset ${JSON.stringify(asset?.name ?? '[unknown]')} does not expose a downloadable URL.`);
+  }
+
+  const resolvedOutputPath = path.resolve(outputPath);
+  await ensureDir(path.dirname(resolvedOutputPath));
+  const body = await requestBinary(asset.url ?? asset.downloadUrl, token, { fetchImpl });
+  await writeFile(resolvedOutputPath, body);
+  return resolvedOutputPath;
+}
+
+export async function downloadReleaseAssetByName({
+  repository,
+  releaseTag,
+  assetName,
+  outputPath,
+  token,
+  fetchImpl = globalThis.fetch
+}) {
+  const release = await getReleaseByTag(repository, releaseTag, token, { fetchImpl });
+  const asset = findReleaseAssetByName(release, assetName);
+
+  if (!asset) {
+    throw new Error(`Release ${releaseTag} in ${repository} is missing required asset ${assetName}.`);
+  }
+
+  const downloadedPath = await downloadReleaseAsset({
+    asset,
+    outputPath,
+    token,
+    fetchImpl
+  });
+
+  return {
+    release,
+    asset,
+    outputPath: downloadedPath
+  };
 }

@@ -1,31 +1,15 @@
 name: package-release
 
 on:
-  schedule:
-    - cron: '0 */4 * * *'
+  release:
+    types:
+      - published
   workflow_dispatch:
     inputs:
-      desktop_source:
-        description: 'Choose whether to package a published Desktop release or the current desktop main branch.'
-        required: false
-        default: release
-        type: choice
-        options:
-          - release
-          - main
-      desktop_version:
-        description: 'Optional Desktop release selector. Used only when desktop_source=release.'
-        required: false
+      release_tag:
+        description: 'Published win_store_packer release tag to rebuild from its attached release-plan.json asset.'
+        required: true
         type: string
-      server_version:
-        description: 'Optional Server release selector. Defaults to the latest eligible Windows Server release.'
-        required: false
-        type: string
-      force_rebuild:
-        description: 'Continue even when the derived Store release tag already exists.'
-        required: false
-        default: false
-        type: boolean
       dry_run:
         description: 'Build and stage release metadata without publishing to GitHub Releases.'
         required: false
@@ -35,7 +19,6 @@ on:
 permissions:
   contents: write
   actions: read
-  pull-requests: read
 
 env:
   RESOLVED_BUILD_PLAN_ARTIFACT_NAME: resolved-build-plan
@@ -45,14 +28,12 @@ env:
 
 jobs:
   resolve_plan:
-    name: Resolve build plan
+    name: Resolve release plan
     runs-on: ubuntu-latest
     outputs:
-      release_tag: ${{ steps.resolve.outputs.release_tag }}
-      dry_run: ${{ steps.resolve.outputs.dry_run }}
-      should_build: ${{ steps.resolve.outputs.should_build }}
-      platform_matrix: ${{ steps.resolve.outputs.platform_matrix }}
-      publication_mode: ${{ steps.resolve.outputs.publication_mode }}
+      release_tag: ${{ steps.target.outputs.release_tag }}
+      dry_run: ${{ steps.target.outputs.dry_run }}
+      platform_matrix: ${{ steps.validate.outputs.platform_matrix }}
     steps:
       - name: Checkout win_store_packer
         uses: actions/checkout@v5
@@ -67,62 +48,56 @@ jobs:
         shell: bash
         run: npm ci
 
-      - name: Resolve packer Release Drafter tag
-        id: packer_release_drafter
-        uses: release-drafter/release-drafter@v7
-        with:
-          config-name: release-drafter.yml
-          dry-run: true
-          token: ${{ github.token }}
-
-      - name: Install global hagiscript
+      - name: Resolve target release
+        id: target
         shell: bash
         run: |
-          npm install -g "$HAGISCRIPT_INSTALL_SPEC"
-
-          npm_prefix="$(npm config get prefix)"
-          if [ "$RUNNER_OS" = 'Windows' ]; then
-            echo "$npm_prefix" >> "$GITHUB_PATH"
-            export PATH="$npm_prefix:$PATH"
+          if [ "$GITHUB_EVENT_NAME" = 'release' ]; then
+            release_tag='${{ github.event.release.tag_name }}'
+            dry_run='false'
           else
-            echo "$npm_prefix/bin" >> "$GITHUB_PATH"
-            export PATH="$npm_prefix/bin:$PATH"
+            release_tag='${{ inputs.release_tag }}'
+            dry_run='${{ inputs.dry_run }}'
           fi
 
-          hagiscript --version
+          if [ -z "$release_tag" ]; then
+            printf '::error::A published release tag is required.\n'
+            exit 1
+          fi
 
-      - name: Resolve build plan
+          {
+            echo "release_tag=$release_tag"
+            echo "dry_run=$dry_run"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download attached release plan
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL: ${{ env.DESKTOP_AZURE_SAS_URL }}
-          WIN_STORE_PACKER_SERVER_AZURE_SAS_URL: ${{ env.SERVER_AZURE_SAS_URL }}
         run: |
           mkdir -p "$RUNNER_TEMP/build-plan"
-          node scripts/resolve-dispatch-build-plan.mjs \
-            --event-name "$GITHUB_EVENT_NAME" \
-            --event-path "$GITHUB_EVENT_PATH" \
-            --packer-release-tag "${{ steps.packer_release_drafter.outputs.tag_name }}" \
-            --output "$RUNNER_TEMP/build-plan/build-plan.json"
+          node scripts/download-release-plan.mjs \
+            --release-tag "${{ steps.target.outputs.release_tag }}" \
+            --output "$RUNNER_TEMP/build-plan/release-plan.json"
 
-      - name: Validate build plan
-        id: resolve
+      - name: Validate release plan
+        id: validate
         shell: bash
         run: |
           node scripts/resolve-release-plan.mjs \
-            --plan "$RUNNER_TEMP/build-plan/build-plan.json"
+            --plan "$RUNNER_TEMP/build-plan/release-plan.json" \
+            --expected-release-tag "${{ steps.target.outputs.release_tag }}"
 
       - name: Upload resolved build plan
         uses: actions/upload-artifact@v6
         with:
           name: ${{ env.RESOLVED_BUILD_PLAN_ARTIFACT_NAME }}
-          path: ${{ runner.temp }}/build-plan/build-plan.json
+          path: ${{ runner.temp }}/build-plan/release-plan.json
           if-no-files-found: error
 
   build:
     name: Build ${{ matrix.target.platform }} ${{ matrix.variant }}
     needs: resolve_plan
-    if: needs.resolve_plan.outputs.should_build == 'true'
     permissions:
       contents: read
       actions: read
@@ -229,7 +204,7 @@ jobs:
         shell: bash
         run: |
           node scripts/prepare-packaging-workspace.mjs \
-            --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
+            --plan "$RUNNER_TEMP/build-plan/release-plan.json" \
             --platform "${{ matrix.target.platform }}" \
             --workspace "$STORE_WORKSPACE" \
             --desktop-source "$GITHUB_WORKSPACE/inputs/hagicode-desktop"
@@ -254,7 +229,7 @@ jobs:
           WIN_STORE_PACKER_SERVER_AZURE_SAS_URL: ${{ env.SERVER_AZURE_SAS_URL }}
         run: |
           node scripts/stage-server-payload.mjs \
-            --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
+            --plan "$RUNNER_TEMP/build-plan/release-plan.json" \
             --platform "${{ matrix.target.platform }}" \
             --workspace "$STORE_WORKSPACE"
 
@@ -271,7 +246,7 @@ jobs:
           AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME || secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
         run: |
           node scripts/build-msix.mjs \
-            --plan "$RUNNER_TEMP/build-plan/build-plan.json" \
+            --plan "$RUNNER_TEMP/build-plan/release-plan.json" \
             --platform "${{ matrix.target.platform }}" \
             --workspace "$STORE_WORKSPACE" \
             --artifact-variant "${{ matrix.variant }}" \
@@ -354,7 +329,6 @@ jobs:
     needs:
       - resolve_plan
       - build
-    if: needs.resolve_plan.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout win_store_packer
@@ -388,12 +362,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           args=(
-            --plan "$RUNNER_TEMP/build-plan/build-plan.json"
+            --plan "$RUNNER_TEMP/build-plan/release-plan.json"
             --artifacts-dir "$RUNNER_TEMP/publish-input"
             --output-dir "$RUNNER_TEMP/release-metadata"
           )
 
-          if [ "${{ needs.resolve_plan.outputs.publication_mode }}" != 'github-release' ]; then
+          if [ "${{ needs.resolve_plan.outputs.dry_run }}" = 'true' ]; then
             args+=(--force-dry-run)
           fi
 
@@ -405,20 +379,3 @@ jobs:
           name: store-release-metadata-${{ needs.resolve_plan.outputs.release_tag }}
           path: ${{ runner.temp }}/release-metadata
           if-no-files-found: error
-
-  skip_summary:
-    name: Record skipped release
-    needs: resolve_plan
-    if: needs.resolve_plan.outputs.should_build != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Emit skip summary
-        shell: bash
-        run: |
-          {
-            echo "## win_store_packer build skipped"
-            echo
-            echo "- Release tag: ${{ needs.resolve_plan.outputs.release_tag }}"
-            echo "- should_build: false"
-            echo "- The resolve step summary contains the derived skip reason."
-          } >> "$GITHUB_STEP_SUMMARY"
