@@ -57,27 +57,23 @@ Defines workflow defaults such as:
 
 `.github/workflows/package-release.yml` now follows this flow:
 
-1. resolve a build plan from Desktop and Server indexes
-2. resolve the next packer Release Drafter tag
-3. prepare a tagged Desktop workspace
-4. download and validate the Server payload
-5. inject the canonical Windows Store version into the Desktop workspace metadata and run `scripts/build-msix.mjs`, which forwards to Desktop `npm run build:win:store`
-6. optionally finalize signing for the `signed` variant
-7. publish GitHub release assets and release metadata
+1. `sync-version-plan.yml` finds the active Release Drafter draft release
+2. `sync-version-plan.yml` resolves Desktop and Server versions and uploads `release-plan.json` to that draft release
+3. `package-release.yml` starts only from a published release or a manual rebuild of a published release tag
+4. `package-release.yml` downloads and validates `release-plan.json` before any build job starts
+5. the workflow prepares a Desktop `main` worktree, downloads the Server payload, and runs `scripts/build-msix.mjs`
+6. the existing signing, artifact upload, and release metadata publication steps continue unchanged after plan validation succeeds
 
 The workflow no longer replays Desktop packaging internals such as overlay rendering or packer-owned MSIX generation.
 
-### Manual `desktop main` builds
+### Manual rebuilds
 
-`workflow_dispatch` now supports `desktop_source=main`.
+`workflow_dispatch` on `package-release.yml` now accepts:
 
-In that mode, `win_store_packer`:
+- `release_tag`: the published `win_store_packer` release tag whose attached `release-plan.json` should be reused
+- `dry_run`: optional flag to rebuild and restage metadata without mutating the published GitHub Release
 
-- checks out the current `desktop` `main` branch instead of a published Desktop tag
-- resolves the latest eligible Desktop release only as the version baseline
-- bumps that Desktop version to the next patch revision for the packaged Desktop version
-- resolves the latest eligible Server release unless `server_version` is explicitly overridden
-- keeps the result in GitHub Actions workflow artifacts and release-metadata artifacts instead of creating a GitHub Release
+The workflow no longer accepts `desktop_source=release`, Desktop release selectors, or any branch that derived package inputs from release notes text.
 
 ## Signing
 
@@ -107,22 +103,45 @@ npm run verify:signing
 
 ## Local Commands
 
-Resolve a build plan:
+Generate and upload the draft-attached release plan that `sync-version-plan.yml` manages:
+
+```bash
+node scripts/sync-release-plan.mjs \
+  --event-name workflow_dispatch \
+  --desktop-azure-sas-url "<desktop-sas>" \
+  --server-azure-sas-url "<server-sas>" \
+  --output build/release-plan.json
+```
+
+Download the published release plan locally and validate it:
+
+```bash
+node scripts/download-release-plan.mjs \
+  --release-tag "v1.4.0" \
+  --output build/release-plan.json
+
+node scripts/resolve-release-plan.mjs \
+  --plan build/release-plan.json \
+  --expected-release-tag "v1.4.0"
+```
+
+If you want to generate a local plan without touching GitHub release assets, use the same plan builder that powers the sync workflow:
 
 ```bash
 node scripts/resolve-dispatch-build-plan.mjs \
   --event-name workflow_dispatch \
   --packer-release-tag "v1.4.0" \
+  --producer-workflow sync-version-plan \
   --desktop-azure-sas-url "<desktop-sas>" \
   --server-azure-sas-url "<server-sas>" \
-  --output build/build-plan.json
+  --output build/release-plan.json
 ```
 
 Prepare the Desktop workspace:
 
 ```bash
 node scripts/prepare-packaging-workspace.mjs \
-  --plan build/build-plan.json \
+  --plan build/release-plan.json \
   --platform win-x64 \
   --workspace build/store-win-x64 \
   --desktop-source inputs/hagicode-desktop
@@ -132,7 +151,7 @@ Download and validate the Server payload:
 
 ```bash
 node scripts/stage-server-payload.mjs \
-  --plan build/build-plan.json \
+  --plan build/release-plan.json \
   --platform win-x64 \
   --workspace build/store-win-x64
 ```
@@ -141,7 +160,7 @@ Invoke the Desktop Store build contract:
 
 ```bash
 node scripts/build-msix.mjs \
-  --plan build/build-plan.json \
+  --plan build/release-plan.json \
   --platform win-x64 \
   --workspace build/store-win-x64 \
   --artifact-variant unsigned
@@ -161,7 +180,7 @@ Publish release metadata:
 
 ```bash
 node scripts/publish-release.mjs \
-  --plan build/build-plan.json \
+  --plan build/release-plan.json \
   --artifacts-dir build/store-win-x64 \
   --output-dir build/release-metadata \
   --force-dry-run
