@@ -162,10 +162,6 @@ export function validateReleasePlan(
   if (desktop.checkoutRef !== 'main') {
     throw new Error('plan.upstream.desktop.checkoutRef must be main for main-mode packaging.');
   }
-  if (normalizeGitTag(desktopTag) === normalizeGitTag(desktop.baseTag)) {
-    throw new Error('plan.upstream.desktop.tag must differ from plan.upstream.desktop.baseTag because the main-mode package version must advance beyond the latest published Desktop release.');
-  }
-
   const build = requireObject(plan.build, 'plan.build');
   requireBoolean(build.shouldBuild, 'plan.build.shouldBuild');
   requireBoolean(build.forceRebuild, 'plan.build.forceRebuild');

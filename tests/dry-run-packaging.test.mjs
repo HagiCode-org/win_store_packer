@@ -302,7 +302,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.match(storePackagePath, /\.msix$/);
 });
 
-test('workflow-artifact packaging can build from desktop main using the next Desktop revision as the packaged version', async () => {
+test('workflow-artifact packaging can build from desktop main using the plan-provided Desktop version metadata', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-main-packaging-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -542,7 +542,7 @@ test('dry-run packaging preserves PSF-enabled desktop build outputs when the env
   assert.match(storePackageListing, /FileRedirectionFixup64\.dll/);
 });
 
-test('workspace preparation fails when the plan does not advance beyond the Desktop base tag', async () => {
+test('workspace preparation accepts a plan that reuses the Desktop base tag', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-missing-tag-'));
   const planPath = path.join(tempRoot, 'build-plan.json');
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -552,16 +552,15 @@ test('workspace preparation fails when the plan does not advance beyond the Desk
   plan.upstream.desktop.version = 'v0.3.0';
   await writeJson(planPath, plan);
 
-  await assert.rejects(
-    () =>
-      preparePackagingWorkspace({
-        planPath,
-        platformId: 'win-x64',
-        workspacePath,
-        desktopSourcePath: desktopRepoPath
-      }),
-    /must advance beyond the latest published Desktop release/i
-  );
+  const result = await preparePackagingWorkspace({
+    planPath,
+    platformId: 'win-x64',
+    workspacePath,
+    desktopSourcePath: desktopRepoPath
+  });
+
+  assert.equal(result.workspaceManifest.desktopTag, 'v0.3.0');
+  assert.equal(result.workspaceManifest.desktopBaseTag, 'v0.3.0');
 });
 
 test('build-msix fails early when signed packaging is required but Azure signing configuration is missing', async () => {

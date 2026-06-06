@@ -69,19 +69,6 @@ function normalizeDesktopSourceMode(value, defaultValue = DESKTOP_SOURCE_MODES.M
   );
 }
 
-function deriveNextDesktopTag(version) {
-  const normalized = normalizeGitTag(version).replace(/^v/i, '');
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(normalized);
-  if (!match) {
-    throw new Error(
-      `Unable to derive the next Desktop revision from ${JSON.stringify(version)}. Expected a stable version like v1.2.3.`
-    );
-  }
-
-  const [, major, minor, patch] = match;
-  return `v${major}.${minor}.${Number.parseInt(patch, 10) + 1}`;
-}
-
 function resolveIndexRepository({ sourceType, explicitUrl, azureSasUrl }) {
   if (explicitUrl) {
     return {
@@ -118,7 +105,7 @@ export function normalizeTriggerInputs({ eventName, eventPayload, defaultPlatfor
   const desktopSelector = coalesce(inputs.desktop_version, inputs.desktop_tag, clientPayload.desktopVersion, clientPayload.desktopTag);
   if (desktopSelector !== undefined && desktopSelector !== null && String(desktopSelector).trim() !== '') {
     throw new Error(
-      'Desktop release selectors are no longer supported. The packaging plan always builds from desktop main and derives the next Desktop revision automatically.'
+      'Desktop release selectors are no longer supported. The packaging plan always builds from desktop main and resolves Desktop version metadata from the latest indexed Desktop release.'
     );
   }
 
@@ -219,7 +206,7 @@ export async function buildPlan({
   ]);
 
   const baseDesktopTag = normalizeGitTag(desktopRelease.version);
-  const desktopTag = deriveNextDesktopTag(baseDesktopTag);
+  const desktopTag = baseDesktopTag;
   const desktopCheckoutRef = 'main';
   const desktopCheckoutType = 'branch';
   const releaseTag = trigger.packerReleaseTag;

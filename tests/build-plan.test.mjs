@@ -93,8 +93,8 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   assert.equal(plan.upstream.desktop.sourceMode, 'main');
   assert.equal(plan.upstream.desktop.baseVersion, 'v0.3.0');
   assert.equal(plan.upstream.desktop.baseTag, 'v0.3.0');
-  assert.equal(plan.upstream.desktop.version, 'v0.3.1');
-  assert.equal(plan.upstream.desktop.tag, 'v0.3.1');
+  assert.equal(plan.upstream.desktop.version, 'v0.3.0');
+  assert.equal(plan.upstream.desktop.tag, 'v0.3.0');
   assert.equal(plan.upstream.desktop.checkoutRef, 'main');
   assert.equal(plan.upstream.desktop.checkoutType, 'branch');
   assert.deepEqual(plan.upstream.desktop.assetsByPlatform, {});
@@ -254,7 +254,7 @@ test('resolveDispatchBuildPlan writes the normalized release-plan artifact', asy
   const writtenPlan = await readJson(outputPath);
   assert.equal(result.plan.release.tag, writtenPlan.release.tag);
   assert.equal(result.plan.upstream.desktop.checkoutRef, 'main');
-  assert.equal(result.plan.upstream.desktop.tag, 'v0.3.1');
+  assert.equal(result.plan.upstream.desktop.tag, 'v0.3.0');
   assert.equal(writtenPlan.handoff.assetName, RELEASE_PLAN_ASSET_NAME);
   assert.equal(writtenPlan.handoff.producer.workflow, 'sync-version-plan');
 });
