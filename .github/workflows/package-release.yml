@@ -160,6 +160,7 @@ jobs:
   build:
     name: Build ${{ matrix.target.platform }} ${{ matrix.variant }}
     needs: resolve_plan
+    environment: production
     permissions:
       contents: read
       actions: read
