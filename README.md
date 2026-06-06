@@ -92,6 +92,8 @@ Two signing modes remain relevant:
 
 `required` is still supported for script-level validation, but the main workflow uses explicit post-processing with `azure/artifact-signing-action@v2`.
 
+Signed packaging runs now target the GitHub Actions `production` environment so Azure OIDC login presents the `repo:HagiCode-org/win_store_packer:environment:production` subject expected by federated credentials.
+
 Release metadata now distinguishes:
 
 - the desktop-produced unsigned artifact
