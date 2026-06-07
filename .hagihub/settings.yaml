@@ -1,0 +1,5 @@
+action_recommendations:
+  - id: package-release
+    watch: true
+    include: true
+    reason: "publish packaged release"
