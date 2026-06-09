@@ -63,6 +63,7 @@ test('loadDesktopStoreConfig validates the desktop-owned Store metadata separate
   assert.equal(desktopConfig.config.packageIdentity.identityName, 'newbe36524.Hagicode');
   assert.deepEqual(desktopConfig.config.packageIdentity.languages, ['en-US', 'zh-CN']);
   assert.deepEqual(desktopConfig.config.msix.capabilities, ['runFullTrust', 'internetClient']);
+  assert.equal(desktopConfig.config.msix.capabilities.includes('unvirtualizedResources'), false);
   assert.equal(resolveDesktopOverlayFileName(desktopConfig.config, 'unsigned'), 'forge.store.unsigned.json');
 });
 
@@ -145,6 +146,7 @@ test('loadDesktopStoreConfig injects runFullTrust when desktop metadata omits it
     'internetClient',
     'privateNetworkClientServer',
   ]);
+  assert.equal(desktopConfig.config.msix.capabilities.includes('unvirtualizedResources'), false);
 });
 
 test('normalizeStorePackageVersion rejects non-stable packer tags', async () => {

@@ -299,6 +299,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
     'internetClientServer',
     'privateNetworkClientServer'
   ]);
+  assert.equal(overlayConfig.msix.capabilities.includes('unvirtualizedResources'), false);
   assert.match(storePackagePath, /\.msix$/);
 });
 

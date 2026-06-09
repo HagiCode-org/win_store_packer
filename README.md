@@ -41,6 +41,8 @@ This repository now stores workflow-facing defaults plus the Desktop contract re
 
 Store identity fields such as `identityName`, `publisher`, `languages`, and `capabilities` no longer live here. They are loaded from the tagged Desktop repository.
 
+Desktop capability validation continues to normalize `runFullTrust`, but it does not require or reintroduce `unvirtualizedResources` when the Desktop Store config omits that legacy flag.
+
 The canonical upstream version input remains `release.canonicalVersionInput`, which must equal the `win_store_packer` Release Drafter tag and is mirrored into `release.windowsStoreVersion` for downstream metadata checks.
 
 ### `config/workflow-defaults.json`
