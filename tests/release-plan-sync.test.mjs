@@ -80,22 +80,6 @@ function createSyncFetchStub({ requests = [], includeDraft = true, includeExisti
             version: '0.1.0-beta.34',
             assets: ['0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip']
           }
-        ],
-        dlcs: [
-          {
-            dlcName: 'turbo-engine',
-            versions: [
-              {
-                version: '0.1.0-beta.48',
-                artifacts: [
-                  {
-                    name: 'hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip',
-                    path: 'turbo-engine/0.1.0-beta.48/hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip'
-                  }
-                ]
-              }
-            ]
-          }
         ]
       });
     }
@@ -184,29 +168,6 @@ test('syncReleasePlan surfaces a missing draft release explicitly', async () => 
     didSync: false,
     assetName: 'release-plan.json'
   });
-});
-
-test('syncReleasePlan falls back to the Server Azure SAS URL for DLC discovery', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-sync-plan-dlc-fallback-'));
-  const outputPath = path.join(tempRoot, 'release-plan.json');
-
-  const result = await syncReleasePlan({
-    eventName: 'schedule',
-    eventPayload: {},
-    outputPath,
-    token: 'test-token',
-    repositories: {
-      packer: 'HagiCode-org/win_store_packer'
-    },
-    desktopAzureSasUrl: DESKTOP_AZURE_SAS_URL,
-    serverAzureSasUrl: SERVER_AZURE_SAS_URL,
-    fetchImpl: createSyncFetchStub()
-  });
-
-  assert.equal(
-    result.plan.upstream.dlcs['turbo-engine'].manifestUrl,
-    'https://example.blob.core.windows.net/server/index.json?<sas-token-redacted>'
-  );
 });
 
 test('downloadReleasePlan fails when the published release is missing release-plan.json', async () => {

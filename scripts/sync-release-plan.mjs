@@ -12,7 +12,6 @@ import {
 import { ensureDir, readJson, writeJson } from './lib/fs-utils.mjs';
 import { findActiveDraftRelease, replaceReleaseAsset } from './lib/github.mjs';
 import { validateReleasePlan } from './lib/release-plan.mjs';
-import { resolveDlcAzureSasUrl } from './lib/sas-config.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 import { loadWorkflowDefaults } from './lib/store-config.mjs';
 
@@ -40,17 +39,15 @@ export async function syncReleasePlan({
   if (!token) {
     throw new Error('sync-release-plan requires GITHUB_TOKEN or GH_TOKEN.');
   }
-  const resolvedDlcAzureSasUrl = resolveDlcAzureSasUrl({ dlcAzureSasUrl, serverAzureSasUrl });
-
-  if (!desktopAzureSasUrl || !serverAzureSasUrl || !resolvedDlcAzureSasUrl) {
+  if (!desktopAzureSasUrl || !serverAzureSasUrl || !dlcAzureSasUrl) {
     throw new Error(
-      'sync-release-plan requires Desktop and Server Azure SAS URLs via --desktop-azure-sas-url/--server-azure-sas-url or WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL/WIN_STORE_PACKER_SERVER_AZURE_SAS_URL. DLC Azure SAS may be provided explicitly via --dlc-azure-sas-url or WIN_STORE_PACKER_DLC_AZURE_SAS_URL, and otherwise falls back to the Server Azure SAS URL.'
+      'sync-release-plan requires Desktop, Server, and DLC Azure SAS URLs via --desktop-azure-sas-url/--server-azure-sas-url/--dlc-azure-sas-url or WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL/WIN_STORE_PACKER_SERVER_AZURE_SAS_URL/WIN_STORE_PACKER_DLC_AZURE_SAS_URL.'
     );
   }
 
   parseAzureSasUrl(desktopAzureSasUrl);
   parseAzureSasUrl(serverAzureSasUrl);
-  parseAzureSasUrl(resolvedDlcAzureSasUrl);
+  parseAzureSasUrl(dlcAzureSasUrl);
 
   const workflowDefaults = await loadWorkflowDefaults();
   const packerRepository = repositories?.packer ?? (process.env.GITHUB_REPOSITORY ?? 'HagiCode-org/win_store_packer');
@@ -98,7 +95,7 @@ export async function syncReleasePlan({
     azureSasUrls: {
       desktop: desktopAzureSasUrl,
       server: serverAzureSasUrl,
-      dlc: resolvedDlcAzureSasUrl
+      dlc: dlcAzureSasUrl
     },
     producerWorkflow,
     fetchImpl
@@ -142,7 +139,7 @@ export async function syncReleasePlan({
     `- Turbo Engine DLC version: ${plan.upstream.dlcs['turbo-engine']?.version ?? '[missing]'}`,
     `- Desktop Azure SAS: ${sanitizeUrlForLogs(desktopAzureSasUrl)}`,
     `- Server Azure SAS: ${sanitizeUrlForLogs(serverAzureSasUrl)}`,
-    `- DLC Azure SAS: ${sanitizeUrlForLogs(resolvedDlcAzureSasUrl)}`,
+    `- DLC Azure SAS: ${sanitizeUrlForLogs(dlcAzureSasUrl)}`,
     `- Plan: ${resolvedOutputPath}`
   ]);
 
@@ -190,16 +187,13 @@ export async function main() {
     process.env.SERVICE_AZURE_SAS_URL ??
     process.env.AZURE_BLOB_SAS_URL ??
     process.env.AZURE_SAS_URL;
-  const dlcAzureSasUrl = resolveDlcAzureSasUrl({
-    dlcAzureSasUrl:
-      values['dlc-azure-sas-url'] ??
-      process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
-      process.env.DLC_AZURE_SAS_URL ??
-      process.env.PORTABLE_VERSION_DLC_AZURE_SAS_URL ??
-      process.env.AZURE_BLOB_SAS_URL ??
-      process.env.AZURE_SAS_URL,
-    serverAzureSasUrl
-  });
+  const dlcAzureSasUrl =
+    values['dlc-azure-sas-url'] ??
+    process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
+    process.env.DLC_AZURE_SAS_URL ??
+    process.env.PORTABLE_VERSION_DLC_AZURE_SAS_URL ??
+    process.env.AZURE_BLOB_SAS_URL ??
+    process.env.AZURE_SAS_URL;
   const repositories = {
     ...(values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL
       ? { desktop: values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL }

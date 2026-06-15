@@ -13,7 +13,6 @@ import {
   validateStructuredDlcPayloadRoot,
 } from './lib/payload.mjs';
 import { loadReleasePlan } from './lib/release-plan.mjs';
-import { resolveDlcAzureSasUrl } from './lib/sas-config.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 
 const TURBO_ENGINE_DIRECTORY_ID = 'turbo-engine';
@@ -48,7 +47,6 @@ export async function stageServerPayload({
   const extractionPath = path.join(workspaceManifest.extractDirectory, 'server');
   const dlcDownloadPath = path.join(workspaceManifest.downloadDirectory, `${platformId}-dlc-${turboEngineAsset.name}`);
   const dlcExtractionPath = path.join(workspaceManifest.extractDirectory, TURBO_ENGINE_DIRECTORY_ID);
-  const resolvedDlcAzureSasUrl = resolveDlcAzureSasUrl({ dlcAzureSasUrl, serverAzureSasUrl: azureSasUrl });
   await ensureDir(workspaceManifest.downloadDirectory);
   await cleanDir(extractionPath);
   await cleanDir(dlcExtractionPath);
@@ -60,7 +58,7 @@ export async function stageServerPayload({
   });
   const turboEngineAssetSource = resolveAssetDownloadUrl({
     asset: turboEngineAsset,
-    sasUrl: resolvedDlcAzureSasUrl,
+    sasUrl: dlcAzureSasUrl,
     overrideSource: dlcAssetSource
   });
   await downloadFromSource({ sourceUrl: assetSource, destinationPath: downloadPath });
@@ -179,22 +177,12 @@ export async function main() {
       process.env.AZURE_SAS_URL,
     dlcAssetSource: values['dlc-asset-source'],
     dlcAzureSasUrl:
-      resolveDlcAzureSasUrl({
-        dlcAzureSasUrl:
-          values['dlc-azure-sas-url'] ??
-          process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
-          process.env.DLC_AZURE_SAS_URL ??
-          process.env.PORTABLE_VERSION_DLC_AZURE_SAS_URL ??
-          process.env.AZURE_BLOB_SAS_URL ??
-          process.env.AZURE_SAS_URL,
-        serverAzureSasUrl:
-          values['azure-sas-url'] ??
-          process.env.WIN_STORE_PACKER_SERVER_AZURE_SAS_URL ??
-          process.env.SERVER_AZURE_SAS_URL ??
-          process.env.SERVICE_AZURE_SAS_URL ??
-          process.env.AZURE_BLOB_SAS_URL ??
-          process.env.AZURE_SAS_URL
-      })
+      values['dlc-azure-sas-url'] ??
+      process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
+      process.env.DLC_AZURE_SAS_URL ??
+      process.env.PORTABLE_VERSION_DLC_AZURE_SAS_URL ??
+      process.env.AZURE_BLOB_SAS_URL ??
+      process.env.AZURE_SAS_URL
   });
 
   console.log(JSON.stringify(result, null, 2));
