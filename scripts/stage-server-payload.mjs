@@ -180,6 +180,7 @@ export async function main() {
       values['dlc-azure-sas-url'] ??
       process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
       process.env.DLC_AZURE_SAS_URL ??
+      process.env.PORTABLE_VERSION_DLC_AZURE_SAS_URL ??
       process.env.AZURE_BLOB_SAS_URL ??
       process.env.AZURE_SAS_URL
   });
