@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "path": "PCode.ConcurrencyExtensionDlc.dll",
+      "size": 20,
+      "sha256": "fixture-entry-assembly"
+    },
+    {
+      "path": "hero-avatars/rabbit-spirit-adventurers/manifest.json",
+      "size": 136,
+      "sha256": "fixture-avatar-manifest"
+    }
+  ]
+}

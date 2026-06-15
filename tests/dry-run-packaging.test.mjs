@@ -13,6 +13,7 @@ import { preparePackagingWorkspace } from '../scripts/prepare-packaging-workspac
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACKER_RELEASE_TAG = 'v1.4.0';
 const NEXT_PACKER_RELEASE_TAG = 'v1.4.1';
+const TURBO_ENGINE_DLC_VERSION = '1.0.0';
 
 function fixturePath(...segments) {
   return path.join(repoRoot, 'tests', 'fixtures', ...segments);
@@ -73,6 +74,13 @@ async function createServerArchive(tempRoot) {
   return archivePath;
 }
 
+async function createTurboEngineDlcArchive(tempRoot) {
+  const sourcePath = fixturePath('turbo-engine-dlc-package');
+  const archivePath = path.join(tempRoot, `hagicode-dlc-turbo-engine-${TURBO_ENGINE_DLC_VERSION}-win-x64-nort.zip`);
+  await createArchive(sourcePath, archivePath);
+  return archivePath;
+}
+
 function createPlan(tempRoot, options = {}) {
   const desktopVersion = options.desktopVersion ?? 'v0.3.1';
   const desktopTag = options.desktopTag ?? desktopVersion;
@@ -90,6 +98,7 @@ function createPlan(tempRoot, options = {}) {
     repositories: {
       desktop: 'https://index.hagicode.com/desktop/index.json',
       server: 'https://index.hagicode.com/server/index.json',
+      dlc: 'https://index.hagicode.com/dlc/index.json',
       packer: 'HagiCode-org/win_store_packer'
     },
     platforms: ['win-x64'],
@@ -103,6 +112,9 @@ function createPlan(tempRoot, options = {}) {
       },
       server: {
         containerUrl: 'https://example.blob.core.windows.net/server/'
+      },
+      dlc: {
+        containerUrl: 'https://example.blob.core.windows.net/dlc/'
       }
     },
     upstream: {
@@ -128,6 +140,21 @@ function createPlan(tempRoot, options = {}) {
             path: '0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip'
           }
         }
+      },
+      dlcs: {
+        'turbo-engine': {
+          sourceType: 'index',
+          manifestUrl: 'https://index.hagicode.com/dlc/index.json',
+          version: TURBO_ENGINE_DLC_VERSION,
+          dlcId: 'pcode.turbo-engine',
+          directoryId: 'turbo-engine',
+          assetsByPlatform: {
+            'win-x64': {
+              name: `hagicode-dlc-turbo-engine-${TURBO_ENGINE_DLC_VERSION}-win-x64-nort.zip`,
+              path: `turbo-engine/${TURBO_ENGINE_DLC_VERSION}/hagicode-dlc-turbo-engine-${TURBO_ENGINE_DLC_VERSION}-win-x64-nort.zip`
+            }
+          }
+        }
       }
     },
     store: {
@@ -136,6 +163,17 @@ function createPlan(tempRoot, options = {}) {
         storeConfigPath: 'config/store-package.json',
         buildCommand: 'build:win:store',
         runtimeInjectionPath: 'resources/portable-fixed/current'
+      },
+      dlcs: {
+        'turbo-engine': {
+          dlcId: 'pcode.turbo-engine',
+          directoryId: 'turbo-engine',
+          sourceName: 'turbo-engine',
+          runtimeTargetPath: 'lib/dlcs/turbo-engine',
+          runtimeIndexPath: 'lib/dlcs/index.json',
+          manifestFileName: 'dlc.json',
+          filesManifestFileName: 'manifest.files.json'
+        }
       }
     },
     publication: {
@@ -171,6 +209,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   const workspacePath = path.join(tempRoot, 'workspace');
   const desktopRepoPath = await createTaggedDesktopRepo(tempRoot, 'v0.3.0', '0.1.0');
   const serverArchivePath = await createServerArchive(tempRoot);
+  const dlcArchivePath = await createTurboEngineDlcArchive(tempRoot);
   await writeJson(planPath, createPlan(tempRoot));
 
   await runCommand('node', [
@@ -194,7 +233,9 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
     '--workspace',
     workspacePath,
     '--server-asset-source',
-    serverArchivePath
+    serverArchivePath,
+    '--dlc-asset-source',
+    dlcArchivePath
   ]);
 
   await runCommand('node', [
@@ -250,6 +291,10 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(workspaceReport.buildStrategy.buildCommand, 'build:win:store');
   assert.equal(payloadReport.validationPassed, true);
   assert.ok(payloadReport.payloadRootForDesktopBuild);
+  assert.equal(payloadReport.includedDlcs.length, 1);
+  assert.equal(payloadReport.includedDlcs[0].dlcId, 'pcode.turbo-engine');
+  assert.equal(payloadReport.includedDlcs[0].runtimeTargetPath, 'lib/dlcs/turbo-engine');
+  assert.equal(payloadReport.generatedRuntimeDlcIndexRelativePath, 'lib/dlcs/index.json');
   assert.equal(buildMetadata.validationPassed, true);
   assert.equal(buildMetadata.artifactVariant, 'unsigned');
   assert.equal(buildMetadata.canonicalVersionInput, PACKER_RELEASE_TAG);
@@ -258,16 +303,20 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(buildMetadata.storePackageVersion, '1.4.0.0');
   assert.equal(buildMetadata.desktopBuildMode, 'desktop-store-build-dry-run');
   assert.equal(buildMetadata.signing.mode, 'disabled');
+  assert.equal(buildMetadata.includedDlcs.length, 1);
+  assert.equal(buildMetadata.includedDlcs[0].sourceArtifact, `hagicode-dlc-turbo-engine-${TURBO_ENGINE_DLC_VERSION}-win-x64-nort.zip`);
   assert.equal(desktopBuildMetadata.windowsStoreVersion, PACKER_RELEASE_TAG);
   assert.equal(inventory.artifacts.length, 1);
   assert.equal(inventory.artifactVariant, 'unsigned');
   assert.equal(inventory.canonicalVersionInput, PACKER_RELEASE_TAG);
   assert.equal(inventory.windowsStoreVersion, PACKER_RELEASE_TAG);
+  assert.equal(inventory.includedDlcs.length, 1);
   assert.equal(inventory.artifacts[0].desktopProduced, true);
   assert.equal(inventory.artifacts[0].windowsStoreVersion, PACKER_RELEASE_TAG);
   assert.equal(inventory.artifacts[0].variant, 'unsigned');
   assert.equal(inventory.artifacts[0].primaryForStoreSubmission, true);
   assert.equal(inventory.artifacts[0].storePackageVersion, '1.4.0.0');
+  assert.equal(inventory.artifacts[0].includedDlcs.length, 1);
   assert.equal(dryRunReport.releaseTag, PACKER_RELEASE_TAG);
   assert.equal(dryRunReport.canonicalVersionInput, PACKER_RELEASE_TAG);
   assert.equal(dryRunReport.windowsStoreVersion, PACKER_RELEASE_TAG);
@@ -286,6 +335,9 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   const storePackageListing = (await validateZipPaths(storePackagePath)).join('\n');
   assert.match(storePackageListing, /extra\/portable-fixed\/current\/manifest\.json/);
   assert.match(storePackageListing, /extra\/portable-fixed\/current\/lib\/PCode\.Web\.dll/);
+  assert.match(storePackageListing, /extra\/portable-fixed\/current\/lib\/dlcs\/index\.json/);
+  assert.match(storePackageListing, /extra\/portable-fixed\/current\/lib\/dlcs\/turbo-engine\/dlc\.json/);
+  assert.match(storePackageListing, /extra\/portable-fixed\/current\/lib\/dlcs\/turbo-engine\/manifest\.files\.json/);
   assert.match(storePackageListing, /Package\.appxmanifest|store-package-identity\.json/);
   assert.equal(path.basename(storePackagePath), 'hagicode-store-v1.4.0-win-x64-unsigned.msix');
 
@@ -309,6 +361,7 @@ test('workflow-artifact packaging can build from desktop main using the plan-pro
   const workspacePath = path.join(tempRoot, 'workspace');
   const desktopRepoPath = await createTaggedDesktopRepo(tempRoot, 'v0.3.0', '0.1.0');
   const serverArchivePath = await createServerArchive(tempRoot);
+  const dlcArchivePath = await createTurboEngineDlcArchive(tempRoot);
   await writeJson(planPath, createPlan(tempRoot, {
     desktopVersion: 'v0.3.1',
     desktopTag: 'v0.3.1',
@@ -345,7 +398,9 @@ test('workflow-artifact packaging can build from desktop main using the plan-pro
     '--workspace',
     workspacePath,
     '--server-asset-source',
-    serverArchivePath
+    serverArchivePath,
+    '--dlc-asset-source',
+    dlcArchivePath
   ]);
 
   await runCommand('node', [
@@ -413,6 +468,7 @@ test('unsigned packaging ignores inherited MSIX identity overrides and keeps the
   const workspacePath = path.join(tempRoot, 'workspace');
   const desktopRepoPath = await createTaggedDesktopRepo(tempRoot);
   const serverArchivePath = await createServerArchive(tempRoot);
+  const dlcArchivePath = await createTurboEngineDlcArchive(tempRoot);
   const previousWindowsPackagePublisher = process.env.WINDOWS_PACKAGE_PUBLISHER;
   const customPublisher = 'CN=Rong Huang, O=Rong Huang, L=Owasso, S=Oklahoma, C=US';
   const officialPublisher = 'CN=8B6C8A94-AAE5-4C8B-9202-A29EA42B042F';
@@ -440,7 +496,9 @@ test('unsigned packaging ignores inherited MSIX identity overrides and keeps the
     '--workspace',
     workspacePath,
     '--server-asset-source',
-    serverArchivePath
+    serverArchivePath,
+    '--dlc-asset-source',
+    dlcArchivePath
   ]);
 
   process.env.WINDOWS_PACKAGE_PUBLISHER = customPublisher;
@@ -475,6 +533,7 @@ test('dry-run packaging preserves PSF-enabled desktop build outputs when the env
   const workspacePath = path.join(tempRoot, 'workspace');
   const desktopRepoPath = await createTaggedDesktopRepo(tempRoot, 'v0.3.0', '0.1.0');
   const serverArchivePath = await createServerArchive(tempRoot);
+  const dlcArchivePath = await createTurboEngineDlcArchive(tempRoot);
   const previousPsfEnabled = process.env.HAGICODE_ENABLE_PSF;
   const previousPsfDir = process.env.HAGICODE_PSF_DIR;
   const psfDir = path.join(tempRoot, 'psf-bin');
@@ -505,7 +564,9 @@ test('dry-run packaging preserves PSF-enabled desktop build outputs when the env
       '--workspace',
       workspacePath,
       '--server-asset-source',
-      serverArchivePath
+      serverArchivePath,
+      '--dlc-asset-source',
+      dlcArchivePath
     ]);
 
     await runCommand('node', [
@@ -570,6 +631,7 @@ test('build-msix fails early when signed packaging is required but Azure signing
   const workspacePath = path.join(tempRoot, 'workspace');
   const desktopRepoPath = await createTaggedDesktopRepo(tempRoot);
   const serverArchivePath = await createServerArchive(tempRoot);
+  const dlcArchivePath = await createTurboEngineDlcArchive(tempRoot);
   await writeJson(planPath, createPlan(tempRoot));
 
   await runCommand('node', [
@@ -593,7 +655,9 @@ test('build-msix fails early when signed packaging is required but Azure signing
     '--workspace',
     workspacePath,
     '--server-asset-source',
-    serverArchivePath
+    serverArchivePath,
+    '--dlc-asset-source',
+    dlcArchivePath
   ]);
 
   await assert.rejects(
@@ -615,6 +679,7 @@ test('signed packaging records post-processing signing state without changing th
   const workspacePath = path.join(tempRoot, 'workspace');
   const desktopRepoPath = await createTaggedDesktopRepo(tempRoot);
   const serverArchivePath = await createServerArchive(tempRoot);
+  const dlcArchivePath = await createTurboEngineDlcArchive(tempRoot);
   await writeJson(planPath, createPlan(tempRoot));
 
   await runCommand('node', [
@@ -638,7 +703,9 @@ test('signed packaging records post-processing signing state without changing th
     '--workspace',
     workspacePath,
     '--server-asset-source',
-    serverArchivePath
+    serverArchivePath,
+    '--dlc-asset-source',
+    dlcArchivePath
   ]);
 
   const previousAzureClientId = process.env.AZURE_CLIENT_ID;

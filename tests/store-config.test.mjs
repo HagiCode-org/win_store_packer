@@ -9,6 +9,7 @@ import {
   normalizeStorePackageVersion,
   resolveDesktopOverlayFileName,
   resolveStoreSigningConfig,
+  validateStorePackageConfig,
 } from '../scripts/lib/store-config.mjs';
 
 test('normalizeStorePackageVersion derives a four-part Windows package version from a packer tag', async () => {
@@ -22,7 +23,28 @@ test('loadStorePackageConfig exposes packer defaults plus the desktop build cont
   assert.equal(storePackageConfig.desktop.storeConfigPath, 'config/store-package.json');
   assert.equal(storePackageConfig.desktop.buildCommand, 'build:win:store');
   assert.equal(storePackageConfig.desktop.runtimeInjectionPath, 'resources/portable-fixed/current');
+  assert.equal(storePackageConfig.dlcs['turbo-engine'].dlcId, 'pcode.turbo-engine');
+  assert.equal(storePackageConfig.dlcs['turbo-engine'].runtimeTargetPath, 'lib/dlcs/turbo-engine');
+  assert.equal(storePackageConfig.dlcs['turbo-engine'].runtimeIndexPath, 'lib/dlcs/index.json');
   assert.equal(storePackageConfig.signing.skipFinalAppxSigning, false);
+});
+
+test('validateStorePackageConfig rejects an incomplete Turbo Engine DLC configuration', async () => {
+  const storePackageConfig = await loadStorePackageConfig();
+  const invalidConfig = {
+    ...storePackageConfig,
+    dlcs: {
+      'turbo-engine': {
+        ...storePackageConfig.dlcs['turbo-engine'],
+        runtimeIndexPath: '',
+      }
+    }
+  };
+
+  assert.throws(
+    () => validateStorePackageConfig(invalidConfig),
+    /runtimeIndexPath must be a non-empty string/
+  );
 });
 
 test('loadDesktopStoreConfig validates the desktop-owned Store metadata separately', async () => {

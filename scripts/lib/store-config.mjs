@@ -116,6 +116,35 @@ function validateSigningConfig(config) {
   };
 }
 
+function validateDlcConfigMap(config) {
+  const dlcs = requireObject(config, 'storePackageConfig.dlcs');
+  const normalizedEntries = Object.entries(dlcs);
+  if (normalizedEntries.length === 0) {
+    throw new Error('storePackageConfig.dlcs must define at least one DLC packaging entry.');
+  }
+
+  return Object.fromEntries(
+    normalizedEntries.map(([directoryId, entry]) => {
+      const label = `storePackageConfig.dlcs.${JSON.stringify(directoryId)}`;
+      const dlc = requireObject(entry, label);
+      const normalizedDirectoryId = requireNonEmptyString(dlc.directoryId, `${label}.directoryId`);
+      if (normalizedDirectoryId !== directoryId) {
+        throw new Error(`${label}.directoryId must match the DLC key ${JSON.stringify(directoryId)}.`);
+      }
+
+      return [directoryId, {
+        dlcId: requireNonEmptyString(dlc.dlcId, `${label}.dlcId`),
+        directoryId: normalizedDirectoryId,
+        sourceName: requireNonEmptyString(dlc.sourceName, `${label}.sourceName`),
+        runtimeTargetPath: requireNonEmptyString(dlc.runtimeTargetPath, `${label}.runtimeTargetPath`),
+        runtimeIndexPath: requireNonEmptyString(dlc.runtimeIndexPath, `${label}.runtimeIndexPath`),
+        manifestFileName: requireNonEmptyString(dlc.manifestFileName, `${label}.manifestFileName`),
+        filesManifestFileName: requireNonEmptyString(dlc.filesManifestFileName, `${label}.filesManifestFileName`),
+      }];
+    })
+  );
+}
+
 export function validateDesktopStoreConfig(config) {
   requireObject(config, 'desktopStoreConfig');
   const packageIdentity = requireObject(config.packageIdentity, 'desktopStoreConfig.packageIdentity');
@@ -179,6 +208,7 @@ export function validateStorePackageConfig(config) {
       buildCommand: requireNonEmptyString(desktop.buildCommand, 'storePackageConfig.desktop.buildCommand'),
       runtimeInjectionPath: requireNonEmptyString(desktop.runtimeInjectionPath, 'storePackageConfig.desktop.runtimeInjectionPath'),
     },
+    dlcs: validateDlcConfigMap(config.dlcs),
   };
 }
 

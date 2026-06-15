@@ -1,8 +1,9 @@
-import { matchDesktopAssetForPlatform, matchServerAssetForPlatform, stripGitRef } from './platforms.mjs';
+import { matchDesktopAssetForPlatform, matchDlcAssetForPlatform, matchServerAssetForPlatform, stripGitRef } from './platforms.mjs';
 
 export const DEFAULT_INDEX_SOURCES = {
   desktop: 'https://index.hagicode.com/desktop/index.json',
-  service: 'https://index.hagicode.com/server/index.json'
+  service: 'https://index.hagicode.com/server/index.json',
+  dlc: 'https://index.hagicode.com/dlc/index.json'
 };
 
 export const DEFAULT_INDEX_MANIFEST_PATH = 'index.json';
@@ -220,6 +221,70 @@ export function mapIndexAssetsByPlatform({ sourceType, versionEntry, platforms }
   return assetsByPlatform;
 }
 
+function getDlcEntries(manifest) {
+  if (!Array.isArray(manifest?.dlcs) || manifest.dlcs.length === 0) {
+    throw new Error('DLC index manifest does not contain any DLC entries.');
+  }
+  return manifest.dlcs;
+}
+
+function getDlcVersionEntries(dlcEntry, dlcName) {
+  if (!Array.isArray(dlcEntry?.versions) || dlcEntry.versions.length === 0) {
+    throw new Error(`DLC index entry ${JSON.stringify(dlcName)} does not contain any versions.`);
+  }
+  return dlcEntry.versions;
+}
+
+function resolveDlcEntry(manifest, dlcName) {
+  const normalizedDlcName = normalizeSelectorValue(dlcName);
+  const entry = getDlcEntries(manifest).find((candidate) => normalizeSelectorValue(candidate?.dlcName) === normalizedDlcName);
+  if (!entry) {
+    throw new Error(`Unable to find DLC ${JSON.stringify(dlcName)} in the DLC index.`);
+  }
+  return entry;
+}
+
+function resolveLatestDlcVersionEntry(dlcEntry, dlcName) {
+  return [...getDlcVersionEntries(dlcEntry, dlcName)].sort((left, right) => compareNormalizedVersions(right.version, left.version))[0];
+}
+
+export function resolveDlcVersionEntry({ manifest, dlcName, selector = null }) {
+  const dlcEntry = resolveDlcEntry(manifest, dlcName);
+  const versions = getDlcVersionEntries(dlcEntry, dlcName);
+  const normalizedSelector = normalizeVersionSelector(selector);
+  if (!normalizedSelector) {
+    return {
+      dlcEntry,
+      versionEntry: resolveLatestDlcVersionEntry(dlcEntry, dlcName)
+    };
+  }
+
+  const versionEntry = versions.find((entry) => selectorMatchesVersion(normalizedSelector, entry.version));
+  if (!versionEntry) {
+    throw new Error(`Unable to find DLC ${JSON.stringify(dlcName)} version matching selector ${JSON.stringify(selector)}.`);
+  }
+
+  return {
+    dlcEntry,
+    versionEntry
+  };
+}
+
+export function mapDlcAssetsByPlatform({ dlcName, directoryId, versionEntry, platforms }) {
+  const allAssets = getAssetEntries(versionEntry);
+  const assetsByPlatform = {};
+  for (const platformId of platforms) {
+    const matchedAsset = ensureAddressableAsset(
+      matchDlcAssetForPlatform(allAssets, platformId, { directoryId }),
+      platformId,
+      `DLC ${dlcName}`,
+      versionEntry.version
+    );
+    assetsByPlatform[platformId] = mapAssetRecord(matchedAsset);
+  }
+  return assetsByPlatform;
+}
+
 export async function fetchIndexManifest(indexUrl, { fetchImpl } = {}) {
   const response = await getFetch(fetchImpl)(indexUrl, {
     headers: {
@@ -263,6 +328,38 @@ export async function resolveIndexRelease({
     updatedAt: manifest.updatedAt ?? null,
     assetsByPlatform: mapIndexAssetsByPlatform({
       sourceType,
+      versionEntry,
+      platforms
+    })
+  };
+}
+
+export async function resolveDlcIndexRelease({
+  indexUrl,
+  manifestUrl = indexUrl,
+  dlcName,
+  directoryId,
+  selector = null,
+  platforms,
+  fetchImpl,
+  sourceAuthority = 'index-site',
+  manifestPath = null
+}) {
+  const manifest = await fetchIndexManifest(indexUrl, { fetchImpl });
+  const { dlcEntry, versionEntry } = resolveDlcVersionEntry({ manifest, dlcName, selector });
+
+  return {
+    sourceType: 'index',
+    sourceAuthority,
+    manifestUrl,
+    manifestPath,
+    selector: normalizeVersionSelector(selector)?.normalized ?? null,
+    dlcName: dlcEntry.dlcName,
+    version: versionEntry.version,
+    updatedAt: manifest.updatedAt ?? null,
+    assetsByPlatform: mapDlcAssetsByPlatform({
+      dlcName: dlcEntry.dlcName,
+      directoryId,
       versionEntry,
       platforms
     })

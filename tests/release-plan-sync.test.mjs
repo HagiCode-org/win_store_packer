@@ -8,8 +8,10 @@ import { syncReleasePlan } from '../scripts/sync-release-plan.mjs';
 
 const DESKTOP_AZURE_SAS_URL = 'https://example.blob.core.windows.net/desktop?sp=racwl&sig=test-token';
 const SERVER_AZURE_SAS_URL = 'https://example.blob.core.windows.net/server?sp=racwl&sig=test-token';
+const DLC_AZURE_SAS_URL = 'https://example.blob.core.windows.net/dlc?sp=racwl&sig=test-token';
 const DESKTOP_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/desktop/index.json?sp=racwl&sig=test-token';
 const SERVER_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/server/index.json?sp=racwl&sig=test-token';
+const DLC_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/dlc/index.json?sp=racwl&sig=test-token';
 const PACKER_RELEASE_TAG = 'v1.4.0';
 
 function createSyncFetchStub({ requests = [], includeDraft = true, includeExistingPlanAsset = true } = {}) {
@@ -82,6 +84,28 @@ function createSyncFetchStub({ requests = [], includeDraft = true, includeExisti
       });
     }
 
+    if (String(url) === DLC_AZURE_MANIFEST_URL) {
+      return Response.json({
+        updatedAt: '2026-04-21T00:00:00.000Z',
+        dlcs: [
+          {
+            dlcName: 'turbo-engine',
+            versions: [
+              {
+                version: '0.1.0-beta.48',
+                artifacts: [
+                  {
+                    name: 'hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip',
+                    path: 'turbo-engine/0.1.0-beta.48/hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      });
+    }
+
     if (String(url) === 'https://api.github.com/assets/199') {
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
@@ -108,6 +132,7 @@ test('syncReleasePlan replaces the existing draft release-plan asset with a vali
     },
     desktopAzureSasUrl: DESKTOP_AZURE_SAS_URL,
     serverAzureSasUrl: SERVER_AZURE_SAS_URL,
+    dlcAzureSasUrl: DLC_AZURE_SAS_URL,
     fetchImpl: createSyncFetchStub({ requests })
   });
 
@@ -134,6 +159,7 @@ test('syncReleasePlan surfaces a missing draft release explicitly', async () => 
     },
     desktopAzureSasUrl: DESKTOP_AZURE_SAS_URL,
     serverAzureSasUrl: SERVER_AZURE_SAS_URL,
+    dlcAzureSasUrl: DLC_AZURE_SAS_URL,
     fetchImpl: createSyncFetchStub({ includeDraft: false })
   });
 

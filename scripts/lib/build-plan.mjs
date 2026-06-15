@@ -3,6 +3,7 @@ import { findReleaseByTag } from './github.mjs';
 import {
   DEFAULT_INDEX_MANIFEST_PATH,
   DEFAULT_INDEX_SOURCES,
+  resolveDlcIndexRelease,
   resolveIndexRelease
 } from './index-source.mjs';
 import {
@@ -181,8 +182,14 @@ export async function buildPlan({
     explicitUrl: repositories?.server,
     azureSasUrl: azureSasUrls.server
   });
+  const dlcRepository = resolveIndexRepository({
+    sourceType: 'dlc',
+    explicitUrl: repositories?.dlc,
+    azureSasUrl: azureSasUrls.dlc
+  });
+  const configuredDlcs = Object.values(storePackageConfig.dlcs);
 
-  const [desktopRelease, serverRelease] = await Promise.all([
+  const [desktopRelease, serverRelease, ...dlcReleases] = await Promise.all([
     resolveIndexRelease({
       sourceType: 'desktop',
       indexUrl: desktopRepository.requestUrl,
@@ -202,8 +209,30 @@ export async function buildPlan({
       selector: trigger.serverSelector,
       platforms: trigger.selectedPlatforms,
       fetchImpl
-    })
+    }),
+    ...configuredDlcs.map((dlcConfig) =>
+      resolveDlcIndexRelease({
+        indexUrl: dlcRepository.requestUrl,
+        manifestUrl: dlcRepository.manifestUrl,
+        manifestPath: dlcRepository.manifestPath,
+        sourceAuthority: dlcRepository.sourceAuthority,
+        dlcName: dlcConfig.sourceName,
+        directoryId: dlcConfig.directoryId,
+        platforms: trigger.selectedPlatforms,
+        fetchImpl
+      })
+    )
   ]);
+  const upstreamDlcs = Object.fromEntries(
+    configuredDlcs.map((dlcConfig, index) => [
+      dlcConfig.directoryId,
+      {
+        ...dlcReleases[index],
+        dlcId: dlcConfig.dlcId,
+        directoryId: dlcConfig.directoryId,
+      }
+    ])
+  );
 
   const baseDesktopTag = normalizeGitTag(desktopRelease.version);
   const desktopTag = baseDesktopTag;
@@ -226,6 +255,7 @@ export async function buildPlan({
     repositories: {
       desktop: desktopRepository.manifestUrl,
       server: serverRepository.manifestUrl,
+      dlc: dlcRepository.manifestUrl,
       packer: packerRepository
     },
     trigger: {
@@ -244,6 +274,10 @@ export async function buildPlan({
       server: {
         containerUrl: azureSasUrls.server ? getAzureBlobContainerUrl(azureSasUrls.server) : null,
         redactedSasUrl: azureSasUrls.server ? sanitizeUrlForLogs(azureSasUrls.server) : null
+      },
+      dlc: {
+        containerUrl: azureSasUrls.dlc ? getAzureBlobContainerUrl(azureSasUrls.dlc) : null,
+        redactedSasUrl: azureSasUrls.dlc ? sanitizeUrlForLogs(azureSasUrls.dlc) : null
       }
     },
     upstream: {
@@ -261,7 +295,8 @@ export async function buildPlan({
       },
       server: {
         ...serverRelease
-      }
+      },
+      dlcs: upstreamDlcs
     },
     store: {
       supportedWindowsTargets: [...storePackageConfig.supportedWindowsTargets],
@@ -269,7 +304,8 @@ export async function buildPlan({
         storeConfigPath: storePackageConfig.desktop.storeConfigPath,
         buildCommand: storePackageConfig.desktop.buildCommand,
         runtimeInjectionPath: storePackageConfig.desktop.runtimeInjectionPath
-      }
+      },
+      dlcs: storePackageConfig.dlcs
     },
     publication: {
       mode: publicationMode

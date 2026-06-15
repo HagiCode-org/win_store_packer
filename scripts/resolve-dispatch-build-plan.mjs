@@ -30,6 +30,7 @@ export async function resolveDispatchBuildPlan({
   token,
   repositories,
   desktopAzureSasUrl,
+  dlcAzureSasUrl,
   packerReleaseTag,
   serverAzureSasUrl,
   publicationMode = PUBLICATION_MODES.GITHUB_RELEASE,
@@ -39,14 +40,15 @@ export async function resolveDispatchBuildPlan({
   findStoreRelease,
   fetchImpl
 } = {}) {
-  if (!desktopAzureSasUrl || !serverAzureSasUrl) {
+  if (!desktopAzureSasUrl || !serverAzureSasUrl || !dlcAzureSasUrl) {
     throw new Error(
-      'resolve-dispatch-build-plan requires both Desktop and Server Azure SAS URLs via --desktop-azure-sas-url/--server-azure-sas-url or WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL/WIN_STORE_PACKER_SERVER_AZURE_SAS_URL.'
+      'resolve-dispatch-build-plan requires Desktop, Server, and DLC Azure SAS URLs via --desktop-azure-sas-url/--server-azure-sas-url/--dlc-azure-sas-url or WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL/WIN_STORE_PACKER_SERVER_AZURE_SAS_URL/WIN_STORE_PACKER_DLC_AZURE_SAS_URL.'
     );
   }
 
   parseAzureSasUrl(desktopAzureSasUrl);
   parseAzureSasUrl(serverAzureSasUrl);
+  parseAzureSasUrl(dlcAzureSasUrl);
 
   const workflowDefaults = await loadWorkflowDefaults();
   const resolvedOutputPath = path.resolve(outputPath ?? 'build/release-plan.json');
@@ -72,7 +74,8 @@ export async function resolveDispatchBuildPlan({
     defaultPlatforms: workflowDefaults.defaultPlatforms,
     azureSasUrls: {
       desktop: desktopAzureSasUrl,
-      server: serverAzureSasUrl
+      server: serverAzureSasUrl,
+      dlc: dlcAzureSasUrl
     },
     publicationMode,
     handoffSource,
@@ -107,6 +110,7 @@ export async function resolveDispatchBuildPlan({
     `- Version source: ${plan.release.versionSource}`,
     `- Server manifest source: ${plan.upstream.server.manifestUrl}`,
     `- Server version: ${plan.upstream.server.version}`,
+    `- Turbo Engine DLC version: ${plan.upstream.dlcs['turbo-engine']?.version ?? '[missing]'}`,
     `- Platforms: ${plan.platforms.join(', ')}`,
     `- Derived release tag: ${plan.release.tag}`,
     `- Release plan asset: ${plan.handoff.assetName ?? RELEASE_PLAN_ASSET_NAME}`,
@@ -115,6 +119,7 @@ export async function resolveDispatchBuildPlan({
     `- Publication mode: ${plan.publication.mode}`,
     `- Desktop Azure SAS: ${sanitizeUrlForLogs(desktopAzureSasUrl)}`,
     `- Server Azure SAS: ${sanitizeUrlForLogs(serverAzureSasUrl)}`,
+    `- DLC Azure SAS: ${sanitizeUrlForLogs(dlcAzureSasUrl)}`,
     `- Release exists: ${plan.release.exists ? 'yes' : 'no'}`,
     `- Build mode: ${plan.build.dryRun ? 'dry-run' : 'publish'}`,
     `- should_build: ${plan.build.shouldBuild ? 'true' : 'false'}`,
@@ -136,8 +141,10 @@ export async function main() {
       token: { type: 'string' },
       'desktop-index-url': { type: 'string' },
       'server-index-url': { type: 'string' },
+      'dlc-index-url': { type: 'string' },
       'desktop-azure-sas-url': { type: 'string' },
       'server-azure-sas-url': { type: 'string' },
+      'dlc-azure-sas-url': { type: 'string' },
       'packer-release-tag': { type: 'string' },
       'producer-workflow': { type: 'string' },
       'publication-mode': { type: 'string' },
@@ -162,12 +169,21 @@ export async function main() {
     process.env.SERVICE_AZURE_SAS_URL ??
     process.env.AZURE_BLOB_SAS_URL ??
     process.env.AZURE_SAS_URL;
+  const dlcAzureSasUrl =
+    values['dlc-azure-sas-url'] ??
+    process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
+    process.env.DLC_AZURE_SAS_URL ??
+    process.env.AZURE_BLOB_SAS_URL ??
+    process.env.AZURE_SAS_URL;
   const repositories = {
     ...(values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL
       ? { desktop: values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL }
       : {}),
     ...(values['server-index-url'] ?? process.env.SERVER_INDEX_URL ?? process.env.SERVICE_INDEX_URL
       ? { server: values['server-index-url'] ?? process.env.SERVER_INDEX_URL ?? process.env.SERVICE_INDEX_URL }
+      : {}),
+    ...(values['dlc-index-url'] ?? process.env.DLC_INDEX_URL
+      ? { dlc: values['dlc-index-url'] ?? process.env.DLC_INDEX_URL }
       : {}),
     packer: process.env.GITHUB_REPOSITORY ?? 'HagiCode-org/win_store_packer'
   };
@@ -185,7 +201,8 @@ export async function main() {
     producerWorkflow: values['producer-workflow'] ?? process.env.WIN_STORE_PACKER_PLAN_PRODUCER_WORKFLOW,
     repositories,
     desktopAzureSasUrl,
-    serverAzureSasUrl
+    serverAzureSasUrl,
+    dlcAzureSasUrl
   });
 
   console.log(

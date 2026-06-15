@@ -111,3 +111,25 @@ export function matchServerAssetForPlatform(assets, platformId) {
 
   return candidates.sort((left, right) => left.name.localeCompare(right.name))[0];
 }
+
+export function matchDlcAssetForPlatform(assets, platformId, { directoryId } = {}) {
+  const platform = getPlatformConfig(platformId);
+  const lowerRuntimeKey = platform.runtimeKey.toLowerCase();
+  const lowerDirectoryId = String(directoryId ?? '').trim().toLowerCase();
+  const candidates = assets.filter((asset) => {
+    const searchable = `${asset.name} ${asset.path ?? ''}`.toLowerCase();
+    const runtimeMatches = searchable.includes(lowerRuntimeKey);
+    const directoryMatches = lowerDirectoryId ? searchable.includes(lowerDirectoryId) : true;
+    const archiveMatches = asset.name.toLowerCase().endsWith('.zip') || asset.name.toLowerCase().endsWith('.tar.gz');
+    return runtimeMatches && directoryMatches && archiveMatches;
+  });
+
+  if (candidates.length === 0) {
+    const expectedLabel = directoryId
+      ? `${directoryId} asset containing ${platform.runtimeKey}`
+      : `asset containing ${platform.runtimeKey}`;
+    throw new Error(`Missing DLC release asset for ${platformId}. Expected a ${expectedLabel}.`);
+  }
+
+  return candidates.sort((left, right) => left.name.localeCompare(right.name))[0];
+}

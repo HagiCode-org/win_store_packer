@@ -1,0 +1,23 @@
+{
+  "dlcId": "pcode.turbo-engine",
+  "displayName": "TurboEngine",
+  "description": "Fixture Turbo Engine DLC payload.",
+  "version": "1.0.0",
+  "entryAssembly": "PCode.ConcurrencyExtensionDlc.dll",
+  "targetFramework": "net9.0",
+  "supportedRuntimes": [
+    "win-x64-nort"
+  ],
+  "grantType": "concurrency-extension",
+  "enabledByDefault": true,
+  "hostCompatibility": {
+    "minHostVersion": "0.1.0-beta.0"
+  },
+  "contentCollections": [
+    {
+      "name": "hero-avatars",
+      "relativePath": "hero-avatars",
+      "schemaVersion": "1"
+    }
+  ]
+}

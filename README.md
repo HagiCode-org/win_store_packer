@@ -1,6 +1,6 @@
 # win_store_packer
 
-`win_store_packer` resolves Desktop and Server releases, validates the Server payload, invokes the desktop-owned Windows Store packaging entrypoint, optionally finalizes signing, and publishes GitHub release metadata.
+`win_store_packer` resolves Desktop, Server, and Turbo Engine DLC releases, validates the staged runtime payload, invokes the desktop-owned Windows Store packaging entrypoint, optionally finalizes signing, and publishes GitHub release metadata.
 
 Desktop now owns Store packaging. This repository does not render Store overlays or build MSIX packages independently anymore.
 
@@ -8,10 +8,10 @@ Desktop now owns Store packaging. This repository does not render Store overlays
 
 `win_store_packer` keeps these responsibilities:
 
-- resolve Desktop and Server versions from the release indexes
+- resolve Desktop, Server, and Turbo Engine DLC versions from the release indexes
 - resolve the packer Release Drafter tag and use it as the canonical Windows Store version input
 - prepare a tagged Desktop worktree for packaging
-- download, extract, and validate the Server payload
+- download, extract, and validate the Server payload plus the required Turbo Engine DLC package
 - invoke `npm run build:win:store` in the Desktop workspace
 - optionally finalize and verify signed artifacts
 - publish GitHub release assets and machine-readable release metadata
@@ -38,6 +38,16 @@ This repository now stores workflow-facing defaults plus the Desktop contract re
 - `desktop.storeConfigPath`
 - `desktop.buildCommand`
 - `desktop.runtimeInjectionPath`
+- `dlcs.turbo-engine.*`
+
+The `dlcs.turbo-engine` block defines the required Store-bundled DLC contract:
+
+- `dlcId`: canonical runtime DLC identifier (`pcode.turbo-engine`)
+- `directoryId`: staged runtime directory name (`turbo-engine`)
+- `sourceName`: DLC root-index entry used during plan resolution
+- `runtimeTargetPath`: merged runtime destination (`lib/dlcs/turbo-engine`)
+- `runtimeIndexPath`: regenerated root catalog path (`lib/dlcs/index.json`)
+- `manifestFileName` / `filesManifestFileName`: required structured DLC files
 
 Store identity fields such as `identityName`, `publisher`, `languages`, and `capabilities` no longer live here. They are loaded from the tagged Desktop repository.
 
@@ -63,7 +73,7 @@ Defines workflow defaults such as:
 2. `sync-version-plan.yml` resolves Desktop and Server versions and uploads `release-plan.json` to that draft release
 3. `package-release.yml` starts only from a published release or a manual rebuild of a published release tag
 4. `package-release.yml` downloads and validates `release-plan.json` before any build job starts
-5. the workflow prepares a Desktop `main` worktree, downloads the Server payload, and runs `scripts/build-msix.mjs`
+5. the workflow prepares a Desktop `main` worktree, downloads the Server payload, merges the Turbo Engine DLC runtime under `lib/dlcs/turbo-engine`, regenerates `lib/dlcs/index.json`, and runs `scripts/build-msix.mjs`
 6. the existing signing, artifact upload, and release metadata publication steps continue unchanged after plan validation succeeds
 
 The workflow no longer replays Desktop packaging internals such as overlay rendering or packer-owned MSIX generation.
@@ -122,6 +132,7 @@ node scripts/sync-release-plan.mjs \
   --event-name workflow_dispatch \
   --desktop-azure-sas-url "<desktop-sas>" \
   --server-azure-sas-url "<server-sas>" \
+  --dlc-azure-sas-url "<dlc-sas>" \
   --output build/release-plan.json
 ```
 
@@ -146,6 +157,7 @@ node scripts/resolve-dispatch-build-plan.mjs \
   --producer-workflow sync-version-plan \
   --desktop-azure-sas-url "<desktop-sas>" \
   --server-azure-sas-url "<server-sas>" \
+  --dlc-azure-sas-url "<dlc-sas>" \
   --output build/release-plan.json
 ```
 
@@ -159,13 +171,14 @@ node scripts/prepare-packaging-workspace.mjs \
   --desktop-source inputs/hagicode-desktop
 ```
 
-Download and validate the Server payload:
+Download, validate, and merge the Server payload plus Turbo Engine DLC:
 
 ```bash
 node scripts/stage-server-payload.mjs \
   --plan build/release-plan.json \
   --platform win-x64 \
-  --workspace build/store-win-x64
+  --workspace build/store-win-x64 \
+  --dlc-asset-source "<optional-local-turbo-engine-archive>"
 ```
 
 Invoke the Desktop Store build contract:
@@ -209,6 +222,8 @@ Per-workspace outputs include:
 - `build-metadata-<platform>-<variant>.json`
 - `artifact-inventory-<platform>-<variant>.json`
 - `release-assets/*.msix`
+
+The staged payload now records bundled DLC details in `payload-validation-<platform>.json`, and the same `includedDlcs` metadata is copied into `build-metadata-*` plus `artifact-inventory-*` so CI can verify Turbo Engine inclusion without unpacking the MSIX.
 
 Those workspace and publication artifacts now repeat the same three values for verification:
 

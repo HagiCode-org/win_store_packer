@@ -52,6 +52,14 @@ function normalizeArtifactVariant(value) {
   return normalized;
 }
 
+function normalizeIncludedDlcs(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((entry) => ({ ...entry }));
+}
+
 const UNSIGNED_MSIX_IDENTITY_OVERRIDE_ENV_VARS = [
   'WINDOWS_PACKAGE_PUBLISHER',
   'WINDOWS_PACKAGE_IDENTITY',
@@ -353,6 +361,8 @@ export async function buildMsix({
   );
   const payloadValidationPath = path.join(resolvedWorkspacePath, `payload-validation-${platformId}.json`);
   const payloadValidation = await readJson(payloadValidationPath);
+  const includedDlcs = normalizeIncludedDlcs(payloadValidation.includedDlcs);
+  const requiredDlcIds = Object.values(plan.store?.dlcs ?? {}).map((entry) => String(entry?.dlcId ?? '').trim()).filter(Boolean);
   const normalizedArtifactVariant = normalizeArtifactVariant(artifactVariant);
   const normalizedSigningMode = normalizedArtifactVariant === 'signed'
     ? normalizeStoreSigningMode(signingMode === 'disabled' ? 'required' : signingMode)
@@ -372,6 +382,12 @@ export async function buildMsix({
 
   if (!payloadValidation.validationPassed) {
     throw new Error(`Payload validation report ${payloadValidationPath} is not marked as successful.`);
+  }
+
+  for (const requiredDlcId of requiredDlcIds) {
+    if (!includedDlcs.some((entry) => String(entry?.dlcId ?? '').trim() === requiredDlcId)) {
+      throw new Error(`Payload validation report ${payloadValidationPath} is missing required bundled DLC ${requiredDlcId}.`);
+    }
   }
 
   if (signingConfig.enabled && !(await pathExists(verificationScriptPath))) {
@@ -556,6 +572,7 @@ export async function buildMsix({
           runtimeInjectionPath: publishedDesktopBuildMetadata.effectiveRuntimeInjectionPath,
           serverPayloadPath: publishedDesktopBuildMetadata.serverPayloadPath,
           serverPayloadRoot: publishedDesktopBuildMetadata.serverPayloadRoot,
+          includedDlcs,
           languages: Array.isArray(publishedDesktopBuildMetadata.store.languages)
             ? [...publishedDesktopBuildMetadata.store.languages]
             : [],
@@ -594,6 +611,9 @@ export async function buildMsix({
     effectiveRuntimeInjectionPath: publishedDesktopBuildMetadata.effectiveRuntimeInjectionPath,
     serverPayloadPath: publishedDesktopBuildMetadata.serverPayloadPath,
     serverPayloadRoot: publishedDesktopBuildMetadata.serverPayloadRoot,
+    includedDlcs,
+    generatedRuntimeDlcIndexPath: payloadValidation.generatedRuntimeDlcIndexPath ?? null,
+    generatedRuntimeDlcIndexRelativePath: payloadValidation.generatedRuntimeDlcIndexRelativePath ?? null,
     desktopProducedArtifactPath: publishedDesktopBuildMetadata.primaryArtifactPath,
     desktopProducedArtifactPaths: artifactRecords.map((artifact) => artifact.outputPath),
     publishedArtifactPath: primaryArtifactRecord.outputPath,
@@ -635,6 +655,7 @@ export async function buildMsix({
     buildMetadataPath,
     workspaceValidationPath: path.join(resolvedWorkspacePath, `workspace-validation-${platformId}.json`),
     payloadValidationPath,
+    includedDlcs,
   };
   const artifactInventoryPath = path.join(resolvedWorkspacePath, `artifact-inventory-${platformId}-${normalizedArtifactVariant}.json`);
   await writeJson(artifactInventoryPath, artifactInventory);

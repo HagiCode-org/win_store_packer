@@ -1,0 +1,11 @@
+{
+  "dlcId": "pcode.turbo-engine",
+  "displayName": "TurboEngine",
+  "version": "1.0.0",
+  "entryAssembly": "PCode.ConcurrencyExtensionDlc.dll",
+  "supportedRuntimes": [
+    "win-x64-nort"
+  ],
+  "grantType": "concurrency-extension",
+  "enabledByDefault": true
+}

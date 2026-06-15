@@ -17,10 +17,13 @@ import { resolveDispatchBuildPlan } from '../scripts/resolve-dispatch-build-plan
 
 const DESKTOP_INDEX_URL = 'https://index.hagicode.com/desktop/index.json';
 const SERVER_INDEX_URL = 'https://index.hagicode.com/server/index.json';
+const DLC_INDEX_URL = 'https://index.hagicode.com/dlc/index.json';
 const DESKTOP_AZURE_SAS_URL = 'https://example.blob.core.windows.net/desktop?sp=racwl&sig=test-token';
 const SERVER_AZURE_SAS_URL = 'https://example.blob.core.windows.net/server?sp=racwl&sig=test-token';
+const DLC_AZURE_SAS_URL = 'https://example.blob.core.windows.net/dlc?sp=racwl&sig=test-token';
 const DESKTOP_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/desktop/index.json?sp=racwl&sig=test-token';
 const SERVER_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/server/index.json?sp=racwl&sig=test-token';
+const DLC_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/dlc/index.json?sp=racwl&sig=test-token';
 const PACKER_RELEASE_TAG = 'v1.4.0';
 const NEXT_PACKER_RELEASE_TAG = 'v1.4.1';
 const LEGACY_PACKER_RELEASE_TAG = 'v1.3.9';
@@ -61,6 +64,31 @@ function createFetchStub({ requests = [] } = {}) {
       });
     }
 
+    if (url === DLC_INDEX_URL || url === DLC_AZURE_MANIFEST_URL) {
+      return Response.json({
+        updatedAt: '2026-04-21T00:00:00.000Z',
+        dlcs: [
+          {
+            dlcName: 'turbo-engine',
+            versions: [
+              {
+                version: '0.1.0-beta.47',
+                artifacts: [
+                  { name: 'hagicode-dlc-turbo-engine-0.1.0-beta.47-win-x64-nort.zip', path: 'turbo-engine/0.1.0-beta.47/hagicode-dlc-turbo-engine-0.1.0-beta.47-win-x64-nort.zip' }
+                ]
+              },
+              {
+                version: '0.1.0-beta.48',
+                artifacts: [
+                  { name: 'hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip', path: 'turbo-engine/0.1.0-beta.48/hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip' }
+                ]
+              }
+            ]
+          }
+        ]
+      });
+    }
+
     throw new Error(`Unexpected fetch URL: ${url}`);
   };
 }
@@ -72,11 +100,13 @@ function baseBuildPlanOptions(overrides = {}) {
     repositories: {
       desktop: DESKTOP_INDEX_URL,
       server: SERVER_INDEX_URL,
+      dlc: DLC_INDEX_URL,
       packer: 'HagiCode-org/win_store_packer'
     },
     azureSasUrls: {
       desktop: DESKTOP_AZURE_SAS_URL,
-      server: SERVER_AZURE_SAS_URL
+      server: SERVER_AZURE_SAS_URL,
+      dlc: DLC_AZURE_SAS_URL
     },
     findStoreRelease: async () => null,
     fetchImpl: createFetchStub(),
@@ -99,6 +129,9 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   assert.equal(plan.upstream.desktop.checkoutType, 'branch');
   assert.deepEqual(plan.upstream.desktop.assetsByPlatform, {});
   assert.equal(plan.upstream.server.version, '0.1.0-beta.34');
+  assert.equal(plan.upstream.dlcs['turbo-engine'].version, '0.1.0-beta.48');
+  assert.equal(plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'].name, 'hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip');
+  assert.equal(plan.store.dlcs['turbo-engine'].dlcId, 'pcode.turbo-engine');
   assert.equal(plan.release.tag, PACKER_RELEASE_TAG);
   assert.equal(plan.release.canonicalVersionInput, PACKER_RELEASE_TAG);
   assert.equal(plan.release.windowsStoreVersion, PACKER_RELEASE_TAG);
@@ -117,7 +150,7 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   assert.equal(validated.handoffAssetName, RELEASE_PLAN_ASSET_NAME);
 });
 
-test('buildPlan defaults Desktop and Server discovery to direct Azure authority', async () => {
+test('buildPlan defaults Desktop, Server, and DLC discovery to direct Azure authority', async () => {
   const requests = [];
   const plan = await buildPlan(baseBuildPlanOptions({
     repositories: {
@@ -125,14 +158,16 @@ test('buildPlan defaults Desktop and Server discovery to direct Azure authority'
     },
     azureSasUrls: {
       desktop: DESKTOP_AZURE_SAS_URL,
-      server: SERVER_AZURE_SAS_URL
+      server: SERVER_AZURE_SAS_URL,
+      dlc: DLC_AZURE_SAS_URL
     },
     fetchImpl: createFetchStub({ requests })
   }));
 
-  assert.deepEqual(requests, [DESKTOP_AZURE_MANIFEST_URL, SERVER_AZURE_MANIFEST_URL]);
+  assert.deepEqual(requests, [DESKTOP_AZURE_MANIFEST_URL, SERVER_AZURE_MANIFEST_URL, DLC_AZURE_MANIFEST_URL]);
   assert.equal(plan.upstream.desktop.manifestUrl, 'https://example.blob.core.windows.net/desktop/index.json?<sas-token-redacted>');
   assert.equal(plan.upstream.server.manifestUrl, 'https://example.blob.core.windows.net/server/index.json?<sas-token-redacted>');
+  assert.equal(plan.upstream.dlcs['turbo-engine'].manifestUrl, 'https://example.blob.core.windows.net/dlc/index.json?<sas-token-redacted>');
 });
 
 test('buildPlan rejects the removed desktop release mode input', async () => {
@@ -230,6 +265,16 @@ test('validateReleasePlan rejects a mismatched expected publication mode', async
   );
 });
 
+test('validateReleasePlan rejects a missing Turbo Engine DLC asset', async () => {
+  const plan = await buildPlan(baseBuildPlanOptions());
+  delete plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'];
+
+  assert.throws(
+    () => validateReleasePlan(plan),
+    /plan\.upstream\.dlcs."turbo-engine"\.assetsByPlatform\.win-x64/
+  );
+});
+
 test('resolveDispatchBuildPlan writes the normalized release-plan artifact', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-build-plan-'));
   const outputPath = path.join(tempRoot, 'release-plan.json');
@@ -243,10 +288,12 @@ test('resolveDispatchBuildPlan writes the normalized release-plan artifact', asy
     repositories: {
       desktop: DESKTOP_INDEX_URL,
       server: SERVER_INDEX_URL,
+      dlc: DLC_INDEX_URL,
       packer: 'HagiCode-org/win_store_packer'
     },
     desktopAzureSasUrl: DESKTOP_AZURE_SAS_URL,
     serverAzureSasUrl: SERVER_AZURE_SAS_URL,
+    dlcAzureSasUrl: DLC_AZURE_SAS_URL,
     findStoreRelease: async () => null,
     fetchImpl: createFetchStub()
   });
@@ -275,10 +322,12 @@ test('resolveDispatchBuildPlan can force workflow-artifact main build plans', as
     repositories: {
       desktop: DESKTOP_INDEX_URL,
       server: SERVER_INDEX_URL,
+      dlc: DLC_INDEX_URL,
       packer: 'HagiCode-org/win_store_packer'
     },
     desktopAzureSasUrl: DESKTOP_AZURE_SAS_URL,
     serverAzureSasUrl: SERVER_AZURE_SAS_URL,
+    dlcAzureSasUrl: DLC_AZURE_SAS_URL,
     findStoreRelease: async () => {
       throw new Error('workflow-artifact mode should not query published releases');
     },

@@ -79,7 +79,8 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
     platforms: ['win-x64'],
     downloads: {
       desktop: {},
-      server: {}
+      server: {},
+      dlc: {}
     },
     upstream: {
       desktop: {
@@ -93,7 +94,21 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
         manifestUrl: 'https://index.hagicode.com/desktop/index.json',
         assetsByPlatform: {}
       },
-      server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } }
+      server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } },
+      dlcs: {
+        'turbo-engine': {
+          version: '1.0.0',
+          dlcId: 'pcode.turbo-engine',
+          directoryId: 'turbo-engine',
+          manifestUrl: 'https://index.hagicode.com/dlc/index.json',
+          assetsByPlatform: {
+            'win-x64': {
+              name: 'hagicode-dlc-turbo-engine-1.0.0-win-x64-nort.zip',
+              path: 'turbo-engine/1.0.0/hagicode-dlc-turbo-engine-1.0.0-win-x64-nort.zip'
+            }
+          }
+        }
+      }
     },
     store: {
       supportedWindowsTargets: ['win-x64'],
@@ -101,6 +116,17 @@ test('publishRelease creates or updates a GitHub release and uploads the store p
         storeConfigPath: 'config/store-package.json',
         buildCommand: 'build:win:store',
         runtimeInjectionPath: 'resources/portable-fixed/current'
+      },
+      dlcs: {
+        'turbo-engine': {
+          dlcId: 'pcode.turbo-engine',
+          directoryId: 'turbo-engine',
+          sourceName: 'turbo-engine',
+          runtimeTargetPath: 'lib/dlcs/turbo-engine',
+          runtimeIndexPath: 'lib/dlcs/index.json',
+          manifestFileName: 'dlc.json',
+          filesManifestFileName: 'manifest.files.json'
+        }
       }
     },
     release: {
@@ -242,7 +268,8 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
     platforms: ['win-x64'],
     downloads: {
       desktop: {},
-      server: {}
+      server: {},
+      dlc: {}
     },
     upstream: {
       desktop: {
@@ -256,7 +283,21 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
         manifestUrl: 'https://index.hagicode.com/desktop/index.json',
         assetsByPlatform: {}
       },
-      server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } }
+      server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } },
+      dlcs: {
+        'turbo-engine': {
+          version: '1.0.0',
+          dlcId: 'pcode.turbo-engine',
+          directoryId: 'turbo-engine',
+          manifestUrl: 'https://index.hagicode.com/dlc/index.json',
+          assetsByPlatform: {
+            'win-x64': {
+              name: 'hagicode-dlc-turbo-engine-1.0.0-win-x64-nort.zip',
+              path: 'turbo-engine/1.0.0/hagicode-dlc-turbo-engine-1.0.0-win-x64-nort.zip'
+            }
+          }
+        }
+      }
     },
     store: {
       supportedWindowsTargets: ['win-x64'],
@@ -264,6 +305,17 @@ test('publishRelease resolves MSIX artifacts from merged workflow artifact direc
         storeConfigPath: 'config/store-package.json',
         buildCommand: 'build:win:store',
         runtimeInjectionPath: 'resources/portable-fixed/current'
+      },
+      dlcs: {
+        'turbo-engine': {
+          dlcId: 'pcode.turbo-engine',
+          directoryId: 'turbo-engine',
+          sourceName: 'turbo-engine',
+          runtimeTargetPath: 'lib/dlcs/turbo-engine',
+          runtimeIndexPath: 'lib/dlcs/index.json',
+          manifestFileName: 'dlc.json',
+          filesManifestFileName: 'manifest.files.json'
+        }
       }
     },
     release: {
@@ -343,7 +395,8 @@ test('publishRelease keeps workflow-artifact plans artifact-only even when the b
     platforms: ['win-x64'],
     downloads: {
       desktop: {},
-      server: {}
+      server: {},
+      dlc: {}
     },
     upstream: {
       desktop: {
@@ -357,7 +410,21 @@ test('publishRelease keeps workflow-artifact plans artifact-only even when the b
         manifestUrl: 'https://index.hagicode.com/desktop/index.json',
         assetsByPlatform: {}
       },
-      server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } }
+      server: { version: '0.1.0-beta.34', manifestUrl: 'https://index.hagicode.com/server/index.json', assetsByPlatform: { 'win-x64': { name: 'server.zip', path: 'server.zip' } } },
+      dlcs: {
+        'turbo-engine': {
+          version: '1.0.0',
+          dlcId: 'pcode.turbo-engine',
+          directoryId: 'turbo-engine',
+          manifestUrl: 'https://index.hagicode.com/dlc/index.json',
+          assetsByPlatform: {
+            'win-x64': {
+              name: 'hagicode-dlc-turbo-engine-1.0.0-win-x64-nort.zip',
+              path: 'turbo-engine/1.0.0/hagicode-dlc-turbo-engine-1.0.0-win-x64-nort.zip'
+            }
+          }
+        }
+      }
     },
     store: {
       supportedWindowsTargets: ['win-x64'],
@@ -365,6 +432,17 @@ test('publishRelease keeps workflow-artifact plans artifact-only even when the b
         storeConfigPath: 'config/store-package.json',
         buildCommand: 'build:win:store',
         runtimeInjectionPath: 'resources/portable-fixed/current'
+      },
+      dlcs: {
+        'turbo-engine': {
+          dlcId: 'pcode.turbo-engine',
+          directoryId: 'turbo-engine',
+          sourceName: 'turbo-engine',
+          runtimeTargetPath: 'lib/dlcs/turbo-engine',
+          runtimeIndexPath: 'lib/dlcs/index.json',
+          manifestFileName: 'dlc.json',
+          filesManifestFileName: 'manifest.files.json'
+        }
       }
     },
     publication: {

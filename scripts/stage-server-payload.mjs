@@ -5,37 +5,66 @@ import { fileURLToPath } from 'node:url';
 import { cleanDir, ensureDir, readJson, writeJson } from './lib/fs-utils.mjs';
 import { resolveAssetDownloadUrl, downloadFromSource, sanitizeUrlForLogs } from './lib/azure-blob.mjs';
 import { extractArchive } from './lib/archive.mjs';
-import { resolveRuntimeRoot, validateServerPayloadRoot } from './lib/payload.mjs';
+import {
+  resolveRuntimeRoot,
+  resolveStructuredDlcPayloadRoot,
+  stageStructuredDlcPayload,
+  validateServerPayloadRoot,
+  validateStructuredDlcPayloadRoot,
+} from './lib/payload.mjs';
 import { loadReleasePlan } from './lib/release-plan.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
+
+const TURBO_ENGINE_DIRECTORY_ID = 'turbo-engine';
 
 export async function stageServerPayload({
   planPath,
   workspacePath,
   platformId,
   serverAssetSource,
-  azureSasUrl
+  azureSasUrl,
+  dlcAssetSource,
+  dlcAzureSasUrl,
 }) {
   const { plan } = await loadReleasePlan(planPath);
   const resolvedWorkspacePath = path.resolve(workspacePath);
   const workspaceManifest = await readJson(path.join(resolvedWorkspacePath, 'workspace-manifest.json'));
-  const asset = plan.upstream.server.assetsByPlatform?.[platformId];
-  if (!asset) {
+  const serverAsset = plan.upstream.server.assetsByPlatform?.[platformId];
+  if (!serverAsset) {
     throw new Error(`No server asset mapped for platform ${platformId}.`);
   }
+  const turboEngineConfig = plan.store.dlcs?.[TURBO_ENGINE_DIRECTORY_ID];
+  if (!turboEngineConfig) {
+    throw new Error(`Release plan is missing required DLC config for ${TURBO_ENGINE_DIRECTORY_ID}.`);
+  }
+  const turboEngineRelease = plan.upstream.dlcs?.[TURBO_ENGINE_DIRECTORY_ID];
+  const turboEngineAsset = turboEngineRelease?.assetsByPlatform?.[platformId];
+  if (!turboEngineAsset) {
+    throw new Error(`No Turbo Engine DLC asset mapped for platform ${platformId}.`);
+  }
 
-  const downloadPath = path.join(workspaceManifest.downloadDirectory, `${platformId}-${asset.name}`);
+  const downloadPath = path.join(workspaceManifest.downloadDirectory, `${platformId}-${serverAsset.name}`);
   const extractionPath = path.join(workspaceManifest.extractDirectory, 'server');
+  const dlcDownloadPath = path.join(workspaceManifest.downloadDirectory, `${platformId}-dlc-${turboEngineAsset.name}`);
+  const dlcExtractionPath = path.join(workspaceManifest.extractDirectory, TURBO_ENGINE_DIRECTORY_ID);
   await ensureDir(workspaceManifest.downloadDirectory);
   await cleanDir(extractionPath);
+  await cleanDir(dlcExtractionPath);
 
   const assetSource = resolveAssetDownloadUrl({
-    asset,
+    asset: serverAsset,
     sasUrl: azureSasUrl,
     overrideSource: serverAssetSource
   });
+  const turboEngineAssetSource = resolveAssetDownloadUrl({
+    asset: turboEngineAsset,
+    sasUrl: dlcAzureSasUrl,
+    overrideSource: dlcAssetSource
+  });
   await downloadFromSource({ sourceUrl: assetSource, destinationPath: downloadPath });
   await extractArchive(downloadPath, extractionPath);
+  await downloadFromSource({ sourceUrl: turboEngineAssetSource, destinationPath: dlcDownloadPath });
+  await extractArchive(dlcDownloadPath, dlcExtractionPath);
 
   const runtimeRoot = await resolveRuntimeRoot(extractionPath);
   if (!runtimeRoot) {
@@ -43,6 +72,38 @@ export async function stageServerPayload({
   }
 
   const validation = await validateServerPayloadRoot(runtimeRoot, platformId);
+  const structuredDlcRoot = await resolveStructuredDlcPayloadRoot(dlcExtractionPath, {
+    directoryId: turboEngineConfig.directoryId,
+    manifestFileName: turboEngineConfig.manifestFileName,
+    filesManifestFileName: turboEngineConfig.filesManifestFileName,
+  });
+  if (!structuredDlcRoot) {
+    throw new Error(`Unable to find an extracted Turbo Engine DLC payload under ${dlcExtractionPath}.`);
+  }
+
+  const dlcValidation = await validateStructuredDlcPayloadRoot(structuredDlcRoot, {
+    platformId,
+    directoryId: turboEngineConfig.directoryId,
+    dlcId: turboEngineConfig.dlcId,
+    packageFileName: turboEngineAsset.name,
+    manifestFileName: turboEngineConfig.manifestFileName,
+    filesManifestFileName: turboEngineConfig.filesManifestFileName,
+  });
+  const stagedDlc = await stageStructuredDlcPayload({
+    runtimeRoot: validation.runtimeRoot,
+    dlcRoot: structuredDlcRoot,
+    dlcConfig: turboEngineConfig,
+    validation: dlcValidation,
+  });
+
+  const includedDlc = {
+    ...stagedDlc,
+    sourceArtifact: turboEngineAsset.name,
+    assetPath: turboEngineAsset.path ?? null,
+    downloadSource: sanitizeUrlForLogs(turboEngineAssetSource),
+    downloadPath: dlcDownloadPath,
+    extractionPath: dlcExtractionPath,
+  };
 
   const validationReport = {
     validationPassed: true,
@@ -51,15 +112,18 @@ export async function stageServerPayload({
     desktopTag: workspaceManifest.desktopTag,
     desktopRef: workspaceManifest.desktopRef,
     serverVersion: workspaceManifest.serverVersion,
-    assetName: asset.name,
-    assetPath: asset.path ?? null,
+    assetName: serverAsset.name,
+    assetPath: serverAsset.path ?? null,
     downloadSource: sanitizeUrlForLogs(assetSource),
     downloadPath,
     extractionPath,
     validatedPayloadRoot: validation.runtimeRoot,
     payloadRootForDesktopBuild: validation.runtimeRoot,
     desktopRuntimeInjectionRoot: workspaceManifest.runtimeInjectionRoot,
-    requiredPaths: validation.requiredPaths
+    requiredPaths: validation.requiredPaths,
+    includedDlcs: [includedDlc],
+    generatedRuntimeDlcIndexPath: includedDlc.stagedRuntimeIndexPath,
+    generatedRuntimeDlcIndexRelativePath: includedDlc.runtimeIndexPath,
   };
   const validationReportPath = path.join(resolvedWorkspacePath, `payload-validation-${platformId}.json`);
   await writeJson(validationReportPath, validationReport);
@@ -70,6 +134,9 @@ export async function stageServerPayload({
     `- Desktop tag: ${workspaceManifest.desktopTag}`,
     `- Download source: ${sanitizeUrlForLogs(assetSource)}`,
     `- Validated payload root: ${validation.runtimeRoot}`,
+    `- Turbo Engine DLC version: ${includedDlc.version}`,
+    `- Turbo Engine DLC source: ${sanitizeUrlForLogs(turboEngineAssetSource)}`,
+    `- Turbo Engine DLC target: ${includedDlc.runtimeTargetPath}`,
     `- Desktop runtime injection root: ${workspaceManifest.runtimeInjectionRoot}`
   ]);
 
@@ -86,7 +153,9 @@ export async function main() {
       platform: { type: 'string' },
       workspace: { type: 'string' },
       'azure-sas-url': { type: 'string' },
-      'server-asset-source': { type: 'string' }
+      'server-asset-source': { type: 'string' },
+      'dlc-azure-sas-url': { type: 'string' },
+      'dlc-asset-source': { type: 'string' }
     }
   });
 
@@ -105,6 +174,13 @@ export async function main() {
       process.env.SERVER_AZURE_SAS_URL ??
       process.env.SERVICE_AZURE_SAS_URL ??
       process.env.AZURE_BLOB_SAS_URL ??
+      process.env.AZURE_SAS_URL,
+    dlcAssetSource: values['dlc-asset-source'],
+    dlcAzureSasUrl:
+      values['dlc-azure-sas-url'] ??
+      process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
+      process.env.DLC_AZURE_SAS_URL ??
+      process.env.AZURE_BLOB_SAS_URL ??
       process.env.AZURE_SAS_URL
   });
 
@@ -117,7 +193,7 @@ if (isDirectExecution) {
   main().catch(async (error) => {
     annotateError(error.message);
     await appendSummary([
-      '## Server payload staging failed',
+      '## Runtime payload staging failed',
       `- ${error.message}`
     ]);
     console.error(error);

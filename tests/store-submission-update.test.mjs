@@ -18,7 +18,8 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
     platforms: ['win-x64'],
     downloads: {
       desktop: {},
-      server: {}
+      server: {},
+      dlc: {}
     },
     upstream: {
       desktop: {
@@ -41,6 +42,20 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
             path: '0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip'
           }
         }
+      },
+      dlcs: {
+        'turbo-engine': {
+          version: '1.0.0',
+          dlcId: 'pcode.turbo-engine',
+          directoryId: 'turbo-engine',
+          manifestUrl: 'https://index.hagicode.com/dlc/index.json',
+          assetsByPlatform: {
+            'win-x64': {
+              name: 'hagicode-dlc-turbo-engine-1.0.0-win-x64-nort.zip',
+              path: 'turbo-engine/1.0.0/hagicode-dlc-turbo-engine-1.0.0-win-x64-nort.zip'
+            }
+          }
+        }
       }
     },
     store: {
@@ -49,6 +64,17 @@ test('buildStoreSubmissionUpdate maps published store package assets into a Stor
         storeConfigPath: 'config/store-package.json',
         buildCommand: 'build:win:store',
         runtimeInjectionPath: 'resources/portable-fixed/current'
+      },
+      dlcs: {
+        'turbo-engine': {
+          dlcId: 'pcode.turbo-engine',
+          directoryId: 'turbo-engine',
+          sourceName: 'turbo-engine',
+          runtimeTargetPath: 'lib/dlcs/turbo-engine',
+          runtimeIndexPath: 'lib/dlcs/index.json',
+          manifestFileName: 'dlc.json',
+          filesManifestFileName: 'manifest.files.json'
+        }
       }
     },
     release: {

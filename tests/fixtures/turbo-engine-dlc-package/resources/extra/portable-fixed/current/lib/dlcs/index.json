@@ -1,0 +1,26 @@
+{
+  "runtimeKey": "win-x64-nort",
+  "generatedAt": "2026-06-15T00:00:00.000Z",
+  "dlcs": [
+    {
+      "directoryId": "turbo-engine",
+      "dlcId": "pcode.turbo-engine",
+      "displayName": "TurboEngine",
+      "version": "1.0.0",
+      "entryAssembly": "PCode.ConcurrencyExtensionDlc.dll",
+      "packageFileName": "hagicode-dlc-turbo-engine-1.0.0-win-x64-nort.zip",
+      "supportedRuntime": "win-x64-nort",
+      "supportedRuntimes": [
+        "win-x64-nort"
+      ],
+      "targetFramework": "net9.0",
+      "grantType": "concurrency-extension",
+      "enabledByDefault": true,
+      "manifestPath": "turbo-engine/dlc.json",
+      "filesManifestPath": "turbo-engine/manifest.files.json",
+      "hostCompatibility": {
+        "minHostVersion": "0.1.0-beta.0"
+      }
+    }
+  ]
+}

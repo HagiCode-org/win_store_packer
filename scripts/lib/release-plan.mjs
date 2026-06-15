@@ -88,6 +88,54 @@ function validateUpstreamAssets(plan, platformId, sourceType, { required = true 
   }
 }
 
+function validateStoreDlcs(plan) {
+  const store = requireObject(plan.store, 'plan.store');
+  const dlcs = requireObject(store.dlcs, 'plan.store.dlcs');
+  const entries = Object.entries(dlcs);
+  if (entries.length === 0) {
+    throw new Error('plan.store.dlcs must define at least one DLC packaging entry.');
+  }
+
+  return entries.map(([directoryId, entry]) => {
+    const label = `plan.store.dlcs.${JSON.stringify(directoryId)}`;
+    const dlc = requireObject(entry, label);
+    const normalizedDirectoryId = requireNonEmptyString(dlc.directoryId, `${label}.directoryId`);
+    if (normalizedDirectoryId !== directoryId) {
+      throw new Error(`${label}.directoryId must match the DLC key ${JSON.stringify(directoryId)}.`);
+    }
+
+    requireNonEmptyString(dlc.dlcId, `${label}.dlcId`);
+    requireNonEmptyString(dlc.sourceName, `${label}.sourceName`);
+    requireNonEmptyString(dlc.runtimeTargetPath, `${label}.runtimeTargetPath`);
+    requireNonEmptyString(dlc.runtimeIndexPath, `${label}.runtimeIndexPath`);
+    requireNonEmptyString(dlc.manifestFileName, `${label}.manifestFileName`);
+    requireNonEmptyString(dlc.filesManifestFileName, `${label}.filesManifestFileName`);
+    return { directoryId, ...dlc };
+  });
+}
+
+function validateUpstreamDlcAssets(plan, platformId, dlcConfig) {
+  const upstream = requireObject(plan.upstream, 'plan.upstream');
+  const upstreamDlcs = requireObject(upstream.dlcs, 'plan.upstream.dlcs');
+  const source = requireObject(upstreamDlcs[dlcConfig.directoryId], `plan.upstream.dlcs.${JSON.stringify(dlcConfig.directoryId)}`);
+  requireNonEmptyString(source.version, `plan.upstream.dlcs.${JSON.stringify(dlcConfig.directoryId)}.version`);
+  requireNonEmptyString(source.dlcId, `plan.upstream.dlcs.${JSON.stringify(dlcConfig.directoryId)}.dlcId`);
+  requireNonEmptyString(source.directoryId, `plan.upstream.dlcs.${JSON.stringify(dlcConfig.directoryId)}.directoryId`);
+
+  const assetsByPlatform = requireObject(
+    source.assetsByPlatform,
+    `plan.upstream.dlcs.${JSON.stringify(dlcConfig.directoryId)}.assetsByPlatform`
+  );
+  const asset = requireObject(
+    assetsByPlatform[platformId],
+    `plan.upstream.dlcs.${JSON.stringify(dlcConfig.directoryId)}.assetsByPlatform.${platformId}`
+  );
+  requireNonEmptyString(asset.name, `plan.upstream.dlcs.${JSON.stringify(dlcConfig.directoryId)}.assetsByPlatform.${platformId}.name`);
+  if (!asset.path && !asset.directUrl) {
+    throw new Error(`plan.upstream.dlcs.${JSON.stringify(dlcConfig.directoryId)}.assetsByPlatform.${platformId} must define path or directUrl.`);
+  }
+}
+
 export function validateReleasePlan(
   plan,
   {
@@ -170,6 +218,7 @@ export function validateReleasePlan(
   const downloads = requireObject(plan.downloads, 'plan.downloads');
   requireObject(downloads.desktop, 'plan.downloads.desktop');
   requireObject(downloads.server, 'plan.downloads.server');
+  requireObject(downloads.dlc, 'plan.downloads.dlc');
 
   const publication = requireObject(plan.publication ?? { mode: 'github-release' }, 'plan.publication');
   const publicationMode = requireEnum(
@@ -197,11 +246,15 @@ export function validateReleasePlan(
   requireNonEmptyString(desktopStore.storeConfigPath, 'plan.store.desktop.storeConfigPath');
   requireNonEmptyString(desktopStore.buildCommand, 'plan.store.desktop.buildCommand');
   requireNonEmptyString(desktopStore.runtimeInjectionPath, 'plan.store.desktop.runtimeInjectionPath');
+  const storeDlcs = validateStoreDlcs(plan);
 
   const platforms = validatePlatforms(plan);
   for (const platformId of platforms) {
     validateUpstreamAssets(plan, platformId, 'desktop', { required: false });
     validateUpstreamAssets(plan, platformId, 'server');
+    for (const dlcConfig of storeDlcs) {
+      validateUpstreamDlcAssets(plan, platformId, dlcConfig);
+    }
   }
 
   return {

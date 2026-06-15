@@ -31,6 +31,7 @@ export async function syncReleasePlan({
   token,
   repositories,
   desktopAzureSasUrl,
+  dlcAzureSasUrl,
   serverAzureSasUrl,
   producerWorkflow = DEFAULT_PLAN_PRODUCER_WORKFLOW,
   fetchImpl
@@ -38,14 +39,15 @@ export async function syncReleasePlan({
   if (!token) {
     throw new Error('sync-release-plan requires GITHUB_TOKEN or GH_TOKEN.');
   }
-  if (!desktopAzureSasUrl || !serverAzureSasUrl) {
+  if (!desktopAzureSasUrl || !serverAzureSasUrl || !dlcAzureSasUrl) {
     throw new Error(
-      'sync-release-plan requires both Desktop and Server Azure SAS URLs via --desktop-azure-sas-url/--server-azure-sas-url or WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL/WIN_STORE_PACKER_SERVER_AZURE_SAS_URL.'
+      'sync-release-plan requires Desktop, Server, and DLC Azure SAS URLs via --desktop-azure-sas-url/--server-azure-sas-url/--dlc-azure-sas-url or WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL/WIN_STORE_PACKER_SERVER_AZURE_SAS_URL/WIN_STORE_PACKER_DLC_AZURE_SAS_URL.'
     );
   }
 
   parseAzureSasUrl(desktopAzureSasUrl);
   parseAzureSasUrl(serverAzureSasUrl);
+  parseAzureSasUrl(dlcAzureSasUrl);
 
   const workflowDefaults = await loadWorkflowDefaults();
   const packerRepository = repositories?.packer ?? (process.env.GITHUB_REPOSITORY ?? 'HagiCode-org/win_store_packer');
@@ -92,7 +94,8 @@ export async function syncReleasePlan({
     defaultPlatforms: workflowDefaults.defaultPlatforms,
     azureSasUrls: {
       desktop: desktopAzureSasUrl,
-      server: serverAzureSasUrl
+      server: serverAzureSasUrl,
+      dlc: dlcAzureSasUrl
     },
     producerWorkflow,
     fetchImpl
@@ -133,8 +136,10 @@ export async function syncReleasePlan({
     `- Desktop base version: ${plan.upstream.desktop.baseVersion}`,
     `- Desktop checkout ref: ${plan.upstream.desktop.checkoutRef}`,
     `- Server version: ${plan.upstream.server.version}`,
+    `- Turbo Engine DLC version: ${plan.upstream.dlcs['turbo-engine']?.version ?? '[missing]'}`,
     `- Desktop Azure SAS: ${sanitizeUrlForLogs(desktopAzureSasUrl)}`,
     `- Server Azure SAS: ${sanitizeUrlForLogs(serverAzureSasUrl)}`,
+    `- DLC Azure SAS: ${sanitizeUrlForLogs(dlcAzureSasUrl)}`,
     `- Plan: ${resolvedOutputPath}`
   ]);
 
@@ -158,8 +163,10 @@ export async function main() {
       token: { type: 'string' },
       'desktop-index-url': { type: 'string' },
       'server-index-url': { type: 'string' },
+      'dlc-index-url': { type: 'string' },
       'desktop-azure-sas-url': { type: 'string' },
       'server-azure-sas-url': { type: 'string' },
+      'dlc-azure-sas-url': { type: 'string' },
       'producer-workflow': { type: 'string' }
     }
   });
@@ -180,12 +187,21 @@ export async function main() {
     process.env.SERVICE_AZURE_SAS_URL ??
     process.env.AZURE_BLOB_SAS_URL ??
     process.env.AZURE_SAS_URL;
+  const dlcAzureSasUrl =
+    values['dlc-azure-sas-url'] ??
+    process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
+    process.env.DLC_AZURE_SAS_URL ??
+    process.env.AZURE_BLOB_SAS_URL ??
+    process.env.AZURE_SAS_URL;
   const repositories = {
     ...(values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL
       ? { desktop: values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL }
       : {}),
     ...(values['server-index-url'] ?? process.env.SERVER_INDEX_URL ?? process.env.SERVICE_INDEX_URL
       ? { server: values['server-index-url'] ?? process.env.SERVER_INDEX_URL ?? process.env.SERVICE_INDEX_URL }
+      : {}),
+    ...(values['dlc-index-url'] ?? process.env.DLC_INDEX_URL
+      ? { dlc: values['dlc-index-url'] ?? process.env.DLC_INDEX_URL }
       : {}),
     packer: process.env.GITHUB_REPOSITORY ?? 'HagiCode-org/win_store_packer'
   };
@@ -198,6 +214,7 @@ export async function main() {
     token,
     repositories,
     desktopAzureSasUrl,
+    dlcAzureSasUrl,
     serverAzureSasUrl,
     producerWorkflow: values['producer-workflow'] ?? process.env.WIN_STORE_PACKER_PLAN_PRODUCER_WORKFLOW,
   });

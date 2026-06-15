@@ -26,5 +26,16 @@
     "storeConfigPath": "config/store-package.json",
     "buildCommand": "build:win:store",
     "runtimeInjectionPath": "resources/portable-fixed/current"
+  },
+  "dlcs": {
+    "turbo-engine": {
+      "dlcId": "pcode.turbo-engine",
+      "directoryId": "turbo-engine",
+      "sourceName": "turbo-engine",
+      "runtimeTargetPath": "lib/dlcs/turbo-engine",
+      "runtimeIndexPath": "lib/dlcs/index.json",
+      "manifestFileName": "dlc.json",
+      "filesManifestFileName": "manifest.files.json"
+    }
   }
 }
