@@ -11,6 +11,7 @@ import {
   RELEASE_PLAN_HANDOFF_SOURCE,
 } from './lib/build-plan.mjs';
 import { ensureDir, readJson, writeJson } from './lib/fs-utils.mjs';
+import { resolveDlcAzureSasUrl } from './lib/sas-config.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 import { loadWorkflowDefaults } from './lib/store-config.mjs';
 
@@ -40,15 +41,17 @@ export async function resolveDispatchBuildPlan({
   findStoreRelease,
   fetchImpl
 } = {}) {
-  if (!desktopAzureSasUrl || !serverAzureSasUrl || !dlcAzureSasUrl) {
+  const resolvedDlcAzureSasUrl = resolveDlcAzureSasUrl({ dlcAzureSasUrl, serverAzureSasUrl });
+
+  if (!desktopAzureSasUrl || !serverAzureSasUrl || !resolvedDlcAzureSasUrl) {
     throw new Error(
-      'resolve-dispatch-build-plan requires Desktop, Server, and DLC Azure SAS URLs via --desktop-azure-sas-url/--server-azure-sas-url/--dlc-azure-sas-url or WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL/WIN_STORE_PACKER_SERVER_AZURE_SAS_URL/WIN_STORE_PACKER_DLC_AZURE_SAS_URL.'
+      'resolve-dispatch-build-plan requires Desktop and Server Azure SAS URLs via --desktop-azure-sas-url/--server-azure-sas-url or WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL/WIN_STORE_PACKER_SERVER_AZURE_SAS_URL. DLC Azure SAS may be provided explicitly via --dlc-azure-sas-url or WIN_STORE_PACKER_DLC_AZURE_SAS_URL, and otherwise falls back to the Server Azure SAS URL.'
     );
   }
 
   parseAzureSasUrl(desktopAzureSasUrl);
   parseAzureSasUrl(serverAzureSasUrl);
-  parseAzureSasUrl(dlcAzureSasUrl);
+  parseAzureSasUrl(resolvedDlcAzureSasUrl);
 
   const workflowDefaults = await loadWorkflowDefaults();
   const resolvedOutputPath = path.resolve(outputPath ?? 'build/release-plan.json');
@@ -75,7 +78,7 @@ export async function resolveDispatchBuildPlan({
     azureSasUrls: {
       desktop: desktopAzureSasUrl,
       server: serverAzureSasUrl,
-      dlc: dlcAzureSasUrl
+      dlc: resolvedDlcAzureSasUrl
     },
     publicationMode,
     handoffSource,
@@ -119,7 +122,7 @@ export async function resolveDispatchBuildPlan({
     `- Publication mode: ${plan.publication.mode}`,
     `- Desktop Azure SAS: ${sanitizeUrlForLogs(desktopAzureSasUrl)}`,
     `- Server Azure SAS: ${sanitizeUrlForLogs(serverAzureSasUrl)}`,
-    `- DLC Azure SAS: ${sanitizeUrlForLogs(dlcAzureSasUrl)}`,
+    `- DLC Azure SAS: ${sanitizeUrlForLogs(resolvedDlcAzureSasUrl)}`,
     `- Release exists: ${plan.release.exists ? 'yes' : 'no'}`,
     `- Build mode: ${plan.build.dryRun ? 'dry-run' : 'publish'}`,
     `- should_build: ${plan.build.shouldBuild ? 'true' : 'false'}`,
@@ -169,13 +172,16 @@ export async function main() {
     process.env.SERVICE_AZURE_SAS_URL ??
     process.env.AZURE_BLOB_SAS_URL ??
     process.env.AZURE_SAS_URL;
-  const dlcAzureSasUrl =
-    values['dlc-azure-sas-url'] ??
-    process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
-    process.env.DLC_AZURE_SAS_URL ??
-    process.env.PORTABLE_VERSION_DLC_AZURE_SAS_URL ??
-    process.env.AZURE_BLOB_SAS_URL ??
-    process.env.AZURE_SAS_URL;
+  const dlcAzureSasUrl = resolveDlcAzureSasUrl({
+    dlcAzureSasUrl:
+      values['dlc-azure-sas-url'] ??
+      process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
+      process.env.DLC_AZURE_SAS_URL ??
+      process.env.PORTABLE_VERSION_DLC_AZURE_SAS_URL ??
+      process.env.AZURE_BLOB_SAS_URL ??
+      process.env.AZURE_SAS_URL,
+    serverAzureSasUrl
+  });
   const repositories = {
     ...(values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL
       ? { desktop: values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL }

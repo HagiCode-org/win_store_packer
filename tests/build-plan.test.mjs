@@ -60,6 +60,25 @@ function createFetchStub({ requests = [] } = {}) {
             version: '0.1.0-beta.34',
             assets: ['0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip']
           }
+        ],
+        dlcs: [
+          {
+            dlcName: 'turbo-engine',
+            versions: [
+              {
+                version: '0.1.0-beta.47',
+                artifacts: [
+                  { name: 'hagicode-dlc-turbo-engine-0.1.0-beta.47-win-x64-nort.zip', path: 'turbo-engine/0.1.0-beta.47/hagicode-dlc-turbo-engine-0.1.0-beta.47-win-x64-nort.zip' }
+                ]
+              },
+              {
+                version: '0.1.0-beta.48',
+                artifacts: [
+                  { name: 'hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip', path: 'turbo-engine/0.1.0-beta.48/hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip' }
+                ]
+              }
+            ]
+          }
         ]
       });
     }
@@ -286,9 +305,6 @@ test('resolveDispatchBuildPlan writes the normalized release-plan artifact', asy
     producerWorkflow: 'sync-version-plan',
     packerReleaseTag: PACKER_RELEASE_TAG,
     repositories: {
-      desktop: DESKTOP_INDEX_URL,
-      server: SERVER_INDEX_URL,
-      dlc: DLC_INDEX_URL,
       packer: 'HagiCode-org/win_store_packer'
     },
     desktopAzureSasUrl: DESKTOP_AZURE_SAS_URL,
@@ -304,6 +320,31 @@ test('resolveDispatchBuildPlan writes the normalized release-plan artifact', asy
   assert.equal(result.plan.upstream.desktop.tag, 'v0.3.0');
   assert.equal(writtenPlan.handoff.assetName, RELEASE_PLAN_ASSET_NAME);
   assert.equal(writtenPlan.handoff.producer.workflow, 'sync-version-plan');
+});
+
+test('resolveDispatchBuildPlan falls back to the Server Azure SAS URL for DLC discovery', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-build-plan-dlc-fallback-'));
+  const outputPath = path.join(tempRoot, 'release-plan.json');
+
+  const result = await resolveDispatchBuildPlan({
+    eventName: 'workflow_dispatch',
+    eventPayload: { inputs: {} },
+    outputPath,
+    producerWorkflow: 'sync-version-plan',
+    packerReleaseTag: PACKER_RELEASE_TAG,
+    repositories: {
+      packer: 'HagiCode-org/win_store_packer'
+    },
+    desktopAzureSasUrl: DESKTOP_AZURE_SAS_URL,
+    serverAzureSasUrl: SERVER_AZURE_SAS_URL,
+    findStoreRelease: async () => null,
+    fetchImpl: createFetchStub()
+  });
+
+  assert.equal(
+    result.plan.upstream.dlcs['turbo-engine'].manifestUrl,
+    'https://example.blob.core.windows.net/server/index.json?<sas-token-redacted>'
+  );
 });
 
 test('resolveDispatchBuildPlan can force workflow-artifact main build plans', async () => {
