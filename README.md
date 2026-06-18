@@ -1,6 +1,6 @@
 # win_store_packer
 
-`win_store_packer` resolves Desktop, Server, and Turbo Engine DLC releases, validates the staged runtime payload, invokes the desktop-owned Windows Store packaging entrypoint, optionally finalizes signing, and publishes GitHub release metadata.
+`win_store_packer` resolves Desktop, Server, and Turbo Engine DLC releases, validates the staged runtime payload, invokes the desktop-owned Microsoft Store packaging entrypoint, optionally finalizes signing, and publishes GitHub release metadata.
 
 Desktop now owns Store packaging. This repository does not render Store overlays or build MSIX packages independently anymore.
 
@@ -9,7 +9,7 @@ Desktop now owns Store packaging. This repository does not render Store overlays
 `win_store_packer` keeps these responsibilities:
 
 - resolve Desktop, Server, and Turbo Engine DLC versions from the release indexes
-- resolve the packer Release Drafter tag and use it as the canonical Windows Store version input
+- resolve the packer Release Drafter tag and use it as the canonical Microsoft Store version input
 - prepare a tagged Desktop worktree for packaging
 - download, extract, and validate the Server payload plus the required Turbo Engine DLC package
 - invoke `npm run build:win:store` in the Desktop workspace
@@ -20,7 +20,7 @@ Desktop owns these responsibilities:
 
 - Store package identity and capability metadata in `config/store-package.json`
 - Store overlay generation
-- Windows Store version metadata injected into Desktop builds
+- Microsoft Store version metadata injected into Desktop builds
 - payload injection into the packaged runtime layout
 - MSIX package generation
 - desktop-originated build metadata
@@ -228,8 +228,8 @@ The staged payload now records bundled DLC details in `payload-validation-<platf
 Those workspace and publication artifacts now repeat the same three values for verification:
 
 - the canonical `win_store_packer` Release Drafter tag
-- the mirrored Windows Store version
-- the normalized Windows Store package version
+- the mirrored Microsoft Store version
+- the normalized Microsoft Store package version
 
 Publication outputs include:
 

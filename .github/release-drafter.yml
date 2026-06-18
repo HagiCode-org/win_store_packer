@@ -1,4 +1,4 @@
-name-template: 'Windows Store v$RESOLVED_VERSION'
+name-template: 'Microsoft Store v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
 
 categories:
@@ -55,6 +55,6 @@ template: |
 
   ## Packaging Scope
 
-  - Windows Store packaging workflow updates
+  - Microsoft Store packaging workflow updates
   - Desktop packaging contract propagation
   - Store submission and signing pipeline changes
