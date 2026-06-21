@@ -9,7 +9,7 @@ import {
   CANONICAL_PACKER_TAG_VERSION_SOURCE,
   PUBLICATION_MODES,
   RELEASE_PLAN_ASSET_NAME,
-  RELEASE_PLAN_HANDOFF_SOURCE,
+  WORKFLOW_ARTIFACT_HANDOFF_SOURCE,
 } from './lib/build-plan.mjs';
 import {
   resolveCanonicalVersionInput,
@@ -39,7 +39,7 @@ export async function resolveDispatchBuildPlan({
   packerReleaseTag,
   serverAzureSasUrl,
   publicationMode = PUBLICATION_MODES.GITHUB_RELEASE,
-  handoffSource = RELEASE_PLAN_HANDOFF_SOURCE,
+  handoffSource = WORKFLOW_ARTIFACT_HANDOFF_SOURCE,
   forceDryRun = false,
   producerWorkflow,
   findStoreRelease,
@@ -213,7 +213,7 @@ export async function main() {
     token,
     packerReleaseTag: values['packer-release-tag'] ?? process.env.WIN_STORE_PACKER_RELEASE_TAG ?? process.env.PACKER_RELEASE_TAG,
     publicationMode: values['publication-mode'] ?? process.env.WIN_STORE_PACKER_PUBLICATION_MODE ?? PUBLICATION_MODES.GITHUB_RELEASE,
-    handoffSource: values['handoff-source'] ?? process.env.WIN_STORE_PACKER_HANDOFF_SOURCE ?? RELEASE_PLAN_HANDOFF_SOURCE,
+    handoffSource: values['handoff-source'] ?? process.env.WIN_STORE_PACKER_HANDOFF_SOURCE ?? WORKFLOW_ARTIFACT_HANDOFF_SOURCE,
     forceDryRun: values['force-dry-run'] ?? false,
     producerWorkflow: values['producer-workflow'] ?? process.env.WIN_STORE_PACKER_PLAN_PRODUCER_WORKFLOW,
     repositories,
