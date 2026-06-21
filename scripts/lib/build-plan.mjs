@@ -16,6 +16,10 @@ import { loadStorePackageConfig } from './store-config.mjs';
 
 export const WIN_STORE_PACKER_HANDOFF_SCHEMA = 'win-store-packer-handoff/v1';
 export const CANONICAL_PACKER_TAG_VERSION_SOURCE = 'release-drafter-packer-tag';
+// Fixed version reported by non-tagged main test builds. The canonical
+// Microsoft Store version is always derived from the release tag; builds that
+// are not bound to a tag report this fixed sentinel version instead.
+export const DESKTOP_MAIN_BUILD_VERSION = '0.1.0';
 export const RELEASE_PLAN_ASSET_NAME = 'release-plan.json';
 export const RELEASE_PLAN_HANDOFF_SOURCE = 'draft-release-asset';
 export const WORKFLOW_ARTIFACT_HANDOFF_SOURCE = 'workflow-artifact';
@@ -310,16 +314,13 @@ export async function buildPlan({
     publication: {
       mode: publicationMode
     },
-    // The release git tag is intentionally NOT stored here. The authoritative
-    // release tag comes from external context (the release event / workflow
-    // input) and is injected by validateReleasePlan at consume time. Storing it
-    // in the producer plan caused stale-tag failures when the draft release tag
-    // changed between sync and publication.
+    // The release git tag is the single source of truth for the Microsoft Store
+    // version. The producer plan intentionally does NOT store a version here;
+    // the canonical version is always recomputed from the release tag at
+    // validate time. Storing a producer-side version caused stale-version
+    // failures when the draft release tag changed between sync and publication.
     release: {
       repository: packerRepository,
-      canonicalVersionInput: releaseTag,
-      windowsStoreVersion: releaseTag,
-      versionSource: CANONICAL_PACKER_TAG_VERSION_SOURCE,
       exists: releaseExists,
       url: existingRelease?.html_url ?? null
     },

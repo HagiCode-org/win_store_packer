@@ -107,8 +107,10 @@ test('resolve-release-plan rewrites a stale downloaded plan with the external ex
     assert.equal(rewritten.release.tag, 'v0.3.0');
     assert.equal(rewritten.release.name, 'Windows Store v0.3.0');
     assert.equal(rewritten.release.notesTitle, 'Windows Store v0.3.0');
-    assert.equal(rewritten.release.canonicalVersionInput, 'v0.2.4');
-    assert.equal(rewritten.release.windowsStoreVersion, 'v0.2.4');
+    // The canonical version is now always recomputed from the authoritative
+    // external release tag instead of preserving the stale producer value.
+    assert.equal(rewritten.release.canonicalVersionInput, 'v0.3.0');
+    assert.equal(rewritten.release.windowsStoreVersion, 'v0.3.0');
   });
 });
 

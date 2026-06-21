@@ -9,7 +9,7 @@ Desktop now owns Store packaging. This repository does not render Store overlays
 `win_store_packer` keeps these responsibilities:
 
 - resolve Desktop, Server, and Turbo Engine DLC versions from the release indexes
-- resolve the packer Release Drafter tag and use it as the canonical Microsoft Store version input
+- resolve the packer Release Drafter tag and derive the canonical Microsoft Store version from it
 - prepare a tagged Desktop worktree for packaging
 - download, extract, and validate the Server payload plus the required Turbo Engine DLC package
 - invoke `npm run build:win:store` in the Desktop workspace
@@ -53,7 +53,9 @@ Store identity fields such as `identityName`, `publisher`, `languages`, and `cap
 
 Desktop capability validation continues to normalize `runFullTrust`, but it does not require or reintroduce `unvirtualizedResources` when the Desktop Store config omits that legacy flag.
 
-The canonical upstream version input remains `release.canonicalVersionInput`, which must equal the `win_store_packer` Release Drafter tag and is mirrored into `release.windowsStoreVersion` for downstream metadata checks.
+The canonical Microsoft Store version is always derived from the authoritative release tag and is never stored in the producer plan. The producer omits `release.canonicalVersionInput`, `release.windowsStoreVersion`, and `release.versionSource`; `validateReleasePlan` recomputes them from the release tag (`release.tag`) and injects them back into the resolved plan as `release.canonicalVersionInput`, `release.windowsStoreVersion`, and `release.versionSource` for downstream metadata checks.
+
+For main test builds that are not bound to a release tag, the canonical version is reported as the fixed sentinel `0.1.0` (`DESKTOP_MAIN_BUILD_VERSION`) regardless of the packer Release Drafter placeholder tag. Tagged releases compute the canonical version directly from the tag as the single source of truth.
 
 ### `config/workflow-defaults.json`
 

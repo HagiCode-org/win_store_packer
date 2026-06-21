@@ -4,6 +4,7 @@ import { createPlatformMatrix, getPlatformConfig, normalizeGitTag } from './plat
 import {
   CANONICAL_PACKER_TAG_VERSION_SOURCE,
   DEFAULT_PLAN_CONSUMER_WORKFLOW,
+  DESKTOP_MAIN_BUILD_VERSION,
   PUBLICATION_MODES,
   RELEASE_PLAN_ASSET_NAME,
   RELEASE_PLAN_HANDOFF_SOURCE,
@@ -46,6 +47,39 @@ function requireEnum(value, allowedValues, label) {
     throw new Error(`${label} must be one of ${allowedValues.join(', ')}.`);
   }
   return normalized;
+}
+
+// Main test builds are dispatched with the packer Release Drafter's
+// next-version placeholder tag (e.g. v0.1.0). They are not real releases, so
+// the canonical version is reported as the fixed DESKTOP_MAIN_BUILD_VERSION
+// instead of being derived from that placeholder tag. Tagged releases compute
+// the canonical version directly from the tag as the single source of truth.
+export function isMainBuildTag(releaseTag) {
+  return normalizeGitTag(releaseTag) === normalizeGitTag(DESKTOP_MAIN_BUILD_VERSION);
+}
+
+export function resolveCanonicalVersionInput({ releaseTag, legacyCanonicalVersionInput }) {
+  if (isMainBuildTag(releaseTag)) {
+    return DESKTOP_MAIN_BUILD_VERSION;
+  }
+
+  if (legacyCanonicalVersionInput) {
+    return legacyCanonicalVersionInput;
+  }
+
+  return releaseTag;
+}
+
+export function resolveWindowsStoreVersion({ releaseTag, canonicalVersionInput, legacyWindowsStoreVersion }) {
+  if (isMainBuildTag(releaseTag)) {
+    return canonicalVersionInput;
+  }
+
+  if (legacyWindowsStoreVersion) {
+    return legacyWindowsStoreVersion;
+  }
+
+  return canonicalVersionInput;
 }
 
 function validatePlatforms(plan) {
@@ -173,17 +207,18 @@ export function validateReleasePlan(
 
   const release = requireObject(plan.release, 'plan.release');
   requireNonEmptyString(release.repository, 'plan.release.repository');
-  const canonicalVersionInput = requireNonEmptyString(release.canonicalVersionInput, 'plan.release.canonicalVersionInput');
-  const windowsStoreVersion = requireNonEmptyString(release.windowsStoreVersion, 'plan.release.windowsStoreVersion');
-  const versionSource = requireEnum(
-    release.versionSource,
-    [CANONICAL_PACKER_TAG_VERSION_SOURCE],
-    'plan.release.versionSource'
-  );
-
-  if (windowsStoreVersion !== canonicalVersionInput) {
-    throw new Error('plan.release.windowsStoreVersion must match plan.release.canonicalVersionInput.');
-  }
+  // Producers no longer store a version. The canonical version is recomputed
+  // from the authoritative release tag. A backwards-compatible fallback reads
+  // any legacy producer-stored canonicalVersionInput / windowsStoreVersion.
+  const legacyCanonicalVersionInput = typeof release.canonicalVersionInput === 'string' && release.canonicalVersionInput.trim()
+    ? release.canonicalVersionInput.trim()
+    : null;
+  const legacyWindowsStoreVersion = typeof release.windowsStoreVersion === 'string' && release.windowsStoreVersion.trim()
+    ? release.windowsStoreVersion.trim()
+    : null;
+  const legacyVersionSource = typeof release.versionSource === 'string' && release.versionSource.trim()
+    ? requireEnum(release.versionSource, [CANONICAL_PACKER_TAG_VERSION_SOURCE], 'plan.release.versionSource')
+    : null;
 
   // The release git tag is authoritative only from external context (the
   // release event or workflow input). Producers no longer store it because a
@@ -201,12 +236,22 @@ export function validateReleasePlan(
     );
   }
 
-  // Inject the authoritative tag back into the resolved plan so downstream
-  // consumers always read a single resolved release tag regardless of what the
-  // producer stored.
+  // Main test builds are not tied to a release tag, so they report a fixed
+  // 0.1.0 version. Tagged releases compute the canonical version directly from
+  // the tag as the single source of truth.
+  const canonicalVersionInput = resolveCanonicalVersionInput({ releaseTag, legacyCanonicalVersionInput });
+  const windowsStoreVersion = resolveWindowsStoreVersion({ releaseTag, canonicalVersionInput, legacyWindowsStoreVersion });
+  const versionSource = legacyVersionSource ?? CANONICAL_PACKER_TAG_VERSION_SOURCE;
+
+  // Inject the authoritative tag and recomputed version back into the resolved
+  // plan so downstream consumers always read a single resolved release tag and
+  // canonical version regardless of what the producer stored.
   const resolvedRelease = {
     ...release,
     tag: releaseTag,
+    canonicalVersionInput,
+    windowsStoreVersion,
+    versionSource,
     name: release.name ?? `Windows Store ${releaseTag}`,
     notesTitle: release.notesTitle ?? `Windows Store ${releaseTag}`
   };

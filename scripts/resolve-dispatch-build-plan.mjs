@@ -6,10 +6,15 @@ import { parseArgs } from 'node:util';
 import { parseAzureSasUrl, sanitizeUrlForLogs } from './lib/azure-blob.mjs';
 import {
   buildPlan,
+  CANONICAL_PACKER_TAG_VERSION_SOURCE,
   PUBLICATION_MODES,
   RELEASE_PLAN_ASSET_NAME,
   RELEASE_PLAN_HANDOFF_SOURCE,
 } from './lib/build-plan.mjs';
+import {
+  resolveCanonicalVersionInput,
+  resolveWindowsStoreVersion
+} from './lib/release-plan.mjs';
 import { ensureDir, readJson, writeJson } from './lib/fs-utils.mjs';
 import { appendSummary, annotateError } from './lib/summary.mjs';
 import { loadWorkflowDefaults } from './lib/store-config.mjs';
@@ -85,11 +90,19 @@ export async function resolveDispatchBuildPlan({
   });
 
   await writeJson(resolvedOutputPath, plan);
+  // The canonical Microsoft Store version is always derived from the release
+  // tag. The producer plan intentionally does not store it. The dispatch
+  // builder knows the authoritative packer tag directly from its input, so use
+  // it here instead of the omitted producer field.
+  const releaseTag = packerReleaseTag ?? plan.release.tag;
+  const canonicalVersionInput = resolveCanonicalVersionInput({ releaseTag });
+  const windowsStoreVersion = resolveWindowsStoreVersion({ releaseTag, canonicalVersionInput });
+
   await writeGithubOutputs({
     plan_path: resolvedOutputPath,
-    release_tag: plan.release.tag,
-    canonical_version_input: plan.release.canonicalVersionInput,
-    windows_store_version: plan.release.windowsStoreVersion,
+    release_tag: releaseTag,
+    canonical_version_input: canonicalVersionInput,
+    windows_store_version: windowsStoreVersion,
     should_build: plan.build.shouldBuild,
     dry_run: plan.build.dryRun,
     platform_matrix: JSON.stringify(plan.platformMatrix),
@@ -105,14 +118,14 @@ export async function resolveDispatchBuildPlan({
     `- Desktop tag: ${plan.upstream.desktop.tag}`,
     `- Desktop checkout ref: ${plan.upstream.desktop.checkoutRef}`,
     `- Desktop base version: ${plan.upstream.desktop.baseVersion}`,
-    `- Canonical version input: ${plan.release.canonicalVersionInput}`,
-    `- Windows Store version: ${plan.release.windowsStoreVersion}`,
-    `- Version source: ${plan.release.versionSource}`,
+    `- Canonical version input: ${canonicalVersionInput}`,
+    `- Windows Store version: ${windowsStoreVersion}`,
+    `- Version source: ${CANONICAL_PACKER_TAG_VERSION_SOURCE}`,
     `- Server manifest source: ${plan.upstream.server.manifestUrl}`,
     `- Server version: ${plan.upstream.server.version}`,
     `- Turbo Engine DLC version: ${plan.upstream.dlcs['turbo-engine']?.version ?? '[missing]'}`,
     `- Platforms: ${plan.platforms.join(', ')}`,
-    `- Derived release tag: ${plan.release.tag}`,
+    `- Derived release tag: ${releaseTag}`,
     `- Release plan asset: ${plan.handoff.assetName ?? RELEASE_PLAN_ASSET_NAME}`,
     `- Handoff source: ${plan.handoff.source}`,
     `- Producer workflow: ${plan.handoff.producer.workflow}`,
@@ -128,7 +141,10 @@ export async function resolveDispatchBuildPlan({
 
   return {
     outputPath: resolvedOutputPath,
-    plan
+    plan,
+    releaseTag,
+    canonicalVersionInput,
+    windowsStoreVersion
   };
 }
 
@@ -210,9 +226,9 @@ export async function main() {
     JSON.stringify(
       {
         outputPath: result.outputPath,
-        releaseTag: result.plan.release.tag,
-        canonicalVersionInput: result.plan.release.canonicalVersionInput,
-        windowsStoreVersion: result.plan.release.windowsStoreVersion,
+        releaseTag: result.releaseTag,
+        canonicalVersionInput: result.canonicalVersionInput,
+        windowsStoreVersion: result.windowsStoreVersion,
         shouldBuild: result.plan.build.shouldBuild,
         desktopTag: result.plan.upstream.desktop.tag,
         desktopCheckoutRef: result.plan.upstream.desktop.checkoutRef,

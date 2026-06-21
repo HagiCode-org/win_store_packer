@@ -135,9 +135,9 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   assert.equal(plan.release.tag, undefined);
   assert.equal(plan.release.name, undefined);
   assert.equal(plan.release.notesTitle, undefined);
-  assert.equal(plan.release.canonicalVersionInput, PACKER_RELEASE_TAG);
-  assert.equal(plan.release.windowsStoreVersion, PACKER_RELEASE_TAG);
-  assert.equal(plan.release.versionSource, 'release-drafter-packer-tag');
+  assert.equal(plan.release.canonicalVersionInput, undefined);
+  assert.equal(plan.release.windowsStoreVersion, undefined);
+  assert.equal(plan.release.versionSource, undefined);
   assert.equal(plan.publication.mode, 'github-release');
   assert.equal(plan.build.shouldBuild, true);
   assert.equal(plan.build.forceRebuild, false);
@@ -150,8 +150,10 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   assert.equal(validated.releaseTag, PACKER_RELEASE_TAG);
   assert.equal(validated.expectedReleaseTag, PACKER_RELEASE_TAG);
   assert.equal(validated.plan.release.tag, PACKER_RELEASE_TAG);
+  assert.equal(validated.plan.release.canonicalVersionInput, PACKER_RELEASE_TAG);
+  assert.equal(validated.plan.release.windowsStoreVersion, PACKER_RELEASE_TAG);
+  assert.equal(validated.plan.release.versionSource, 'release-drafter-packer-tag');
   assert.equal(validated.plan.release.name, `Windows Store ${PACKER_RELEASE_TAG}`);
-  assert.equal(validated.plan.release.notesTitle, `Windows Store ${PACKER_RELEASE_TAG}`);
   assert.equal(validated.handoffAssetName, RELEASE_PLAN_ASSET_NAME);
 });
 
@@ -216,7 +218,9 @@ test('buildPlan keeps server overrides and dry-run metadata for manual verificat
   }));
 
   assert.equal(plan.upstream.server.version, '0.1.0-beta.33');
-  assert.equal(plan.release.canonicalVersionInput, LEGACY_PACKER_RELEASE_TAG);
+  const legacyValidated = validateReleasePlan(plan, { expectedReleaseTag: LEGACY_PACKER_RELEASE_TAG });
+  assert.equal(legacyValidated.canonicalVersionInput, LEGACY_PACKER_RELEASE_TAG);
+  assert.equal(legacyValidated.windowsStoreVersion, LEGACY_PACKER_RELEASE_TAG);
   assert.equal(plan.build.forceRebuild, true);
   assert.equal(plan.build.dryRun, true);
   assert.equal(plan.build.shouldBuild, true);
@@ -234,20 +238,20 @@ test('buildPlan supports workflow-artifact main builds for package-release test 
     producerWorkflow: 'package-release'
   }));
 
-  assert.equal(plan.release.canonicalVersionInput, NEXT_PACKER_RELEASE_TAG);
   assert.equal(plan.publication.mode, 'workflow-artifact');
   assert.equal(plan.build.dryRun, false);
   assert.equal(plan.release.exists, false);
   assert.equal(plan.handoff.source, 'workflow-artifact');
   assert.equal(plan.handoff.producer.workflow, 'package-release');
 
-  const validated = validateReleasePlan(plan, {
+  const workflowValidated = validateReleasePlan(plan, {
     expectedReleaseTag: NEXT_PACKER_RELEASE_TAG,
     expectedPublicationMode: 'workflow-artifact',
     expectedHandoffSource: 'workflow-artifact'
   });
-  assert.equal(validated.publicationMode, 'workflow-artifact');
-  assert.equal(validated.handoffSource, 'workflow-artifact');
+  assert.equal(workflowValidated.canonicalVersionInput, NEXT_PACKER_RELEASE_TAG);
+  assert.equal(workflowValidated.publicationMode, 'workflow-artifact');
+  assert.equal(workflowValidated.handoffSource, 'workflow-artifact');
 });
 
 test('validateReleasePlan treats the external release tag as authoritative and injects it back into the plan', async () => {
@@ -260,6 +264,41 @@ test('validateReleasePlan treats the external release tag as authoritative and i
   assert.equal(validated.expectedReleaseTag, PACKER_RELEASE_TAG);
   assert.equal(validated.plan.release.tag, PACKER_RELEASE_TAG);
   assert.equal(validated.plan.release.name, `Windows Store ${PACKER_RELEASE_TAG}`);
+});
+
+test('validateReleasePlan derives the canonical version from the tag for tagged releases', async () => {
+  const plan = await buildPlan(baseBuildPlanOptions({
+    eventPayload: { inputs: { packer_release_tag: NEXT_PACKER_RELEASE_TAG } }
+  }));
+
+  // Producer must not carry any version snapshot.
+  assert.equal(plan.release.canonicalVersionInput, undefined);
+  assert.equal(plan.release.windowsStoreVersion, undefined);
+  assert.equal(plan.release.versionSource, undefined);
+
+  const validated = validateReleasePlan(plan, { expectedReleaseTag: 'v2.5.7' });
+  assert.equal(validated.canonicalVersionInput, 'v2.5.7');
+  assert.equal(validated.windowsStoreVersion, 'v2.5.7');
+  assert.equal(validated.versionSource, 'release-drafter-packer-tag');
+});
+
+test('validateReleasePlan reports the fixed 0.1.0 version for main test builds', async () => {
+  const plan = await buildPlan(baseBuildPlanOptions({
+    eventPayload: { inputs: { packer_release_tag: 'v0.1.0' } },
+    publicationMode: PUBLICATION_MODES.WORKFLOW_ARTIFACT,
+    handoffSource: WORKFLOW_ARTIFACT_HANDOFF_SOURCE
+  }));
+
+  const validated = validateReleasePlan(plan, {
+    expectedReleaseTag: 'v0.1.0',
+    expectedPublicationMode: 'workflow-artifact',
+    expectedHandoffSource: 'workflow-artifact'
+  });
+  assert.equal(validated.releaseTag, 'v0.1.0');
+  assert.equal(validated.canonicalVersionInput, '0.1.0');
+  assert.equal(validated.windowsStoreVersion, '0.1.0');
+  assert.equal(validated.plan.release.canonicalVersionInput, '0.1.0');
+  assert.equal(validated.plan.release.windowsStoreVersion, '0.1.0');
 });
 
 test('validateReleasePlan rejects a plan that is missing both the external and stored release tag', async () => {
@@ -317,7 +356,10 @@ test('resolveDispatchBuildPlan writes the normalized release-plan artifact', asy
 
   const writtenPlan = await readJson(outputPath);
   assert.equal(writtenPlan.release.tag, undefined);
-  assert.equal(writtenPlan.release.canonicalVersionInput, PACKER_RELEASE_TAG);
+  assert.equal(writtenPlan.release.canonicalVersionInput, undefined);
+  assert.equal(writtenPlan.release.windowsStoreVersion, undefined);
+  const dispatchValidated = validateReleasePlan(writtenPlan, { expectedReleaseTag: PACKER_RELEASE_TAG });
+  assert.equal(dispatchValidated.canonicalVersionInput, PACKER_RELEASE_TAG);
   assert.equal(result.plan.upstream.desktop.checkoutRef, 'main');
   assert.equal(result.plan.upstream.desktop.tag, 'v0.3.0');
   assert.equal(writtenPlan.handoff.assetName, RELEASE_PLAN_ASSET_NAME);
