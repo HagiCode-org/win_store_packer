@@ -69,24 +69,24 @@ Defines workflow defaults such as:
 
 ## Workflow Shape
 
-`.github/workflows/package-release.yml` now follows this flow:
+`.github/workflows/package-release.yml` follows this flow:
 
-1. `sync-version-plan.yml` finds the active Release Drafter draft release
-2. `sync-version-plan.yml` resolves Desktop and Server versions and uploads `release-plan.json` to that draft release
-3. `package-release.yml` starts only from a published release or a manual rebuild of a published release tag
-4. `package-release.yml` downloads and validates `release-plan.json` before any build job starts
-5. the workflow prepares a Desktop `main` worktree, downloads the Server payload, merges the Turbo Engine DLC runtime under `lib/dlcs/turbo-engine`, regenerates `lib/dlcs/index.json`, and runs `scripts/build-msix.mjs`
-6. the existing signing, artifact upload, and release metadata publication steps continue unchanged after plan validation succeeds
+1. `package-release.yml` starts from a published release or a manual rebuild of a published release tag
+2. `package-release.yml` generates a fresh `release-plan.json` from the authoritative release tag (plus the latest Desktop/Server/DLC index state) and validates it before any build job starts
+3. the workflow prepares a Desktop `main` worktree, downloads the Server payload, merges the Turbo Engine DLC runtime under `lib/dlcs/turbo-engine`, regenerates `lib/dlcs/index.json`, and runs `scripts/build-msix.mjs`
+4. the existing signing, artifact upload, and release metadata publication steps continue unchanged after plan validation succeeds
+
+The release plan is no longer pre-synced to a draft release asset. The canonical Microsoft Store version is always derived from the release tag at consume time, so the plan is generated on demand inside `package-release.yml`.
 
 The workflow no longer replays Desktop packaging internals such as overlay rendering or packer-owned MSIX generation.
 
 ### Manual rebuilds
 
-`workflow_dispatch` on `package-release.yml` now accepts:
+`workflow_dispatch` on `package-release.yml` accepts:
 
-- `build_mode`: choose `published-release` to reuse an attached `release-plan.json`, or `main` to build from Desktop `main` plus the latest Server payload for testing
-- `release_tag`: the published `win_store_packer` release tag whose attached `release-plan.json` should be reused
-- `dry_run`: optional flag to rebuild and restage metadata without mutating the published GitHub Release
+- `build_mode`: choose `published-release` to publish to a released tag, or `main` to build from Desktop `main` plus the latest Server payload for testing
+- `release_tag`: the published `win_store_packer` release tag to rebuild and publish against (used only when `build_mode=published-release`)
+- `dry_run`: optional flag to build and stage release metadata without mutating the published GitHub Release
 
 When `build_mode=main`, the workflow:
 
@@ -127,40 +127,25 @@ npm run verify:signing
 
 ## Local Commands
 
-Generate and upload the draft-attached release plan that `sync-version-plan.yml` manages:
-
-```bash
-node scripts/sync-release-plan.mjs \
-  --event-name workflow_dispatch \
-  --desktop-azure-sas-url "<desktop-sas>" \
-  --server-azure-sas-url "<server-sas>" \
-  --dlc-azure-sas-url "<dlc-sas>" \
-  --output build/release-plan.json
-```
-
-Download the published release plan locally and validate it:
-
-```bash
-node scripts/download-release-plan.mjs \
-  --release-tag "v1.4.0" \
-  --output build/release-plan.json
-
-node scripts/resolve-release-plan.mjs \
-  --plan build/release-plan.json \
-  --expected-release-tag "v1.4.0"
-```
-
-If you want to generate a local plan without touching GitHub release assets, use the same plan builder that powers the sync workflow:
+Generate a release plan locally from an authoritative tag, exactly like `package-release.yml` does at consume time:
 
 ```bash
 node scripts/resolve-dispatch-build-plan.mjs \
   --event-name workflow_dispatch \
   --packer-release-tag "v1.4.0" \
-  --producer-workflow sync-version-plan \
+  --producer-workflow package-release \
   --desktop-azure-sas-url "<desktop-sas>" \
   --server-azure-sas-url "<server-sas>" \
   --dlc-azure-sas-url "<dlc-sas>" \
   --output build/release-plan.json
+```
+
+Validate the generated plan against the expected release tag:
+
+```bash
+node scripts/resolve-release-plan.mjs \
+  --plan build/release-plan.json \
+  --expected-release-tag "v1.4.0"
 ```
 
 Prepare the Desktop workspace:
