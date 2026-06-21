@@ -132,7 +132,9 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   assert.equal(plan.upstream.dlcs['turbo-engine'].version, '0.1.0-beta.48');
   assert.equal(plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'].name, 'hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip');
   assert.equal(plan.store.dlcs['turbo-engine'].dlcId, 'pcode.turbo-engine');
-  assert.equal(plan.release.tag, PACKER_RELEASE_TAG);
+  assert.equal(plan.release.tag, undefined);
+  assert.equal(plan.release.name, undefined);
+  assert.equal(plan.release.notesTitle, undefined);
   assert.equal(plan.release.canonicalVersionInput, PACKER_RELEASE_TAG);
   assert.equal(plan.release.windowsStoreVersion, PACKER_RELEASE_TAG);
   assert.equal(plan.release.versionSource, 'release-drafter-packer-tag');
@@ -147,6 +149,9 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   const validated = validateReleasePlan(plan, { expectedReleaseTag: PACKER_RELEASE_TAG });
   assert.equal(validated.releaseTag, PACKER_RELEASE_TAG);
   assert.equal(validated.expectedReleaseTag, PACKER_RELEASE_TAG);
+  assert.equal(validated.plan.release.tag, PACKER_RELEASE_TAG);
+  assert.equal(validated.plan.release.name, `Windows Store ${PACKER_RELEASE_TAG}`);
+  assert.equal(validated.plan.release.notesTitle, `Windows Store ${PACKER_RELEASE_TAG}`);
   assert.equal(validated.handoffAssetName, RELEASE_PLAN_ASSET_NAME);
 });
 
@@ -211,7 +216,7 @@ test('buildPlan keeps server overrides and dry-run metadata for manual verificat
   }));
 
   assert.equal(plan.upstream.server.version, '0.1.0-beta.33');
-  assert.equal(plan.release.tag, LEGACY_PACKER_RELEASE_TAG);
+  assert.equal(plan.release.canonicalVersionInput, LEGACY_PACKER_RELEASE_TAG);
   assert.equal(plan.build.forceRebuild, true);
   assert.equal(plan.build.dryRun, true);
   assert.equal(plan.build.shouldBuild, true);
@@ -229,7 +234,7 @@ test('buildPlan supports workflow-artifact main builds for package-release test 
     producerWorkflow: 'package-release'
   }));
 
-  assert.equal(plan.release.tag, NEXT_PACKER_RELEASE_TAG);
+  assert.equal(plan.release.canonicalVersionInput, NEXT_PACKER_RELEASE_TAG);
   assert.equal(plan.publication.mode, 'workflow-artifact');
   assert.equal(plan.build.dryRun, false);
   assert.equal(plan.release.exists, false);
@@ -245,14 +250,26 @@ test('buildPlan supports workflow-artifact main builds for package-release test 
   assert.equal(validated.handoffSource, 'workflow-artifact');
 });
 
-test('validateReleasePlan rejects a mismatched expected release tag', async () => {
+test('validateReleasePlan treats the external release tag as authoritative and injects it back into the plan', async () => {
+  const plan = await buildPlan(baseBuildPlanOptions({
+    eventPayload: { inputs: { packer_release_tag: NEXT_PACKER_RELEASE_TAG } }
+  }));
+
+  const validated = validateReleasePlan(plan, { expectedReleaseTag: PACKER_RELEASE_TAG });
+  assert.equal(validated.releaseTag, PACKER_RELEASE_TAG);
+  assert.equal(validated.expectedReleaseTag, PACKER_RELEASE_TAG);
+  assert.equal(validated.plan.release.tag, PACKER_RELEASE_TAG);
+  assert.equal(validated.plan.release.name, `Windows Store ${PACKER_RELEASE_TAG}`);
+});
+
+test('validateReleasePlan rejects a plan that is missing both the external and stored release tag', async () => {
   const plan = await buildPlan(baseBuildPlanOptions({
     eventPayload: { inputs: { packer_release_tag: NEXT_PACKER_RELEASE_TAG } }
   }));
 
   assert.throws(
-    () => validateReleasePlan(plan, { expectedReleaseTag: PACKER_RELEASE_TAG }),
-    /must match the expected release tag/i
+    () => validateReleasePlan(plan),
+    /Release tag is required from external context/i
   );
 });
 
@@ -260,7 +277,7 @@ test('validateReleasePlan rejects a mismatched expected publication mode', async
   const plan = await buildPlan(baseBuildPlanOptions());
 
   assert.throws(
-    () => validateReleasePlan(plan, { expectedPublicationMode: 'workflow-artifact' }),
+    () => validateReleasePlan(plan, { expectedReleaseTag: PACKER_RELEASE_TAG, expectedPublicationMode: 'workflow-artifact' }),
     /plan\.publication\.mode must be workflow-artifact/i
   );
 });
@@ -270,7 +287,7 @@ test('validateReleasePlan rejects a missing Turbo Engine DLC asset', async () =>
   delete plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'];
 
   assert.throws(
-    () => validateReleasePlan(plan),
+    () => validateReleasePlan(plan, { expectedReleaseTag: PACKER_RELEASE_TAG }),
     /plan\.upstream\.dlcs."turbo-engine"\.assetsByPlatform\.win-x64/
   );
 });
@@ -299,7 +316,8 @@ test('resolveDispatchBuildPlan writes the normalized release-plan artifact', asy
   });
 
   const writtenPlan = await readJson(outputPath);
-  assert.equal(result.plan.release.tag, writtenPlan.release.tag);
+  assert.equal(writtenPlan.release.tag, undefined);
+  assert.equal(writtenPlan.release.canonicalVersionInput, PACKER_RELEASE_TAG);
   assert.equal(result.plan.upstream.desktop.checkoutRef, 'main');
   assert.equal(result.plan.upstream.desktop.tag, 'v0.3.0');
   assert.equal(writtenPlan.handoff.assetName, RELEASE_PLAN_ASSET_NAME);

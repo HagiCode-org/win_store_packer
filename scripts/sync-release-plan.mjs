@@ -104,7 +104,19 @@ export async function syncReleasePlan({
   validateReleasePlan(plan, {
     expectedReleaseTag: draftRelease.tag_name
   });
-  await writeJson(resolvedOutputPath, plan);
+  // The producer plan intentionally omits the release tag. The draft release
+  // tag is the authoritative external context here, so inject it back before
+  // persisting the release-plan.json asset.
+  const resolvedPlan = {
+    ...plan,
+    release: {
+      ...plan.release,
+      tag: draftRelease.tag_name,
+      name: plan.release.name ?? `Windows Store ${draftRelease.tag_name}`,
+      notesTitle: plan.release.notesTitle ?? `Windows Store ${draftRelease.tag_name}`
+    }
+  };
+  await writeJson(resolvedOutputPath, resolvedPlan);
 
   const replacement = await replaceReleaseAsset({
     release: draftRelease,
@@ -119,7 +131,7 @@ export async function syncReleasePlan({
   await writeGithubOutputs({
     did_sync: true,
     state: 'synced',
-    release_tag: plan.release.tag,
+    release_tag: resolvedPlan.release.tag,
     draft_release_id: draftRelease.id,
     asset_name: RELEASE_PLAN_ASSET_NAME,
     asset_action: replacement.action,
@@ -128,15 +140,15 @@ export async function syncReleasePlan({
 
   await appendSummary([
     '## win_store_packer release plan synced',
-    `- Draft release tag: ${plan.release.tag}`,
+    `- Draft release tag: ${resolvedPlan.release.tag}`,
     `- Draft release URL: ${draftRelease.html_url ?? '[unavailable]'}`,
     `- Asset: ${RELEASE_PLAN_ASSET_NAME}`,
     `- Asset action: ${replacement.action}`,
-    `- Desktop version: ${plan.upstream.desktop.version}`,
-    `- Desktop base version: ${plan.upstream.desktop.baseVersion}`,
-    `- Desktop checkout ref: ${plan.upstream.desktop.checkoutRef}`,
-    `- Server version: ${plan.upstream.server.version}`,
-    `- Turbo Engine DLC version: ${plan.upstream.dlcs['turbo-engine']?.version ?? '[missing]'}`,
+    `- Desktop version: ${resolvedPlan.upstream.desktop.version}`,
+    `- Desktop base version: ${resolvedPlan.upstream.desktop.baseVersion}`,
+    `- Desktop checkout ref: ${resolvedPlan.upstream.desktop.checkoutRef}`,
+    `- Server version: ${resolvedPlan.upstream.server.version}`,
+    `- Turbo Engine DLC version: ${resolvedPlan.upstream.dlcs['turbo-engine']?.version ?? '[missing]'}`,
     `- Desktop Azure SAS: ${sanitizeUrlForLogs(desktopAzureSasUrl)}`,
     `- Server Azure SAS: ${sanitizeUrlForLogs(serverAzureSasUrl)}`,
     `- DLC Azure SAS: ${sanitizeUrlForLogs(dlcAzureSasUrl)}`,
@@ -150,7 +162,7 @@ export async function syncReleasePlan({
     assetAction: replacement.action,
     asset: replacement.asset,
     draftRelease,
-    plan
+    plan: resolvedPlan
   };
 }
 

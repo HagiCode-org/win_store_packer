@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { appendFile } from 'node:fs/promises';
+import { appendFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -30,11 +30,21 @@ export async function main() {
     throw new Error('resolve-release-plan requires --plan.');
   }
 
+  if (!values['expected-release-tag']) {
+    throw new Error(
+      'resolve-release-plan requires --expected-release-tag so the release plan is bound to the authoritative external release tag.'
+    );
+  }
+
   const releasePlan = await loadReleasePlan(values.plan, {
     expectedReleaseTag: values['expected-release-tag'],
     expectedPublicationMode: values['expected-publication-mode'],
     expectedHandoffSource: values['expected-handoff-source']
   });
+  // Persist the release-plan.json with the authoritative release tag injected
+  // back in, so downstream jobs (downloaded from the artifact) always read a
+  // single resolved release tag instead of a stale producer snapshot.
+  await writeFile(values.plan, `${JSON.stringify(releasePlan.plan, null, 2)}\n`, 'utf8');
   await writeGithubOutputs({
     release_tag: releasePlan.releaseTag,
     canonical_version_input: releasePlan.canonicalVersionInput,

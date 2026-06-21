@@ -172,7 +172,6 @@ export function validateReleasePlan(
   }
 
   const release = requireObject(plan.release, 'plan.release');
-  const releaseTag = requireNonEmptyString(release.tag, 'plan.release.tag');
   requireNonEmptyString(release.repository, 'plan.release.repository');
   const canonicalVersionInput = requireNonEmptyString(release.canonicalVersionInput, 'plan.release.canonicalVersionInput');
   const windowsStoreVersion = requireNonEmptyString(release.windowsStoreVersion, 'plan.release.windowsStoreVersion');
@@ -185,11 +184,32 @@ export function validateReleasePlan(
   if (windowsStoreVersion !== canonicalVersionInput) {
     throw new Error('plan.release.windowsStoreVersion must match plan.release.canonicalVersionInput.');
   }
-  if (expectedReleaseTag && normalizeGitTag(releaseTag) !== normalizeGitTag(expectedReleaseTag)) {
+
+  // The release git tag is authoritative only from external context (the
+  // release event or workflow input). Producers no longer store it because a
+  // stale stored tag caused publication failures when the draft release tag
+  // changed between sync and publish. Prefer the externally-provided expected
+  // release tag; fall back to a previously-resolved plan.release.tag for
+  // backward compatibility with plans that still carry one.
+  const externalReleaseTag = expectedReleaseTag ? normalizeGitTag(expectedReleaseTag) : null;
+  const storedReleaseTag =
+    typeof release.tag === 'string' && release.tag.trim() ? release.tag.trim() : null;
+  const releaseTag = externalReleaseTag ?? storedReleaseTag;
+  if (!releaseTag) {
     throw new Error(
-      `plan.release.tag must match the expected release tag ${normalizeGitTag(expectedReleaseTag)}; received ${JSON.stringify(releaseTag)} from ${planPath}.`
+      `Release tag is required from external context but was not provided; pass --expected-release-tag to the release plan resolver or set plan.release.tag for ${planPath}.`
     );
   }
+
+  // Inject the authoritative tag back into the resolved plan so downstream
+  // consumers always read a single resolved release tag regardless of what the
+  // producer stored.
+  const resolvedRelease = {
+    ...release,
+    tag: releaseTag,
+    name: release.name ?? `Windows Store ${releaseTag}`,
+    notesTitle: release.notesTitle ?? `Windows Store ${releaseTag}`
+  };
 
   const upstream = requireObject(plan.upstream, 'plan.upstream');
   const desktop = requireObject(upstream.desktop, 'plan.upstream.desktop');
@@ -260,10 +280,11 @@ export function validateReleasePlan(
   return {
     plan: {
       ...plan,
+      release: resolvedRelease,
       platformMatrix: plan.platformMatrix?.include?.length ? plan.platformMatrix : createPlatformMatrix(platforms)
     },
     planPath,
-    releaseTag: release.tag,
+    releaseTag: resolvedRelease.tag,
     canonicalVersionInput,
     windowsStoreVersion,
     versionSource,

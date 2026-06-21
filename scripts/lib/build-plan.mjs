@@ -310,16 +310,18 @@ export async function buildPlan({
     publication: {
       mode: publicationMode
     },
+    // The release git tag is intentionally NOT stored here. The authoritative
+    // release tag comes from external context (the release event / workflow
+    // input) and is injected by validateReleasePlan at consume time. Storing it
+    // in the producer plan caused stale-tag failures when the draft release tag
+    // changed between sync and publication.
     release: {
       repository: packerRepository,
-      tag: releaseTag,
-      name: `Windows Store ${releaseTag}`,
       canonicalVersionInput: releaseTag,
       windowsStoreVersion: releaseTag,
       versionSource: CANONICAL_PACKER_TAG_VERSION_SOURCE,
       exists: releaseExists,
-      url: existingRelease?.html_url ?? null,
-      notesTitle: `Windows Store ${releaseTag}`
+      url: existingRelease?.html_url ?? null
     },
     build: {
       shouldBuild,
