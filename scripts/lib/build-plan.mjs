@@ -23,7 +23,7 @@ export const DESKTOP_MAIN_BUILD_VERSION = '0.1.0';
 export const RELEASE_PLAN_ASSET_NAME = 'release-plan.json';
 export const RELEASE_PLAN_HANDOFF_SOURCE = 'draft-release-asset';
 export const WORKFLOW_ARTIFACT_HANDOFF_SOURCE = 'workflow-artifact';
-export const DEFAULT_PLAN_PRODUCER_WORKFLOW = 'sync-version-plan';
+export const DEFAULT_PLAN_PRODUCER_WORKFLOW = 'package-release';
 export const DEFAULT_PLAN_CONSUMER_WORKFLOW = 'package-release';
 export const DESKTOP_SOURCE_MODES = {
   MAIN: 'main'

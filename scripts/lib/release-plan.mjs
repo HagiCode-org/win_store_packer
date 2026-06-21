@@ -292,8 +292,15 @@ export function validateReleasePlan(
     'plan.publication.mode'
   );
 
-  if (publicationMode === PUBLICATION_MODES.GITHUB_RELEASE && handoffSource !== RELEASE_PLAN_HANDOFF_SOURCE) {
-    throw new Error(`plan.handoff.source must be ${RELEASE_PLAN_HANDOFF_SOURCE} when plan.publication.mode is ${PUBLICATION_MODES.GITHUB_RELEASE}.`);
+  // The release plan is always generated from the authoritative release tag at
+  // consume time. There is no pre-synced draft-release asset anymore, so both
+  // publication modes use the workflow-artifact handoff. Legacy plans that
+  // still carry the draft-release-asset handoff remain accepted for
+  // backward compatibility.
+  if (publicationMode === PUBLICATION_MODES.GITHUB_RELEASE &&
+      handoffSource !== WORKFLOW_ARTIFACT_HANDOFF_SOURCE &&
+      handoffSource !== RELEASE_PLAN_HANDOFF_SOURCE) {
+    throw new Error(`plan.handoff.source must be ${WORKFLOW_ARTIFACT_HANDOFF_SOURCE} or ${RELEASE_PLAN_HANDOFF_SOURCE} when plan.publication.mode is ${PUBLICATION_MODES.GITHUB_RELEASE}.`);
   }
   if (publicationMode === PUBLICATION_MODES.WORKFLOW_ARTIFACT && handoffSource !== WORKFLOW_ARTIFACT_HANDOFF_SOURCE) {
     throw new Error(`plan.handoff.source must be ${WORKFLOW_ARTIFACT_HANDOFF_SOURCE} when plan.publication.mode is ${PUBLICATION_MODES.WORKFLOW_ARTIFACT}.`);
