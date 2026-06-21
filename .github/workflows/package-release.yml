@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       build_mode:
-        description: 'Choose between rebuilding a published release plan or building from desktop main for artifact-only testing.'
+        description: 'Choose between publishing to a released tag or building from desktop main for artifact-only testing.'
         required: false
         default: published-release
         type: choice
@@ -15,7 +15,7 @@ on:
           - published-release
           - main
       release_tag:
-        description: 'Published win_store_packer release tag to rebuild from its attached release-plan.json asset. Used only when build_mode=published-release.'
+        description: 'Published win_store_packer release tag to rebuild and publish against. Used only when build_mode=published-release.'
         required: false
         type: string
       dry_run:
@@ -78,7 +78,6 @@ jobs:
             release_tag='${{ github.event.release.tag_name }}'
             dry_run='false'
             publication_mode='github-release'
-            handoff_source='draft-release-asset'
           else
             build_mode='${{ inputs.build_mode }}'
 
@@ -86,12 +85,10 @@ jobs:
               release_tag='${{ steps.packer_release_drafter.outputs.tag_name }}'
               dry_run='false'
               publication_mode='workflow-artifact'
-              handoff_source='workflow-artifact'
             else
               release_tag='${{ inputs.release_tag }}'
               dry_run='${{ inputs.dry_run }}'
               publication_mode='github-release'
-              handoff_source='draft-release-asset'
             fi
           fi
 
@@ -104,6 +101,11 @@ jobs:
             exit 1
           fi
 
+          # The release plan is always generated from the authoritative release
+          # tag at consume time. There is no pre-synced draft-release asset to
+          # download, so every build mode uses the workflow-artifact handoff.
+          handoff_source='workflow-artifact'
+
           {
             echo "build_mode=$build_mode"
             echo "release_tag=$release_tag"
@@ -112,19 +114,7 @@ jobs:
             echo "handoff_source=$handoff_source"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Download attached release plan
-        if: steps.target.outputs.build_mode != 'main'
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/build-plan"
-          node scripts/download-release-plan.mjs \
-            --release-tag "${{ steps.target.outputs.release_tag }}" \
-            --output "$RUNNER_TEMP/build-plan/release-plan.json"
-
-      - name: Resolve main test build plan
-        if: steps.target.outputs.build_mode == 'main'
+      - name: Generate release plan from tag
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -138,8 +128,8 @@ jobs:
             --event-path "$GITHUB_EVENT_PATH" \
             --packer-release-tag "${{ steps.target.outputs.release_tag }}" \
             --producer-workflow package-release \
-            --publication-mode workflow-artifact \
-            --handoff-source workflow-artifact \
+            --publication-mode "${{ steps.target.outputs.publication_mode }}" \
+            --handoff-source "${{ steps.target.outputs.handoff_source }}" \
             --output "$RUNNER_TEMP/build-plan/release-plan.json"
 
       - name: Validate release plan
