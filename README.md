@@ -127,16 +127,15 @@ npm run verify:signing
 
 ## Local Commands
 
-Generate a release plan locally from an authoritative tag, exactly like `package-release.yml` does at consume time:
+Artifact downloads default to public/R2 sources from the release plan (`asset.directUrl`, or public base + `asset.path`). Azure Blob SAS URLs are optional legacy fallback only and are no longer required.
+
+Generate a release plan locally from an authoritative tag, exactly like `package-release.yml` does at consume time (public index URLs are used by default):
 
 ```bash
 node scripts/resolve-dispatch-build-plan.mjs \
   --event-name workflow_dispatch \
   --packer-release-tag "v1.4.0" \
   --producer-workflow package-release \
-  --desktop-azure-sas-url "<desktop-sas>" \
-  --server-azure-sas-url "<server-sas>" \
-  --dlc-azure-sas-url "<dlc-sas>" \
   --output build/release-plan.json
 ```
 
@@ -158,15 +157,21 @@ node scripts/prepare-packaging-workspace.mjs \
   --desktop-source inputs/hagicode-desktop
 ```
 
-Download, validate, and merge the Server payload plus Turbo Engine DLC:
+Download, validate, and merge the Server payload plus Turbo Engine DLC.
+Prefer plan `directUrl` / public base; optional local overrides still work:
 
 ```bash
 node scripts/stage-server-payload.mjs \
   --plan build/release-plan.json \
   --platform win-x64 \
   --workspace build/store-win-x64 \
+  --public-base-url "https://server.dl.hagicode.com" \
+  --dlc-public-base-url "https://dlc.dl.hagicode.com" \
   --dlc-asset-source "<optional-local-turbo-engine-archive>"
 ```
+
+Environment alternatives: `WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL`, `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL`.
+Deprecated fallback: `--azure-sas-url` / `*_AZURE_SAS_URL`.
 
 Invoke the Desktop Store build contract:
 
