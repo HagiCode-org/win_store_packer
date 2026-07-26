@@ -103,11 +103,6 @@ function baseBuildPlanOptions(overrides = {}) {
       dlc: DLC_INDEX_URL,
       packer: 'HagiCode-org/win_store_packer'
     },
-    azureSasUrls: {
-      desktop: DESKTOP_AZURE_SAS_URL,
-      server: SERVER_AZURE_SAS_URL,
-      dlc: DLC_AZURE_SAS_URL
-    },
     findStoreRelease: async () => null,
     fetchImpl: createFetchStub(),
     now: '2026-04-21T00:00:00.000Z',
@@ -157,12 +152,23 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   assert.equal(validated.handoffAssetName, RELEASE_PLAN_ASSET_NAME);
 });
 
-test('buildPlan defaults Desktop, Server, and DLC discovery to direct Azure authority', async () => {
+test('buildPlan uses public index URLs by default', async () => {
   const requests = [];
   const plan = await buildPlan(baseBuildPlanOptions({
-    repositories: {
-      packer: 'HagiCode-org/win_store_packer'
-    },
+    fetchImpl: createFetchStub({ requests })
+  }));
+
+  assert.deepEqual(requests, [DESKTOP_INDEX_URL, SERVER_INDEX_URL, DLC_INDEX_URL]);
+  assert.equal(plan.upstream.desktop.manifestUrl, DESKTOP_INDEX_URL);
+  assert.equal(plan.upstream.server.manifestUrl, SERVER_INDEX_URL);
+  assert.equal(plan.upstream.dlcs['turbo-engine'].manifestUrl, DLC_INDEX_URL);
+  assert.equal(plan.upstream.server.sourceAuthority, 'explicit-override');
+  assert.equal(plan.upstream.dlcs['turbo-engine'].sourceAuthority, 'explicit-override');
+});
+
+test('buildPlan accepts legacy Azure SAS index fallback when explicitly supplied', async () => {
+  const requests = [];
+  const plan = await buildPlan(baseBuildPlanOptions({
     azureSasUrls: {
       desktop: DESKTOP_AZURE_SAS_URL,
       server: SERVER_AZURE_SAS_URL,
@@ -175,6 +181,8 @@ test('buildPlan defaults Desktop, Server, and DLC discovery to direct Azure auth
   assert.equal(plan.upstream.desktop.manifestUrl, 'https://example.blob.core.windows.net/desktop/index.json?<sas-token-redacted>');
   assert.equal(plan.upstream.server.manifestUrl, 'https://example.blob.core.windows.net/server/index.json?<sas-token-redacted>');
   assert.equal(plan.upstream.dlcs['turbo-engine'].manifestUrl, 'https://example.blob.core.windows.net/dlc/index.json?<sas-token-redacted>');
+  assert.equal(plan.upstream.server.sourceAuthority, 'legacy-azure-sas');
+  assert.equal(plan.upstream.dlcs['turbo-engine'].sourceAuthority, 'legacy-azure-sas');
 });
 
 test('buildPlan rejects the removed desktop release mode input', async () => {
@@ -347,9 +355,6 @@ test('resolveDispatchBuildPlan writes the normalized release-plan artifact', asy
       dlc: DLC_INDEX_URL,
       packer: 'HagiCode-org/win_store_packer'
     },
-    desktopAzureSasUrl: DESKTOP_AZURE_SAS_URL,
-    serverAzureSasUrl: SERVER_AZURE_SAS_URL,
-    dlcAzureSasUrl: DLC_AZURE_SAS_URL,
     findStoreRelease: async () => null,
     fetchImpl: createFetchStub()
   });
@@ -385,9 +390,6 @@ test('resolveDispatchBuildPlan can force workflow-artifact main build plans', as
       dlc: DLC_INDEX_URL,
       packer: 'HagiCode-org/win_store_packer'
     },
-    desktopAzureSasUrl: DESKTOP_AZURE_SAS_URL,
-    serverAzureSasUrl: SERVER_AZURE_SAS_URL,
-    dlcAzureSasUrl: DLC_AZURE_SAS_URL,
     findStoreRelease: async () => {
       throw new Error('workflow-artifact mode should not query published releases');
     },

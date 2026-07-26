@@ -3,7 +3,7 @@ import path from 'node:path';
 import { appendFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { parseAzureSasUrl, sanitizeUrlForLogs } from './lib/azure-blob.mjs';
+import { parseAzureSasUrl, sanitizeUrlForLogs } from './lib/artifact-download.mjs';
 import {
   buildPlan,
   CANONICAL_PACKER_TAG_VERSION_SOURCE,
@@ -45,15 +45,16 @@ export async function resolveDispatchBuildPlan({
   findStoreRelease,
   fetchImpl
 } = {}) {
-  if (!desktopAzureSasUrl || !serverAzureSasUrl || !dlcAzureSasUrl) {
-    throw new Error(
-      'resolve-dispatch-build-plan requires Desktop, Server, and DLC Azure SAS URLs via --desktop-azure-sas-url/--server-azure-sas-url/--dlc-azure-sas-url or WIN_STORE_PACKER_DESKTOP_AZURE_SAS_URL/WIN_STORE_PACKER_SERVER_AZURE_SAS_URL/WIN_STORE_PACKER_DLC_AZURE_SAS_URL.'
-    );
+  // Azure SAS is optional legacy fallback. Index resolution defaults to public index URLs.
+  if (desktopAzureSasUrl) {
+    parseAzureSasUrl(desktopAzureSasUrl);
   }
-
-  parseAzureSasUrl(desktopAzureSasUrl);
-  parseAzureSasUrl(serverAzureSasUrl);
-  parseAzureSasUrl(dlcAzureSasUrl);
+  if (serverAzureSasUrl) {
+    parseAzureSasUrl(serverAzureSasUrl);
+  }
+  if (dlcAzureSasUrl) {
+    parseAzureSasUrl(dlcAzureSasUrl);
+  }
 
   const workflowDefaults = await loadWorkflowDefaults();
   const resolvedOutputPath = path.resolve(outputPath ?? 'build/release-plan.json');
@@ -130,9 +131,9 @@ export async function resolveDispatchBuildPlan({
     `- Handoff source: ${plan.handoff.source}`,
     `- Producer workflow: ${plan.handoff.producer.workflow}`,
     `- Publication mode: ${plan.publication.mode}`,
-    `- Desktop Azure SAS: ${sanitizeUrlForLogs(desktopAzureSasUrl)}`,
-    `- Server Azure SAS: ${sanitizeUrlForLogs(serverAzureSasUrl)}`,
-    `- DLC Azure SAS: ${sanitizeUrlForLogs(dlcAzureSasUrl)}`,
+    `- Desktop Azure SAS (legacy): ${desktopAzureSasUrl ? sanitizeUrlForLogs(desktopAzureSasUrl) : '[none]'}`,
+    `- Server Azure SAS (legacy): ${serverAzureSasUrl ? sanitizeUrlForLogs(serverAzureSasUrl) : '[none]'}`,
+    `- DLC Azure SAS (legacy): ${dlcAzureSasUrl ? sanitizeUrlForLogs(dlcAzureSasUrl) : '[none]'}`,
     `- Release exists: ${plan.release.exists ? 'yes' : 'no'}`,
     `- Build mode: ${plan.build.dryRun ? 'dry-run' : 'publish'}`,
     `- should_build: ${plan.build.shouldBuild ? 'true' : 'false'}`,

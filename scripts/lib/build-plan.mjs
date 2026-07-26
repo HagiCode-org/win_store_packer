@@ -1,4 +1,4 @@
-import { buildSignedBlobUrl, getAzureBlobContainerUrl, sanitizeUrlForLogs } from './azure-blob.mjs';
+import { buildSignedBlobUrl, getAzureBlobContainerUrl, sanitizeUrlForLogs } from './artifact-download.mjs';
 import { findReleaseByTag } from './github.mjs';
 import {
   DEFAULT_INDEX_MANIFEST_PATH,
@@ -89,7 +89,7 @@ function resolveIndexRepository({ sourceType, explicitUrl, azureSasUrl }) {
     return {
       requestUrl,
       manifestUrl: sanitizeUrlForLogs(requestUrl),
-      sourceAuthority: 'azure-blob',
+      sourceAuthority: 'legacy-azure-sas',
       manifestPath: DEFAULT_INDEX_MANIFEST_PATH
     };
   }
@@ -270,7 +270,7 @@ export async function buildPlan({
     platforms: trigger.selectedPlatforms,
     platformMatrix: createPlatformMatrix(trigger.selectedPlatforms),
     downloads: {
-      strategy: 'azure-blob-sas',
+      strategy: 'public-r2',
       desktop: {
         containerUrl: azureSasUrls.desktop ? getAzureBlobContainerUrl(azureSasUrls.desktop) : null,
         redactedSasUrl: azureSasUrls.desktop ? sanitizeUrlForLogs(azureSasUrls.desktop) : null

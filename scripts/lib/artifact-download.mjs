@@ -11,6 +11,7 @@ function requireNonEmpty(value, label) {
   return normalized;
 }
 
+/** @deprecated Legacy Azure SAS helper — kept for optional index/download fallback. */
 export function parseAzureSasUrl(value) {
   const normalized = requireNonEmpty(value, 'Azure SAS URL');
   const parsed = new URL(normalized);
@@ -35,11 +36,13 @@ export function sanitizeUrlForLogs(url) {
   }
 }
 
+/** @deprecated Legacy Azure SAS helper — kept for optional index/download fallback. */
 export function getAzureBlobContainerUrl(sasUrl) {
   const parsed = parseAzureSasUrl(sasUrl);
   return `${parsed.origin}${parsed.pathname.replace(/\/?$/, '/')}`;
 }
 
+/** @deprecated Legacy Azure SAS helper — kept for optional index/download fallback. */
 export function buildSignedBlobUrl(sasUrl, blobPath) {
   const parsed = parseAzureSasUrl(sasUrl);
   const containerPath = parsed.pathname.replace(/\/+$/, '');
@@ -47,7 +50,20 @@ export function buildSignedBlobUrl(sasUrl, blobPath) {
   return parsed.toString();
 }
 
-export function resolveAssetDownloadUrl({ asset, sasUrl, overrideSource }) {
+export function composePublicAssetUrl(publicBaseUrl, assetPath) {
+  const base = String(publicBaseUrl ?? '').trim().replace(/\/+$/, '');
+  const normalizedPath = String(assetPath ?? '').replace(/^\/+/, '');
+  if (!base || !normalizedPath) {
+    return null;
+  }
+  return `${base}/${normalizedPath}`;
+}
+
+/**
+ * Resolve packaging-input download URL.
+ * Priority: override → directUrl → publicBase+path → optional legacy SAS.
+ */
+export function resolveAssetDownloadUrl({ asset, sasUrl, overrideSource, publicBaseUrl } = {}) {
   if (overrideSource) {
     if (/^(?:https?|file):\/\//i.test(overrideSource)) {
       return overrideSource;
@@ -55,19 +71,27 @@ export function resolveAssetDownloadUrl({ asset, sasUrl, overrideSource }) {
     return path.resolve(overrideSource);
   }
 
-  if (sasUrl && asset?.path) {
-    return buildSignedBlobUrl(sasUrl, asset.path);
-  }
-
   if (asset?.directUrl) {
     return asset.directUrl;
   }
 
-  if (!sasUrl) {
-    throw new Error(`Missing Azure SAS URL for asset ${asset?.name ?? '<unknown>'}.`);
+  const composed = composePublicAssetUrl(publicBaseUrl, asset?.path);
+  if (composed) {
+    return composed;
   }
 
-  return buildSignedBlobUrl(sasUrl, asset?.path);
+  const assetPath = String(asset?.path ?? '').replace(/^\/+/, '');
+  if (sasUrl && assetPath) {
+    return buildSignedBlobUrl(sasUrl, assetPath);
+  }
+
+  const name = asset?.name ?? '<unknown>';
+  throw new Error(
+    `Unable to resolve download source for asset ${name}. ` +
+      'Provide an override source, asset.directUrl, ' +
+      'public base URL (e.g. WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL / WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL) + asset.path, ' +
+      'or a legacy Azure SAS URL.'
+  );
 }
 
 export async function downloadFromSource({ sourceUrl, destinationPath, fetchImpl = globalThis.fetch }) {

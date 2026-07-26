@@ -3,7 +3,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { cleanDir, ensureDir, readJson, writeJson } from './lib/fs-utils.mjs';
-import { resolveAssetDownloadUrl, downloadFromSource, sanitizeUrlForLogs } from './lib/azure-blob.mjs';
+import { resolveAssetDownloadUrl, downloadFromSource, sanitizeUrlForLogs } from './lib/artifact-download.mjs';
 import { extractArchive } from './lib/archive.mjs';
 import {
   resolveRuntimeRoot,
@@ -23,8 +23,10 @@ export async function stageServerPayload({
   platformId,
   serverAssetSource,
   azureSasUrl,
+  serverPublicBaseUrl,
   dlcAssetSource,
   dlcAzureSasUrl,
+  dlcPublicBaseUrl,
 }) {
   const { plan } = await loadReleasePlan(planPath);
   const resolvedWorkspacePath = path.resolve(workspacePath);
@@ -54,11 +56,13 @@ export async function stageServerPayload({
   const assetSource = resolveAssetDownloadUrl({
     asset: serverAsset,
     sasUrl: azureSasUrl,
+    publicBaseUrl: serverPublicBaseUrl,
     overrideSource: serverAssetSource
   });
   const turboEngineAssetSource = resolveAssetDownloadUrl({
     asset: turboEngineAsset,
     sasUrl: dlcAzureSasUrl,
+    publicBaseUrl: dlcPublicBaseUrl,
     overrideSource: dlcAssetSource
   });
   await downloadFromSource({ sourceUrl: assetSource, destinationPath: downloadPath });
@@ -152,6 +156,8 @@ export async function main() {
       plan: { type: 'string' },
       platform: { type: 'string' },
       workspace: { type: 'string' },
+      'public-base-url': { type: 'string' },
+      'dlc-public-base-url': { type: 'string' },
       'azure-sas-url': { type: 'string' },
       'server-asset-source': { type: 'string' },
       'dlc-azure-sas-url': { type: 'string' },
@@ -168,6 +174,12 @@ export async function main() {
     workspacePath: values.workspace,
     platformId: values.platform,
     serverAssetSource: values['server-asset-source'],
+    serverPublicBaseUrl:
+      values['public-base-url'] ??
+      process.env.WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL ??
+      process.env.SERVER_PUBLIC_BASE_URL ??
+      process.env.WIN_STORE_PACKER_PUBLIC_BASE_URL ??
+      process.env.R2_PUBLIC_BASE_URL,
     azureSasUrl:
       values['azure-sas-url'] ??
       process.env.WIN_STORE_PACKER_SERVER_AZURE_SAS_URL ??
@@ -176,6 +188,12 @@ export async function main() {
       process.env.AZURE_BLOB_SAS_URL ??
       process.env.AZURE_SAS_URL,
     dlcAssetSource: values['dlc-asset-source'],
+    dlcPublicBaseUrl:
+      values['dlc-public-base-url'] ??
+      process.env.WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL ??
+      process.env.DLC_PUBLIC_BASE_URL ??
+      process.env.WIN_STORE_PACKER_PUBLIC_BASE_URL ??
+      process.env.R2_PUBLIC_BASE_URL,
     dlcAzureSasUrl:
       values['dlc-azure-sas-url'] ??
       process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??

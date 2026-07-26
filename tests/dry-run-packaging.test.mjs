@@ -106,7 +106,7 @@ function createPlan(tempRoot, options = {}) {
       include: [{ platform: 'win-x64', runner: 'windows-2025', runtimeKey: 'win-x64-nort' }]
     },
     downloads: {
-      strategy: 'azure-blob-sas',
+      strategy: 'public-r2',
       desktop: {
         containerUrl: 'https://example.blob.core.windows.net/desktop/'
       },
