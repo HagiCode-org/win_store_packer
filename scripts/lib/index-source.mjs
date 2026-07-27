@@ -2,8 +2,7 @@ import { matchDesktopAssetForPlatform, matchDlcAssetForPlatform, matchServerAsse
 
 export const DEFAULT_INDEX_SOURCES = {
   desktop: 'https://index.hagicode.com/desktop/index.json',
-  service: 'https://index.hagicode.com/server/index.json',
-  dlc: 'https://index.hagicode.com/dlc/index.json'
+  service: 'https://index.hagicode.com/server/index.json'
 };
 
 export const DEFAULT_INDEX_MANIFEST_PATH = 'index.json';
@@ -298,7 +297,23 @@ export async function fetchIndexManifest(indexUrl, { fetchImpl } = {}) {
     throw new Error(`Failed to read index manifest ${indexUrl}: ${response.status} ${body}`);
   }
 
-  return response.json();
+  const contentType = response.headers.get('content-type') ?? '';
+  const body = await response.text();
+  if (!contentType.toLowerCase().includes('json')) {
+    throw new Error(
+      `Index manifest ${indexUrl} returned ${contentType || 'unknown'} content instead of JSON. ` +
+      `Expected JSON but received: ${body.slice(0, 500)}`
+    );
+  }
+
+  try {
+    return JSON.parse(body);
+  } catch (error) {
+    throw new Error(
+      `Index manifest ${indexUrl} returned invalid JSON: ${error.message}. ` +
+      `Received: ${body.slice(0, 500)}`
+    );
+  }
 }
 
 export async function resolveIndexRelease({

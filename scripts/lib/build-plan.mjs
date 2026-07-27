@@ -1,4 +1,4 @@
-import { buildSignedBlobUrl, getAzureBlobContainerUrl, sanitizeUrlForLogs } from './artifact-download.mjs';
+import { buildSignedBlobUrl, composePublicAssetUrl, getAzureBlobContainerUrl, sanitizeUrlForLogs } from './artifact-download.mjs';
 import { findReleaseByTag } from './github.mjs';
 import {
   DEFAULT_INDEX_MANIFEST_PATH,
@@ -9,6 +9,7 @@ import {
 import {
   createPlatformMatrix,
   DEFAULT_PLATFORMS,
+  getPlatformConfig,
   normalizeGitTag,
   normalizePlatforms
 } from './platforms.mjs';
@@ -103,6 +104,35 @@ function resolveIndexRepository({ sourceType, explicitUrl, azureSasUrl }) {
   };
 }
 
+function createDerivedDlcRelease({ serverRelease, dlcConfig, platforms, publicBaseUrl = null }) {
+  const assetsByPlatform = {};
+  for (const platformId of platforms) {
+    const platform = getPlatformConfig(platformId);
+    const name = `hagicode-dlc-${dlcConfig.sourceName}-${serverRelease.version}-${platform.runtimeKey}.zip`;
+    const assetPath = `${dlcConfig.directoryId}/${serverRelease.version}/${name}`;
+    assetsByPlatform[platformId] = {
+      name,
+      path: assetPath,
+      size: null,
+      directUrl: composePublicAssetUrl(publicBaseUrl, assetPath),
+      lastModified: null,
+      sha256: null
+    };
+  }
+
+  return {
+    sourceType: 'server-version-derived',
+    sourceAuthority: serverRelease.sourceAuthority,
+    manifestUrl: null,
+    manifestPath: null,
+    selector: null,
+    dlcName: dlcConfig.sourceName,
+    version: serverRelease.version,
+    updatedAt: serverRelease.updatedAt ?? null,
+    assetsByPlatform
+  };
+}
+
 export function normalizeTriggerInputs({ eventName, eventPayload, defaultPlatforms = DEFAULT_PLATFORMS }) {
   const inputs = eventPayload?.inputs ?? {};
   const clientPayload = eventPayload?.client_payload ?? {};
@@ -166,6 +196,7 @@ export async function buildPlan({
   fetchImpl,
   findStoreRelease = findReleaseByTag,
   azureSasUrls = {},
+  publicBaseUrls = {},
   publicationMode = PUBLICATION_MODES.GITHUB_RELEASE,
   producerWorkflow = DEFAULT_PLAN_PRODUCER_WORKFLOW,
   consumerWorkflow = DEFAULT_PLAN_CONSUMER_WORKFLOW,
@@ -186,11 +217,14 @@ export async function buildPlan({
     explicitUrl: repositories?.server,
     azureSasUrl: azureSasUrls.server
   });
-  const dlcRepository = resolveIndexRepository({
-    sourceType: 'dlc',
-    explicitUrl: repositories?.dlc,
-    azureSasUrl: azureSasUrls.dlc
-  });
+  const hasDlcIndexSource = Boolean(repositories?.dlc || azureSasUrls.dlc);
+  const dlcRepository = hasDlcIndexSource
+    ? resolveIndexRepository({
+        sourceType: 'dlc',
+        explicitUrl: repositories?.dlc,
+        azureSasUrl: azureSasUrls.dlc
+      })
+    : null;
   const configuredDlcs = Object.values(storePackageConfig.dlcs);
 
   const [desktopRelease, serverRelease, ...dlcReleases] = await Promise.all([
@@ -214,24 +248,33 @@ export async function buildPlan({
       platforms: trigger.selectedPlatforms,
       fetchImpl
     }),
-    ...configuredDlcs.map((dlcConfig) =>
-      resolveDlcIndexRelease({
-        indexUrl: dlcRepository.requestUrl,
-        manifestUrl: dlcRepository.manifestUrl,
-        manifestPath: dlcRepository.manifestPath,
-        sourceAuthority: dlcRepository.sourceAuthority,
-        dlcName: dlcConfig.sourceName,
-        directoryId: dlcConfig.directoryId,
-        platforms: trigger.selectedPlatforms,
-        fetchImpl
-      })
-    )
+    ...(hasDlcIndexSource
+      ? configuredDlcs.map((dlcConfig) =>
+          resolveDlcIndexRelease({
+            indexUrl: dlcRepository.requestUrl,
+            manifestUrl: dlcRepository.manifestUrl,
+            manifestPath: dlcRepository.manifestPath,
+            sourceAuthority: dlcRepository.sourceAuthority,
+            dlcName: dlcConfig.sourceName,
+            directoryId: dlcConfig.directoryId,
+            platforms: trigger.selectedPlatforms,
+            fetchImpl
+          })
+        )
+      : [])
   ]);
   const upstreamDlcs = Object.fromEntries(
     configuredDlcs.map((dlcConfig, index) => [
       dlcConfig.directoryId,
       {
-        ...dlcReleases[index],
+        ...(hasDlcIndexSource
+          ? dlcReleases[index]
+          : createDerivedDlcRelease({
+              serverRelease,
+              dlcConfig,
+              platforms: trigger.selectedPlatforms,
+              publicBaseUrl: publicBaseUrls.dlc
+            })),
         dlcId: dlcConfig.dlcId,
         directoryId: dlcConfig.directoryId,
       }
@@ -259,7 +302,7 @@ export async function buildPlan({
     repositories: {
       desktop: desktopRepository.manifestUrl,
       server: serverRepository.manifestUrl,
-      dlc: dlcRepository.manifestUrl,
+      dlc: dlcRepository?.manifestUrl ?? null,
       packer: packerRepository
     },
     trigger: {
@@ -277,11 +320,13 @@ export async function buildPlan({
       },
       server: {
         containerUrl: azureSasUrls.server ? getAzureBlobContainerUrl(azureSasUrls.server) : null,
-        redactedSasUrl: azureSasUrls.server ? sanitizeUrlForLogs(azureSasUrls.server) : null
+        redactedSasUrl: azureSasUrls.server ? sanitizeUrlForLogs(azureSasUrls.server) : null,
+        publicBaseUrl: publicBaseUrls.server ?? null
       },
       dlc: {
         containerUrl: azureSasUrls.dlc ? getAzureBlobContainerUrl(azureSasUrls.dlc) : null,
-        redactedSasUrl: azureSasUrls.dlc ? sanitizeUrlForLogs(azureSasUrls.dlc) : null
+        redactedSasUrl: azureSasUrls.dlc ? sanitizeUrlForLogs(azureSasUrls.dlc) : null,
+        publicBaseUrl: publicBaseUrls.dlc ?? null
       }
     },
     upstream: {

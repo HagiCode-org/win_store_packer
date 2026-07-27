@@ -24,6 +24,7 @@ const DLC_AZURE_SAS_URL = 'https://example.blob.core.windows.net/dlc?sp=racwl&si
 const DESKTOP_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/desktop/index.json?sp=racwl&sig=test-token';
 const SERVER_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/server/index.json?sp=racwl&sig=test-token';
 const DLC_AZURE_MANIFEST_URL = 'https://example.blob.core.windows.net/dlc/index.json?sp=racwl&sig=test-token';
+const DLC_PUBLIC_BASE_URL = 'https://dlc.example.com';
 const PACKER_RELEASE_TAG = 'v1.4.0';
 const NEXT_PACKER_RELEASE_TAG = 'v1.4.1';
 const LEGACY_PACKER_RELEASE_TAG = 'v1.3.9';
@@ -100,7 +101,6 @@ function baseBuildPlanOptions(overrides = {}) {
     repositories: {
       desktop: DESKTOP_INDEX_URL,
       server: SERVER_INDEX_URL,
-      dlc: DLC_INDEX_URL,
       packer: 'HagiCode-org/win_store_packer'
     },
     findStoreRelease: async () => null,
@@ -124,8 +124,10 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   assert.equal(plan.upstream.desktop.checkoutType, 'branch');
   assert.deepEqual(plan.upstream.desktop.assetsByPlatform, {});
   assert.equal(plan.upstream.server.version, '0.1.0-beta.34');
-  assert.equal(plan.upstream.dlcs['turbo-engine'].version, '0.1.0-beta.48');
-  assert.equal(plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'].name, 'hagicode-dlc-turbo-engine-0.1.0-beta.48-win-x64-nort.zip');
+  assert.equal(plan.upstream.dlcs['turbo-engine'].version, '0.1.0-beta.34');
+  assert.equal(plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'].name, 'hagicode-dlc-turbo-engine-0.1.0-beta.34-win-x64-nort.zip');
+  assert.equal(plan.upstream.dlcs['turbo-engine'].sourceType, 'server-version-derived');
+  assert.equal(plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'].path, 'turbo-engine/0.1.0-beta.34/hagicode-dlc-turbo-engine-0.1.0-beta.34-win-x64-nort.zip');
   assert.equal(plan.store.dlcs['turbo-engine'].dlcId, 'pcode.turbo-engine');
   assert.equal(plan.release.tag, undefined);
   assert.equal(plan.release.name, undefined);
@@ -152,18 +154,24 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   assert.equal(validated.handoffAssetName, RELEASE_PLAN_ASSET_NAME);
 });
 
-test('buildPlan uses public index URLs by default', async () => {
+test('buildPlan derives DLC R2 asset URLs from the selected server version', async () => {
   const requests = [];
   const plan = await buildPlan(baseBuildPlanOptions({
+    publicBaseUrls: { dlc: DLC_PUBLIC_BASE_URL },
     fetchImpl: createFetchStub({ requests })
   }));
 
-  assert.deepEqual(requests, [DESKTOP_INDEX_URL, SERVER_INDEX_URL, DLC_INDEX_URL]);
+  assert.deepEqual(requests, [DESKTOP_INDEX_URL, SERVER_INDEX_URL]);
+  assert.equal(plan.repositories.dlc, null);
+  assert.equal(plan.downloads.dlc.publicBaseUrl, DLC_PUBLIC_BASE_URL);
   assert.equal(plan.upstream.desktop.manifestUrl, DESKTOP_INDEX_URL);
   assert.equal(plan.upstream.server.manifestUrl, SERVER_INDEX_URL);
-  assert.equal(plan.upstream.dlcs['turbo-engine'].manifestUrl, DLC_INDEX_URL);
-  assert.equal(plan.upstream.server.sourceAuthority, 'explicit-override');
+  assert.equal(plan.upstream.dlcs['turbo-engine'].manifestUrl, null);
   assert.equal(plan.upstream.dlcs['turbo-engine'].sourceAuthority, 'explicit-override');
+  assert.equal(
+    plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'].directUrl,
+    `${DLC_PUBLIC_BASE_URL}/turbo-engine/0.1.0-beta.34/hagicode-dlc-turbo-engine-0.1.0-beta.34-win-x64-nort.zip`
+  );
 });
 
 test('buildPlan accepts legacy Azure SAS index fallback when explicitly supplied', async () => {
@@ -174,6 +182,9 @@ test('buildPlan accepts legacy Azure SAS index fallback when explicitly supplied
       server: SERVER_AZURE_SAS_URL,
       dlc: DLC_AZURE_SAS_URL
     },
+    repositories: {
+      packer: 'HagiCode-org/win_store_packer'
+    }, 
     fetchImpl: createFetchStub({ requests })
   }));
 
@@ -260,6 +271,29 @@ test('buildPlan supports workflow-artifact main builds for package-release test 
   assert.equal(workflowValidated.canonicalVersionInput, NEXT_PACKER_RELEASE_TAG);
   assert.equal(workflowValidated.publicationMode, 'workflow-artifact');
   assert.equal(workflowValidated.handoffSource, 'workflow-artifact');
+});
+
+test('buildPlan reports non-JSON index responses without undici JSON parse noise', async () => {
+  await assert.rejects(
+    () => buildPlan(baseBuildPlanOptions({
+      repositories: {
+        desktop: DESKTOP_INDEX_URL,
+        server: SERVER_INDEX_URL,
+        dlc: 'https://index.hagicode.com/dlc/index.json',
+        packer: 'HagiCode-org/win_store_packer'
+      },
+      fetchImpl: async (url) => {
+        if (url === 'https://index.hagicode.com/dlc/index.json') {
+          return new Response('<!DOCTYPE html><html><title>HagiCode Portal</title></html>', {
+            headers: { 'content-type': 'text/html' }
+          });
+        }
+
+        return createFetchStub()(url);
+      }
+    })),
+    /Index manifest https:\/\/index\.hagicode\.com\/dlc\/index\.json returned text\/html content instead of JSON\./
+  );
 });
 
 test('validateReleasePlan treats the external release tag as authoritative and injects it back into the plan', async () => {
@@ -352,9 +386,9 @@ test('resolveDispatchBuildPlan writes the normalized release-plan artifact', asy
     repositories: {
       desktop: DESKTOP_INDEX_URL,
       server: SERVER_INDEX_URL,
-      dlc: DLC_INDEX_URL,
       packer: 'HagiCode-org/win_store_packer'
     },
+    dlcPublicBaseUrl: DLC_PUBLIC_BASE_URL,
     findStoreRelease: async () => null,
     fetchImpl: createFetchStub()
   });
@@ -369,6 +403,11 @@ test('resolveDispatchBuildPlan writes the normalized release-plan artifact', asy
   assert.equal(result.plan.upstream.desktop.tag, 'v0.3.0');
   assert.equal(writtenPlan.handoff.assetName, RELEASE_PLAN_ASSET_NAME);
   assert.equal(writtenPlan.handoff.producer.workflow, 'sync-version-plan');
+  assert.equal(
+    writtenPlan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'].directUrl,
+    `${DLC_PUBLIC_BASE_URL}/turbo-engine/0.1.0-beta.34/hagicode-dlc-turbo-engine-0.1.0-beta.34-win-x64-nort.zip`
+  );
+  assert.equal(writtenPlan.downloads.dlc.publicBaseUrl, DLC_PUBLIC_BASE_URL);
 });
 
 test('resolveDispatchBuildPlan can force workflow-artifact main build plans', async () => {

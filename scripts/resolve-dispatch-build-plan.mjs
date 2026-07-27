@@ -38,6 +38,8 @@ export async function resolveDispatchBuildPlan({
   dlcAzureSasUrl,
   packerReleaseTag,
   serverAzureSasUrl,
+  serverPublicBaseUrl,
+  dlcPublicBaseUrl,
   publicationMode = PUBLICATION_MODES.GITHUB_RELEASE,
   handoffSource = WORKFLOW_ARTIFACT_HANDOFF_SOURCE,
   forceDryRun = false,
@@ -82,6 +84,10 @@ export async function resolveDispatchBuildPlan({
       desktop: desktopAzureSasUrl,
       server: serverAzureSasUrl,
       dlc: dlcAzureSasUrl
+    },
+    publicBaseUrls: {
+      server: serverPublicBaseUrl,
+      dlc: dlcPublicBaseUrl
     },
     publicationMode,
     handoffSource,
@@ -134,6 +140,8 @@ export async function resolveDispatchBuildPlan({
     `- Desktop Azure SAS (legacy): ${desktopAzureSasUrl ? sanitizeUrlForLogs(desktopAzureSasUrl) : '[none]'}`,
     `- Server Azure SAS (legacy): ${serverAzureSasUrl ? sanitizeUrlForLogs(serverAzureSasUrl) : '[none]'}`,
     `- DLC Azure SAS (legacy): ${dlcAzureSasUrl ? sanitizeUrlForLogs(dlcAzureSasUrl) : '[none]'}`,
+    `- Server public base: ${serverPublicBaseUrl ?? '[none]'}`,
+    `- DLC public base: ${dlcPublicBaseUrl ?? '[none]'}`,
     `- Release exists: ${plan.release.exists ? 'yes' : 'no'}`,
     `- Build mode: ${plan.build.dryRun ? 'dry-run' : 'publish'}`,
     `- should_build: ${plan.build.shouldBuild ? 'true' : 'false'}`,
@@ -162,6 +170,8 @@ export async function main() {
       'desktop-azure-sas-url': { type: 'string' },
       'server-azure-sas-url': { type: 'string' },
       'dlc-azure-sas-url': { type: 'string' },
+      'server-public-base-url': { type: 'string' },
+      'dlc-public-base-url': { type: 'string' },
       'packer-release-tag': { type: 'string' },
       'producer-workflow': { type: 'string' },
       'publication-mode': { type: 'string' },
@@ -193,6 +203,18 @@ export async function main() {
     process.env.PORTABLE_VERSION_DLC_AZURE_SAS_URL ??
     process.env.AZURE_BLOB_SAS_URL ??
     process.env.AZURE_SAS_URL;
+  const serverPublicBaseUrl =
+    values['server-public-base-url'] ??
+    process.env.WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL ??
+    process.env.SERVER_PUBLIC_BASE_URL ??
+    process.env.WIN_STORE_PACKER_PUBLIC_BASE_URL ??
+    process.env.R2_PUBLIC_BASE_URL;
+  const dlcPublicBaseUrl =
+    values['dlc-public-base-url'] ??
+    process.env.WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL ??
+    process.env.DLC_PUBLIC_BASE_URL ??
+    process.env.WIN_STORE_PACKER_PUBLIC_BASE_URL ??
+    process.env.R2_PUBLIC_BASE_URL;
   const repositories = {
     ...(values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL
       ? { desktop: values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL }
@@ -220,7 +242,9 @@ export async function main() {
     repositories,
     desktopAzureSasUrl,
     serverAzureSasUrl,
-    dlcAzureSasUrl
+    dlcAzureSasUrl,
+    serverPublicBaseUrl,
+    dlcPublicBaseUrl
   });
 
   console.log(

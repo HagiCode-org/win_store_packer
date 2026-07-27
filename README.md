@@ -72,7 +72,7 @@ Defines workflow defaults such as:
 `.github/workflows/package-release.yml` follows this flow:
 
 1. `package-release.yml` starts from a published release or a manual rebuild of a published release tag
-2. `package-release.yml` generates a fresh `release-plan.json` from the authoritative release tag (plus the latest Desktop/Server/DLC index state) and validates it before any build job starts
+2. `package-release.yml` generates a fresh `release-plan.json` from the authoritative release tag plus the latest Desktop/Server index state; Turbo Engine DLC artifact paths are derived from the selected Server version
 3. the workflow prepares a Desktop `main` worktree, downloads the Server payload, merges the Turbo Engine DLC runtime under `lib/dlcs/turbo-engine`, regenerates `lib/dlcs/index.json`, and runs `scripts/build-msix.mjs`
 4. the existing signing, artifact upload, and release metadata publication steps continue unchanged after plan validation succeeds
 
@@ -127,9 +127,10 @@ npm run verify:signing
 
 ## Local Commands
 
-Artifact downloads default to public/R2 sources from the release plan (`asset.directUrl`, or public base + `asset.path`). Azure Blob SAS URLs are optional legacy fallback only and are no longer required.
+Artifact downloads default to public/R2 sources from the release plan (`asset.directUrl`, or public base + `asset.path`). Server and Desktop versions resolve from public index URLs; Turbo Engine DLC package paths derive from the selected Server version and do not require a DLC index.
+Set `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` or pass `--dlc-public-base-url` when generating the plan if derived DLC assets should carry R2 `directUrl` values.
 
-Generate a release plan locally from an authoritative tag, exactly like `package-release.yml` does at consume time (public index URLs are used by default):
+Generate a release plan locally from an authoritative tag, exactly like `package-release.yml` does at consume time:
 
 ```bash
 node scripts/resolve-dispatch-build-plan.mjs \
