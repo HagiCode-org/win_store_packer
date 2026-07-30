@@ -3,6 +3,8 @@ import { copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
+export const DEFAULT_DLC_PUBLIC_BASE_URL = 'https://dl-dlc.hagicode.com';
+
 function requireNonEmpty(value, label) {
   const normalized = String(value ?? '').trim();
   if (!normalized) {

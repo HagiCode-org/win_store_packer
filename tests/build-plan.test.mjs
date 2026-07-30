@@ -13,6 +13,7 @@ import {
 } from '../scripts/lib/build-plan.mjs';
 import { readJson } from '../scripts/lib/fs-utils.mjs';
 import { validateReleasePlan } from '../scripts/lib/release-plan.mjs';
+import { DEFAULT_DLC_PUBLIC_BASE_URL } from '../scripts/lib/artifact-download.mjs';
 import { resolveDispatchBuildPlan } from '../scripts/resolve-dispatch-build-plan.mjs';
 
 const DESKTOP_INDEX_URL = 'https://index.hagicode.com/desktop/index.json';
@@ -128,6 +129,11 @@ test('buildPlan resolves a main-only release plan from the latest Desktop and Se
   assert.equal(plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'].name, 'hagicode-dlc-turbo-engine-0.1.0-beta.34-win-x64-nort.zip');
   assert.equal(plan.upstream.dlcs['turbo-engine'].sourceType, 'server-version-derived');
   assert.equal(plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'].path, 'turbo-engine/0.1.0-beta.34/hagicode-dlc-turbo-engine-0.1.0-beta.34-win-x64-nort.zip');
+  assert.equal(plan.downloads.dlc.publicBaseUrl, DEFAULT_DLC_PUBLIC_BASE_URL);
+  assert.equal(
+    plan.upstream.dlcs['turbo-engine'].assetsByPlatform['win-x64'].directUrl,
+    `${DEFAULT_DLC_PUBLIC_BASE_URL}/turbo-engine/0.1.0-beta.34/hagicode-dlc-turbo-engine-0.1.0-beta.34-win-x64-nort.zip`
+  );
   assert.equal(plan.store.dlcs['turbo-engine'].dlcId, 'pcode.turbo-engine');
   assert.equal(plan.release.tag, undefined);
   assert.equal(plan.release.name, undefined);

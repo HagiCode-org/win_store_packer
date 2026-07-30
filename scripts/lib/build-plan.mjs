@@ -1,4 +1,4 @@
-import { buildSignedBlobUrl, composePublicAssetUrl, getAzureBlobContainerUrl, sanitizeUrlForLogs } from './artifact-download.mjs';
+import { buildSignedBlobUrl, composePublicAssetUrl, DEFAULT_DLC_PUBLIC_BASE_URL, getAzureBlobContainerUrl, sanitizeUrlForLogs } from './artifact-download.mjs';
 import { findReleaseByTag } from './github.mjs';
 import {
   DEFAULT_INDEX_MANIFEST_PATH,
@@ -104,7 +104,7 @@ function resolveIndexRepository({ sourceType, explicitUrl, azureSasUrl }) {
   };
 }
 
-function createDerivedDlcRelease({ serverRelease, dlcConfig, platforms, publicBaseUrl = null }) {
+function createDerivedDlcRelease({ serverRelease, dlcConfig, platforms, publicBaseUrl = DEFAULT_DLC_PUBLIC_BASE_URL }) {
   const assetsByPlatform = {};
   for (const platformId of platforms) {
     const platform = getPlatformConfig(platformId);
@@ -263,6 +263,7 @@ export async function buildPlan({
         )
       : [])
   ]);
+  const dlcPublicBaseUrl = publicBaseUrls.dlc ?? DEFAULT_DLC_PUBLIC_BASE_URL;
   const upstreamDlcs = Object.fromEntries(
     configuredDlcs.map((dlcConfig, index) => [
       dlcConfig.directoryId,
@@ -273,7 +274,7 @@ export async function buildPlan({
               serverRelease,
               dlcConfig,
               platforms: trigger.selectedPlatforms,
-              publicBaseUrl: publicBaseUrls.dlc
+              publicBaseUrl: dlcPublicBaseUrl
             })),
         dlcId: dlcConfig.dlcId,
         directoryId: dlcConfig.directoryId,
@@ -326,7 +327,7 @@ export async function buildPlan({
       dlc: {
         containerUrl: azureSasUrls.dlc ? getAzureBlobContainerUrl(azureSasUrls.dlc) : null,
         redactedSasUrl: azureSasUrls.dlc ? sanitizeUrlForLogs(azureSasUrls.dlc) : null,
-        publicBaseUrl: publicBaseUrls.dlc ?? null
+        publicBaseUrl: dlcPublicBaseUrl
       }
     },
     upstream: {

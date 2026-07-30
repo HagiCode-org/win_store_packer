@@ -3,7 +3,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { cleanDir, ensureDir, readJson, writeJson } from './lib/fs-utils.mjs';
-import { resolveAssetDownloadUrl, downloadFromSource, sanitizeUrlForLogs } from './lib/artifact-download.mjs';
+import { DEFAULT_DLC_PUBLIC_BASE_URL, resolveAssetDownloadUrl, downloadFromSource, sanitizeUrlForLogs } from './lib/artifact-download.mjs';
 import { extractArchive } from './lib/archive.mjs';
 import {
   resolveRuntimeRoot,
@@ -193,7 +193,7 @@ export async function main() {
       process.env.WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL ??
       process.env.DLC_PUBLIC_BASE_URL ??
       process.env.WIN_STORE_PACKER_PUBLIC_BASE_URL ??
-      process.env.R2_PUBLIC_BASE_URL,
+      DEFAULT_DLC_PUBLIC_BASE_URL,
     dlcAzureSasUrl:
       values['dlc-azure-sas-url'] ??
       process.env.WIN_STORE_PACKER_DLC_AZURE_SAS_URL ??
