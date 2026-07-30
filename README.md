@@ -127,8 +127,8 @@ npm run verify:signing
 
 ## Local Commands
 
-Artifact downloads default to public/R2 sources from the release plan (`asset.directUrl`, or public base + `asset.path`). Server and Desktop versions resolve from public index URLs; Turbo Engine DLC package paths derive from the selected Server version and do not require a DLC index.
-Set `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` or pass `--dlc-public-base-url` when generating the plan if derived DLC assets should carry R2 `directUrl` values.
+Artifact downloads default to public/R2 sources from the release plan (`asset.directUrl`, or public base + `asset.path`). Server and Desktop versions resolve from public index URLs; Turbo Engine DLC package paths derive from the selected Server version and default to `https://dl-dlc.hagicode.com`.
+Set `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` or pass `--dlc-public-base-url` to override the derived Turbo Engine DLC public base.
 
 Generate a release plan locally from an authoritative tag, exactly like `package-release.yml` does at consume time:
 
@@ -167,11 +167,11 @@ node scripts/stage-server-payload.mjs \
   --platform win-x64 \
   --workspace build/store-win-x64 \
   --public-base-url "https://server.dl.hagicode.com" \
-  --dlc-public-base-url "https://dlc.dl.hagicode.com" \
+  --dlc-public-base-url "https://dl-dlc.hagicode.com" \
   --dlc-asset-source "<optional-local-turbo-engine-archive>"
 ```
 
-Environment alternatives: `WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL`, `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL`.
+Environment alternatives: `WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL`, `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` (defaults to `https://dl-dlc.hagicode.com` for Turbo Engine DLC).
 Deprecated fallback: `--azure-sas-url` / `*_AZURE_SAS_URL`.
 
 Invoke the Desktop Store build contract:
