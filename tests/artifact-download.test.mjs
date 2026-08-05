@@ -24,6 +24,23 @@ test('resolveAssetDownloadUrl prefers directUrl over legacy Azure SAS', () => {
   assert.equal(downloadUrl, sampleAsset.directUrl);
 });
 
+test('resolveAssetDownloadUrl accepts the official structured download source', () => {
+  const downloadUrl = resolveAssetDownloadUrl({
+    asset: {
+      name: sampleAsset.name,
+      path: sampleAsset.path,
+      downloadSources: [
+        {
+          kind: 'official',
+          url: sampleAsset.directUrl
+        }
+      ]
+    }
+  });
+
+  assert.equal(downloadUrl, sampleAsset.directUrl);
+});
+
 test('resolveAssetDownloadUrl composes publicBase + path when directUrl missing', () => {
   const downloadUrl = resolveAssetDownloadUrl({
     asset: {

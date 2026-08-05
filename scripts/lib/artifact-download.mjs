@@ -73,8 +73,11 @@ export function resolveAssetDownloadUrl({ asset, sasUrl, overrideSource, publicB
     return path.resolve(overrideSource);
   }
 
-  if (asset?.directUrl) {
-    return asset.directUrl;
+  const officialSourceUrl = Array.isArray(asset?.downloadSources)
+    ? asset.downloadSources.find((source) => source?.kind === 'official' && source.url)?.url
+    : null;
+  if (asset?.directUrl || officialSourceUrl) {
+    return asset.directUrl || officialSourceUrl;
   }
 
   const composed = composePublicAssetUrl(publicBaseUrl, asset?.path);

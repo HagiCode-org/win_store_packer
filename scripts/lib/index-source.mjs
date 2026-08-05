@@ -193,11 +193,18 @@ function ensureAddressableAsset(asset, platformId, sourceLabel, version) {
 }
 
 function mapAssetRecord(asset) {
+  const officialSource = Array.isArray(asset.downloadSources)
+    ? asset.downloadSources.find((source) => source?.kind === 'official' && source.url)
+    : null;
+  const directUrl = asset.directUrl || officialSource?.url || null;
   return {
     name: asset.name,
     path: asset.path,
     size: asset.size ?? null,
-    directUrl: asset.directUrl ?? null,
+    directUrl,
+    torrentUrl: asset.torrentUrl ?? (directUrl ? `${directUrl}.torrent` : null),
+    downloadSources: Array.isArray(asset.downloadSources) ? asset.downloadSources : null,
+    webSeeds: Array.isArray(asset.webSeeds) ? asset.webSeeds : null,
     lastModified: asset.lastModified ?? asset.updatedAt ?? null,
     sha256: asset.sha256 ?? null
   };
