@@ -127,8 +127,8 @@ npm run verify:signing
 
 ## Local Commands
 
-Artifact downloads default to public/R2 sources from the release plan (`asset.directUrl`, the official `downloadSources` entry, or public base + `asset.path`). Server and Desktop versions resolve from public index URLs; Turbo Engine DLC package paths derive from the selected Server version and default to `https://dl-dlc.hagicode.com`. When an external DLC `index.json` is supplied, the packer reads the current `dlcs[].versions[].artifacts[]` shape and preserves its structured download metadata.
-Set `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` or pass `--dlc-public-base-url` to override the derived Turbo Engine DLC public base.
+Artifact downloads default to Cloudflare public sources from the release plan (public base + `asset.path`, then `asset.directUrl` or the official `downloadSources` entry). Server artifacts use `https://dl-server.hagicode.com`; Turbo Engine DLC artifacts use `https://dl-dlc.hagicode.com`. When an external DLC `index.json` is supplied, the packer reads the current `dlcs[].versions[].artifacts[]` shape and preserves its structured download metadata.
+Set `WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL` / `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` or pass `--public-base-url` / `--dlc-public-base-url` to override the Cloudflare public bases.
 
 Generate a release plan locally from an authoritative tag, exactly like `package-release.yml` does at consume time:
 
@@ -166,12 +166,12 @@ node scripts/stage-server-payload.mjs \
   --plan build/release-plan.json \
   --platform win-x64 \
   --workspace build/store-win-x64 \
-  --public-base-url "https://server.dl.hagicode.com" \
+  --public-base-url "https://dl-server.hagicode.com" \
   --dlc-public-base-url "https://dl-dlc.hagicode.com" \
   --dlc-asset-source "<optional-local-turbo-engine-archive>"
 ```
 
-Environment alternatives: `WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL`, `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` (defaults to `https://dl-dlc.hagicode.com` for Turbo Engine DLC).
+Environment alternatives: `WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL` (defaults to `https://dl-server.hagicode.com`) and `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` (defaults to `https://dl-dlc.hagicode.com`).
 Deprecated fallback: `--azure-sas-url` / `*_AZURE_SAS_URL`.
 
 Invoke the Desktop Store build contract:
