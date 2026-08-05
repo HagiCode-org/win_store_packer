@@ -127,7 +127,7 @@ npm run verify:signing
 
 ## Local Commands
 
-Artifact downloads default to public/R2 sources from the release plan (`asset.directUrl`, or public base + `asset.path`). Server and Desktop versions resolve from public index URLs; Turbo Engine DLC package paths derive from the selected Server version and default to `https://dl-dlc.hagicode.com`.
+Artifact downloads default to public/R2 sources from the release plan (`asset.directUrl`, the official `downloadSources` entry, or public base + `asset.path`). Server and Desktop versions resolve from public index URLs; Turbo Engine DLC package paths derive from the selected Server version and default to `https://dl-dlc.hagicode.com`. When an external DLC `index.json` is supplied, the packer reads the current `dlcs[].versions[].artifacts[]` shape and preserves its structured download metadata.
 Set `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` or pass `--dlc-public-base-url` to override the derived Turbo Engine DLC public base.
 
 Generate a release plan locally from an authoritative tag, exactly like `package-release.yml` does at consume time:
