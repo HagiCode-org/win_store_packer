@@ -3,7 +3,12 @@ import path from 'node:path';
 import { appendFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { parseAzureSasUrl, sanitizeUrlForLogs } from './lib/artifact-download.mjs';
+import {
+  DEFAULT_DLC_PUBLIC_BASE_URL,
+  DEFAULT_SERVER_PUBLIC_BASE_URL,
+  parseAzureSasUrl,
+  sanitizeUrlForLogs
+} from './lib/artifact-download.mjs';
 import {
   buildPlan,
   CANONICAL_PACKER_TAG_VERSION_SOURCE,
@@ -208,13 +213,15 @@ export async function main() {
     process.env.WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL ??
     process.env.SERVER_PUBLIC_BASE_URL ??
     process.env.WIN_STORE_PACKER_PUBLIC_BASE_URL ??
-    process.env.R2_PUBLIC_BASE_URL;
+    process.env.R2_PUBLIC_BASE_URL ??
+    DEFAULT_SERVER_PUBLIC_BASE_URL;
   const dlcPublicBaseUrl =
     values['dlc-public-base-url'] ??
     process.env.WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL ??
     process.env.DLC_PUBLIC_BASE_URL ??
     process.env.WIN_STORE_PACKER_PUBLIC_BASE_URL ??
-    process.env.R2_PUBLIC_BASE_URL;
+    process.env.R2_PUBLIC_BASE_URL ??
+    DEFAULT_DLC_PUBLIC_BASE_URL;
   const repositories = {
     ...(values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL
       ? { desktop: values['desktop-index-url'] ?? process.env.DESKTOP_INDEX_URL }

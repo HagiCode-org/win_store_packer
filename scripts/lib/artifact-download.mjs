@@ -3,6 +3,7 @@ import { copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
+export const DEFAULT_SERVER_PUBLIC_BASE_URL = 'https://dl-server.hagicode.com';
 export const DEFAULT_DLC_PUBLIC_BASE_URL = 'https://dl-dlc.hagicode.com';
 
 function requireNonEmpty(value, label) {
@@ -63,7 +64,7 @@ export function composePublicAssetUrl(publicBaseUrl, assetPath) {
 
 /**
  * Resolve packaging-input download URL.
- * Priority: override → directUrl → publicBase+path → optional legacy SAS.
+ * Priority: override → publicBase+path → directUrl → official source → optional legacy SAS.
  */
 export function resolveAssetDownloadUrl({ asset, sasUrl, overrideSource, publicBaseUrl } = {}) {
   if (overrideSource) {
@@ -73,16 +74,16 @@ export function resolveAssetDownloadUrl({ asset, sasUrl, overrideSource, publicB
     return path.resolve(overrideSource);
   }
 
+  const composed = composePublicAssetUrl(publicBaseUrl, asset?.path);
+  if (composed) {
+    return composed;
+  }
+
   const officialSourceUrl = Array.isArray(asset?.downloadSources)
     ? asset.downloadSources.find((source) => source?.kind === 'official' && source.url)?.url
     : null;
   if (asset?.directUrl || officialSourceUrl) {
     return asset.directUrl || officialSourceUrl;
-  }
-
-  const composed = composePublicAssetUrl(publicBaseUrl, asset?.path);
-  if (composed) {
-    return composed;
   }
 
   const assetPath = String(asset?.path ?? '').replace(/^\/+/, '');

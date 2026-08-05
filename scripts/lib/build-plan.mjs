@@ -1,4 +1,11 @@
-import { buildSignedBlobUrl, composePublicAssetUrl, DEFAULT_DLC_PUBLIC_BASE_URL, getAzureBlobContainerUrl, sanitizeUrlForLogs } from './artifact-download.mjs';
+import {
+  buildSignedBlobUrl,
+  composePublicAssetUrl,
+  DEFAULT_DLC_PUBLIC_BASE_URL,
+  DEFAULT_SERVER_PUBLIC_BASE_URL,
+  getAzureBlobContainerUrl,
+  sanitizeUrlForLogs
+} from './artifact-download.mjs';
 import { findReleaseByTag } from './github.mjs';
 import {
   DEFAULT_INDEX_MANIFEST_PATH,
@@ -263,6 +270,7 @@ export async function buildPlan({
         )
       : [])
   ]);
+  const serverPublicBaseUrl = publicBaseUrls.server ?? DEFAULT_SERVER_PUBLIC_BASE_URL;
   const dlcPublicBaseUrl = publicBaseUrls.dlc ?? DEFAULT_DLC_PUBLIC_BASE_URL;
   const upstreamDlcs = Object.fromEntries(
     configuredDlcs.map((dlcConfig, index) => [
@@ -322,7 +330,7 @@ export async function buildPlan({
       server: {
         containerUrl: azureSasUrls.server ? getAzureBlobContainerUrl(azureSasUrls.server) : null,
         redactedSasUrl: azureSasUrls.server ? sanitizeUrlForLogs(azureSasUrls.server) : null,
-        publicBaseUrl: publicBaseUrls.server ?? null
+        publicBaseUrl: serverPublicBaseUrl
       },
       dlc: {
         containerUrl: azureSasUrls.dlc ? getAzureBlobContainerUrl(azureSasUrls.dlc) : null,

@@ -10,7 +10,7 @@ import {
 const sampleAsset = {
   name: 'hagicode-0.1.0-beta.34-win-x64-nort.zip',
   path: '0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip',
-  directUrl: 'https://server.dl.hagicode.com/0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip'
+  directUrl: 'https://dl-server.hagicode.com/0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip'
 };
 
 const legacySas = 'https://example.blob.core.windows.net/server?sp=racwl&sig=test-token';
@@ -47,12 +47,40 @@ test('resolveAssetDownloadUrl composes publicBase + path when directUrl missing'
       name: sampleAsset.name,
       path: sampleAsset.path
     },
-    publicBaseUrl: 'https://server.dl.hagicode.com/'
+    publicBaseUrl: 'https://dl-server.hagicode.com/'
   });
 
   assert.equal(
     downloadUrl,
-    'https://server.dl.hagicode.com/0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip'
+    'https://dl-server.hagicode.com/0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip'
+  );
+});
+
+test('resolveAssetDownloadUrl prefers the public base over an indexed direct URL', () => {
+  const downloadUrl = resolveAssetDownloadUrl({
+    asset: sampleAsset,
+    publicBaseUrl: 'https://dl-server.hagicode.com'
+  });
+
+  assert.equal(
+    downloadUrl,
+    'https://dl-server.hagicode.com/0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip'
+  );
+});
+
+test('resolveAssetDownloadUrl prefers the public base over an official download source', () => {
+  const downloadUrl = resolveAssetDownloadUrl({
+    asset: {
+      name: sampleAsset.name,
+      path: sampleAsset.path,
+      downloadSources: [{ kind: 'official', url: 'https://official.example/file.zip' }]
+    },
+    publicBaseUrl: 'https://dl-server.hagicode.com'
+  });
+
+  assert.equal(
+    downloadUrl,
+    'https://dl-server.hagicode.com/0.1.0-beta.34/hagicode-0.1.0-beta.34-win-x64-nort.zip'
   );
 });
 
@@ -61,7 +89,7 @@ test('resolveAssetDownloadUrl prefers override over directUrl, public base, and 
   const downloadUrl = resolveAssetDownloadUrl({
     asset: sampleAsset,
     sasUrl: legacySas,
-    publicBaseUrl: 'https://server.dl.hagicode.com',
+    publicBaseUrl: 'https://dl-server.hagicode.com',
     overrideSource: override
   });
 
