@@ -30,8 +30,8 @@ permissions:
 
 env:
   RESOLVED_BUILD_PLAN_ARTIFACT_NAME: resolved-build-plan
-  # Optional public bases for server/DLC artifact download (prefer plan asset.directUrl).
-  WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL: ${{ vars.WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL || vars.SERVER_PUBLIC_BASE_URL || secrets.WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL || '' }}
+  # Cloudflare public bases are preferred over direct URLs embedded in release indexes.
+  WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL: https://dl-server.hagicode.com
   WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL: https://dl-dlc.hagicode.com
   HAGISCRIPT_INSTALL_SPEC: '@hagicode/hagiscript@latest'
 
