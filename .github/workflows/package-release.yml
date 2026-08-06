@@ -147,20 +147,17 @@ jobs:
           if-no-files-found: error
 
   build:
-    name: Build ${{ matrix.target.platform }} ${{ matrix.variant }}
+    name: Build ${{ matrix.target.platform }} unsigned
     needs: resolve_plan
-    environment: production
     permissions:
       contents: read
       actions: read
-      id-token: write
     strategy:
       fail-fast: false
       matrix:
         target: ${{ fromJson(needs.resolve_plan.outputs.platform_matrix).include }}
         variant:
           - unsigned
-          - signed
     runs-on: ${{ matrix.target.runner }}
     steps:
       - name: Checkout win_store_packer
@@ -212,45 +209,15 @@ jobs:
       - name: Determine signing mode
         shell: bash
         run: |
-          if [ "${{ matrix.variant }}" = 'signed' ]; then
-            echo "STORE_WORKSPACE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-signed" >> "$GITHUB_ENV"
-            echo "STORE_REQUIRE_SIGNED=true" >> "$GITHUB_ENV"
-            echo 'STORE_SIGNING_MODE=external' >> "$GITHUB_ENV"
-          else
-            echo "STORE_WORKSPACE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-unsigned" >> "$GITHUB_ENV"
-            echo 'STORE_SIGNING_MODE=disabled' >> "$GITHUB_ENV"
-            echo 'STORE_REQUIRE_SIGNED=false' >> "$GITHUB_ENV"
-          fi
+          echo "STORE_WORKSPACE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-unsigned" >> "$GITHUB_ENV"
+          echo 'STORE_SIGNING_MODE=disabled' >> "$GITHUB_ENV"
+          echo 'STORE_REQUIRE_SIGNED=false' >> "$GITHUB_ENV"
 
       - name: Configure Electron cache directories
         shell: bash
         run: |
           echo "ELECTRON_CACHE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron" >> "$GITHUB_ENV"
           echo "ELECTRON_BUILDER_CACHE=$RUNNER_TEMP/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.cache/electron-builder" >> "$GITHUB_ENV"
-
-      - name: Validate external signing configuration
-        if: success() && matrix.variant == 'signed' && needs.resolve_plan.outputs.dry_run != 'true'
-        shell: bash
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_CODESIGN_ENDPOINT: ${{ secrets.AZURE_CODESIGN_ENDPOINT }}
-          AZURE_CODESIGN_ACCOUNT_NAME: ${{ secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
-          AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
-          WINDOWS_PACKAGE_PUBLISHER: ${{ secrets.WINDOWS_PACKAGE_PUBLISHER }}
-        run: |
-          missing=()
-          for key in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_CODESIGN_ENDPOINT AZURE_CODESIGN_ACCOUNT_NAME AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME WINDOWS_PACKAGE_PUBLISHER; do
-            if [ -z "${!key:-}" ]; then
-              missing+=("${key}")
-            fi
-          done
-
-          if [ ${#missing[@]} -gt 0 ]; then
-            printf '::error::Missing external signing configuration: %s\n' "$(IFS=', '; echo "${missing[*]}")"
-            exit 1
-          fi
 
       - name: Prepare tagged desktop workspace
         shell: bash
@@ -288,15 +255,6 @@ jobs:
 
       - name: Build Store package
         shell: bash
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || secrets.CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || secrets.TENANT_ID || secrets.AZURE_AD_TENANT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET || secrets.CLIENT_SECRET || secrets.AZURE_AD_APPLICATION_SECRET }}
-          AZURE_CODESIGN_APPX_PUBLISHER: ${{ secrets.AZURE_CODESIGN_APPX_PUBLISHER || secrets.WINDOWS_PACKAGE_PUBLISHER }}
-          WINDOWS_PACKAGE_PUBLISHER: ${{ secrets.WINDOWS_PACKAGE_PUBLISHER || secrets.AZURE_CODESIGN_APPX_PUBLISHER }}
-          AZURE_CODESIGN_ENDPOINT: ${{ vars.AZURE_CODESIGN_ENDPOINT || secrets.AZURE_CODESIGN_ENDPOINT }}
-          AZURE_CODESIGN_ACCOUNT_NAME: ${{ vars.AZURE_CODESIGN_ACCOUNT_NAME || secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
-          AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME || secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
         run: |
           node scripts/build-msix.mjs \
             --plan "$RUNNER_TEMP/build-plan/release-plan.json" \
@@ -304,65 +262,6 @@ jobs:
             --workspace "$STORE_WORKSPACE" \
             --artifact-variant "${{ matrix.variant }}" \
             --signing-mode "$STORE_SIGNING_MODE"
-
-      - name: Azure login for external signing
-        if: success() && matrix.variant == 'signed' && needs.resolve_plan.outputs.dry_run != 'true'
-        uses: azure/login@v3
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Collect Windows package catalog
-        if: success() && matrix.variant == 'signed' && needs.resolve_plan.outputs.dry_run != 'true'
-        id: msix_catalog
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $releaseDir = Join-Path $env:STORE_WORKSPACE 'release-assets'
-          $catalogPath = Join-Path $env:STORE_WORKSPACE 'windows-signable-artifacts.txt'
-          $workspaceRoot = [System.IO.Path]::GetFullPath($env:STORE_WORKSPACE)
-          $files = @(Get-ChildItem -LiteralPath $releaseDir -File | Where-Object { $_.Extension -eq '.msix' } | Sort-Object FullName -Unique)
-
-          if ($files.Count -eq 0) {
-            throw 'No packaged Store artifacts were found for signing.'
-          }
-
-          $files | ForEach-Object { [System.IO.Path]::GetRelativePath($workspaceRoot, $_.FullName) } | Set-Content -Path $catalogPath
-
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "catalog_path=$catalogPath"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value 'package_files<<EOF'
-          $files | ForEach-Object { Add-Content -Path $env:GITHUB_OUTPUT -Value $_.FullName }
-          Add-Content -Path $env:GITHUB_OUTPUT -Value 'EOF'
-
-      - name: Sign MSIX artifacts with Artifact Signing
-        if: success() && matrix.variant == 'signed' && needs.resolve_plan.outputs.dry_run != 'true'
-        uses: azure/artifact-signing-action@v2
-        with:
-          endpoint: ${{ secrets.AZURE_CODESIGN_ENDPOINT }}
-          signing-account-name: ${{ secrets.AZURE_CODESIGN_ACCOUNT_NAME }}
-          certificate-profile-name: ${{ secrets.AZURE_CODESIGN_CERTIFICATE_PROFILE_NAME }}
-          files-catalog: ${{ steps.msix_catalog.outputs.catalog_path }}
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-          cache-dependencies: true
-
-      - name: Finalize Store package metadata
-        if: success() && (matrix.variant != 'signed' || needs.resolve_plan.outputs.dry_run != 'true')
-        shell: bash
-        run: |
-          args=(
-            --workspace "$STORE_WORKSPACE"
-            --platform "${{ matrix.target.platform }}"
-            --artifact-variant "${{ matrix.variant }}"
-          )
-
-          if [ "$STORE_REQUIRE_SIGNED" = 'true' ]; then
-            args+=(--require-signed)
-          fi
-
-          node scripts/finalize-msix-signing.mjs "${args[@]}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
