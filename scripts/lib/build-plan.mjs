@@ -106,7 +106,7 @@ function resolveIndexRepository({ sourceType, explicitUrl, azureSasUrl }) {
   return {
     requestUrl: fallbackUrl,
     manifestUrl: fallbackUrl,
-    sourceAuthority: 'index-site-default',
+    sourceAuthority: 'cloudflare-index-default',
     manifestPath: null
   };
 }

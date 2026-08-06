@@ -1,8 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveDlcIndexRelease } from '../scripts/lib/index-source.mjs';
+import { DEFAULT_INDEX_SOURCES, resolveDlcIndexRelease } from '../scripts/lib/index-source.mjs';
 
 const INDEX_URL = 'https://dl-dlc.hagicode.com/index.json';
+
+test('default version indexes use Cloudflare public index.json endpoints', () => {
+  assert.deepEqual(DEFAULT_INDEX_SOURCES, {
+    desktop: 'https://dl-desktop.hagicode.com/index.json',
+    service: 'https://dl-server.hagicode.com/index.json'
+  });
+});
 
 test('resolveDlcIndexRelease consumes structured DLC artifact download metadata', async () => {
   const directUrl = 'https://dl-dlc.hagicode.com/turbo-engine/1.2.3/hagicode-dlc-turbo-engine-1.2.3-win-x64-nort.zip';

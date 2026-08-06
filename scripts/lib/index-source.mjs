@@ -1,9 +1,9 @@
 import { matchDesktopAssetForPlatform, matchDlcAssetForPlatform, matchServerAssetForPlatform, stripGitRef } from './platforms.mjs';
 
-export const DEFAULT_INDEX_SOURCES = {
-  desktop: 'https://index.hagicode.com/desktop/index.json',
-  service: 'https://index.hagicode.com/server/index.json'
-};
+export const DEFAULT_INDEX_SOURCES = Object.freeze({
+  desktop: 'https://dl-desktop.hagicode.com/index.json',
+  service: 'https://dl-server.hagicode.com/index.json'
+});
 
 export const DEFAULT_INDEX_MANIFEST_PATH = 'index.json';
 
@@ -330,7 +330,7 @@ export async function resolveIndexRelease({
   selector,
   platforms,
   fetchImpl,
-  sourceAuthority = 'index-site',
+  sourceAuthority = 'cloudflare-index',
   manifestPath = null
 }) {
   const manifest = await fetchIndexManifest(indexUrl, { fetchImpl });
@@ -364,7 +364,7 @@ export async function resolveDlcIndexRelease({
   selector = null,
   platforms,
   fetchImpl,
-  sourceAuthority = 'index-site',
+  sourceAuthority = 'cloudflare-index',
   manifestPath = null
 }) {
   const manifest = await fetchIndexManifest(indexUrl, { fetchImpl });
