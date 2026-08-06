@@ -131,8 +131,13 @@ development layout.
 Basic usage:
 
 ```bash
-npm run test:win-store:local -- --packer-release-tag v1.4.0
+npm run test:win-store:local
 ```
+
+The local workflow uses the fixed Packer test tag `v0.1.0` by default and
+resolves the latest indexed Server release for each newly generated plan. Use
+`--packer-release-tag=<tag>` or `WIN_STORE_PACKER_RELEASE_TAG` only when a
+different package version is required.
 
 Use an existing plan and local archives when network downloads are not desired:
 
