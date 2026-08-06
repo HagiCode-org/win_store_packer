@@ -7,6 +7,10 @@ import {
   DEFAULT_DLC_PUBLIC_BASE_URL,
   DEFAULT_SERVER_PUBLIC_BASE_URL
 } from './lib/artifact-download.mjs';
+import {
+  PUBLICATION_MODES,
+  WORKFLOW_ARTIFACT_HANDOFF_SOURCE
+} from './lib/build-plan.mjs';
 import { pathExists, readJson } from './lib/fs-utils.mjs';
 import { runCommand } from './lib/command.mjs';
 import { loadReleasePlan } from './lib/release-plan.mjs';
@@ -22,6 +26,7 @@ const projectRoot = path.resolve(path.dirname(__filename), '..');
 const DEFAULT_PLAN_PATH = path.join(projectRoot, 'build', 'release-plan.json');
 const DEFAULT_PLATFORM = 'win-x64';
 const DEFAULT_WORKSPACE_PATH = path.join(projectRoot, 'build', `store-${DEFAULT_PLATFORM}`);
+const DEFAULT_LOCAL_PACKER_RELEASE_TAG = 'v0.1.0';
 const WINDOWS_PACKAGE_IDENTITY_ENV = 'WINDOWS_PACKAGE_IDENTITY';
 
 const OPTION_DEFINITIONS = {
@@ -83,7 +88,7 @@ export function parseArgs(argv, env = process.env) {
       'packer-release-tag',
       'WIN_STORE_PACKER_RELEASE_TAG',
       'PACKER_RELEASE_TAG'
-    ),
+    ) ?? DEFAULT_LOCAL_PACKER_RELEASE_TAG,
     desktopSource: resolvePath(
       firstValue('desktop-source', 'WIN_STORE_PACKER_DESKTOP_SOURCE'),
       path.join(projectRoot, 'inputs', 'hagicode-desktop')
@@ -397,7 +402,7 @@ async function resolvePackageIdentity({ workspaceManifest, buildMetadata, artifa
 }
 
 async function preparePlan(options) {
-  if (options.planExplicit || await pathExists(options.plan)) {
+  if (options.planExplicit) {
     if (!(await pathExists(options.plan))) {
       throw new Error(`Release plan does not exist: ${options.plan}`);
     }
@@ -411,20 +416,19 @@ async function preparePlan(options) {
     return options.plan;
   }
 
-  if (!options.packerReleaseTag) {
-    throw new Error(
-      'A packer Release Drafter tag is required to generate the default release plan. Pass --packer-release-tag or set WIN_STORE_PACKER_RELEASE_TAG.'
-    );
-  }
-
-  console.log('[local-win-store-test] Generating local release plan...');
+  console.log(
+    `[local-win-store-test] Generating local release plan for ${options.packerReleaseTag}; resolving the latest indexed Server release...`
+  );
   await resolveDispatchBuildPlan({
     eventName: 'workflow_dispatch',
     eventPayload: { inputs: { platforms: options.platform } },
     outputPath: options.plan,
     packerReleaseTag: options.packerReleaseTag,
     serverPublicBaseUrl: options.serverPublicBaseUrl,
-    dlcPublicBaseUrl: options.dlcPublicBaseUrl
+    dlcPublicBaseUrl: options.dlcPublicBaseUrl,
+    publicationMode: PUBLICATION_MODES.WORKFLOW_ARTIFACT,
+    handoffSource: WORKFLOW_ARTIFACT_HANDOFF_SOURCE,
+    producerWorkflow: 'package-release'
   });
 
   try {

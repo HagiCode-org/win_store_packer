@@ -20,6 +20,7 @@ import {
 test('parseArgs applies defaults and environment fallbacks', () => {
   const defaults = parseArgs([], {});
   assert.equal(defaults.plan.endsWith(path.join('build', 'release-plan.json')), true);
+  assert.equal(defaults.packerReleaseTag, 'v0.1.0');
   assert.equal(defaults.platform, 'win-x64');
   assert.equal(defaults.workspace.endsWith(path.join('build', 'store-win-x64')), true);
   assert.equal(defaults.skipBuild, false);
