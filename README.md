@@ -1,6 +1,6 @@
 # win_store_packer
 
-`win_store_packer` resolves Desktop, Server, and Turbo Engine DLC releases, validates the staged runtime payload, invokes the desktop-owned Microsoft Store packaging entrypoint, optionally finalizes signing, and publishes GitHub release metadata.
+`win_store_packer` resolves Desktop, Server, and Turbo Engine DLC releases, validates the staged runtime payload, invokes the desktop-owned Microsoft Store packaging entrypoint, and publishes GitHub release metadata.
 
 Desktop now owns Store packaging. This repository does not render Store overlays or build MSIX packages independently anymore.
 
@@ -13,7 +13,6 @@ Desktop now owns Store packaging. This repository does not render Store overlays
 - prepare a tagged Desktop worktree for packaging
 - download, extract, and validate the Server payload plus the required Turbo Engine DLC package
 - invoke `npm run build:win:store` in the Desktop workspace
-- optionally finalize and verify signed artifacts
 - publish GitHub release assets and machine-readable release metadata
 
 Desktop owns these responsibilities:
@@ -74,7 +73,7 @@ Defines workflow defaults such as:
 1. `package-release.yml` starts from a published release or a manual rebuild of a published release tag
 2. `package-release.yml` generates a fresh `release-plan.json` from the authoritative release tag plus the latest Desktop/Server index state; Turbo Engine DLC artifact paths are derived from the selected Server version
 3. the workflow prepares a Desktop `main` worktree, downloads the Server payload, merges the Turbo Engine DLC runtime under `lib/dlcs/turbo-engine`, regenerates `lib/dlcs/index.json`, and runs `scripts/build-msix.mjs`
-4. the existing signing, artifact upload, and release metadata publication steps continue unchanged after plan validation succeeds
+4. the workflow builds the unsigned Desktop Store package, uploads its artifacts, and publishes release metadata after plan validation succeeds
 
 The release plan is no longer pre-synced to a draft release asset. The canonical Microsoft Store version is always derived from the release tag at consume time, so the plan is generated on demand inside `package-release.yml`.
 
@@ -99,20 +98,7 @@ The workflow no longer accepts `desktop_source=release`, Desktop release selecto
 
 ## Signing
 
-Two signing modes remain relevant:
-
-- `disabled`: publish the desktop-produced artifact only
-- `external`: preserve the Desktop artifact, sign it in workflow post-processing, then finalize metadata
-
-`required` is still supported for script-level validation, but the main workflow uses explicit post-processing with `azure/artifact-signing-action@v2`.
-
-Signed packaging runs now target the GitHub Actions `production` environment so Azure OIDC login presents the `repo:HagiCode-org/win_store_packer:environment:production` subject expected by federated credentials.
-
-Release metadata now distinguishes:
-
-- the desktop-produced unsigned artifact
-- the post-signed artifact when available
-- the `submissionReadyVariant` for that workflow run
+Azure Trusted Signing is temporarily suspended. The release workflow builds and publishes only the Desktop-produced unsigned Store package; it does not request Azure credentials, authenticate with Azure OIDC, or produce a signed artifact.
 
 ## Local Verification
 
@@ -122,7 +108,6 @@ From `repos/win_store_packer`:
 npm test
 npm run verify:dry-run
 npm run verify:publication
-npm run verify:signing
 ```
 
 ## Local Commands
@@ -182,16 +167,6 @@ node scripts/build-msix.mjs \
   --platform win-x64 \
   --workspace build/store-win-x64 \
   --artifact-variant unsigned
-```
-
-Finalize a signed artifact after external signing:
-
-```bash
-node scripts/finalize-msix-signing.mjs \
-  --workspace build/store-win-x64 \
-  --platform win-x64 \
-  --artifact-variant signed \
-  --require-signed
 ```
 
 Publish release metadata:
