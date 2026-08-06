@@ -112,7 +112,7 @@ npm run verify:publication
 
 ## Local Commands
 
-Artifact downloads default to Cloudflare public sources from the release plan (public base + `asset.path`, then `asset.directUrl` or the official `downloadSources` entry). Server artifacts use `https://dl-server.hagicode.com`; Turbo Engine DLC artifacts use `https://dl-dlc.hagicode.com`. When an external DLC `index.json` is supplied, the packer reads the current `dlcs[].versions[].artifacts[]` shape and preserves its structured download metadata.
+Version resolution defaults to the Cloudflare `index.json` endpoints (`https://dl-desktop.hagicode.com/index.json` and `https://dl-server.hagicode.com/index.json`) instead of the `index.hagicode.com` portal. Artifact downloads default to Cloudflare public sources from the release plan (public base + `asset.path`, then `asset.directUrl` or the official `downloadSources` entry). Server artifacts use `https://dl-server.hagicode.com`; Turbo Engine DLC artifacts use `https://dl-dlc.hagicode.com`. When an external DLC `index.json` is supplied, the packer reads the current `dlcs[].versions[].artifacts[]` shape and preserves its structured download metadata.
 Set `WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL` / `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` or pass `--public-base-url` / `--dlc-public-base-url` to override the Cloudflare public bases.
 
 Generate a release plan locally from an authoritative tag, exactly like `package-release.yml` does at consume time:
