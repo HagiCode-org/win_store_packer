@@ -292,12 +292,17 @@ export function mapDlcAssetsByPlatform({ dlcName, directoryId, versionEntry, pla
 }
 
 export async function fetchIndexManifest(indexUrl, { fetchImpl } = {}) {
-  const response = await getFetch(fetchImpl)(indexUrl, {
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'win-store-packer-automation'
-    }
-  });
+  let response;
+  try {
+    response = await getFetch(fetchImpl)(indexUrl, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'win-store-packer-automation'
+      }
+    });
+  } catch (error) {
+    throw new Error(`Failed to fetch index manifest ${indexUrl}: ${error.message}`, { cause: error });
+  }
 
   if (!response.ok) {
     const body = await response.text();

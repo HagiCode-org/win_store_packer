@@ -1,6 +1,10 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_INDEX_SOURCES, resolveDlcIndexRelease } from '../scripts/lib/index-source.mjs';
+import test from 'node:test';
+import {
+  DEFAULT_INDEX_SOURCES,
+  fetchIndexManifest,
+  resolveDlcIndexRelease
+} from '../scripts/lib/index-source.mjs';
 
 const INDEX_URL = 'https://dl-dlc.hagicode.com/index.json';
 
@@ -9,6 +13,17 @@ test('default version indexes use Cloudflare public index.json endpoints', () =>
     desktop: 'https://dl-desktop.hagicode.com/index.json',
     service: 'https://dl-server.hagicode.com/index.json'
   });
+});
+
+test('fetchIndexManifest identifies the URL when network access fails', async () => {
+  await assert.rejects(
+    fetchIndexManifest(INDEX_URL, {
+      fetchImpl: async () => {
+        throw new Error('fetch failed');
+      }
+    }),
+    new RegExp(`Failed to fetch index manifest ${INDEX_URL}: fetch failed`)
+  );
 });
 
 test('resolveDlcIndexRelease consumes structured DLC artifact download metadata', async () => {
