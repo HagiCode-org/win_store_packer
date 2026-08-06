@@ -110,6 +110,54 @@ npm run verify:dry-run
 npm run verify:publication
 ```
 
+### Local Windows Store package test
+
+`npm run test:win-store:local` is the single local workflow for generating,
+installing, and launching the Packer-produced MSIX. It must run on Windows with
+PowerShell, Node/npm, the Windows AppX/MSIX tooling, and the certificate and
+trust prerequisites required by the Desktop Store package. The Desktop source
+checkout must be initialized at `inputs/hagicode-desktop`, or supplied with
+`--desktop-source`.
+
+The default workspace is `build/store-win-x64`. It contains the release plan,
+the isolated Desktop worktree, downloaded and extracted payloads, validation
+reports, build metadata, the artifact inventory, and `release-assets/*.msix`.
+The command stages the Server and Turbo Engine payload before invoking the
+Desktop-owned `build:win:store` contract, validates the generated MSIX contents,
+installs that final package for the current user, and launches its installed
+application identity. It does not register or launch an unpacked Desktop
+development layout.
+
+Basic usage:
+
+```bash
+npm run test:win-store:local -- --packer-release-tag v1.4.0
+```
+
+Use an existing plan and local archives when network downloads are not desired:
+
+```bash
+npm run test:win-store:local -- \
+  --plan build/release-plan.json \
+  --desktop-source inputs/hagicode-desktop \
+  --server-asset-source C:\archives\server.zip \
+  --dlc-asset-source C:\archives\turbo-engine.zip
+```
+
+Supported controls include `--platform`, `--workspace`, `--packer-release-tag`,
+`--public-base-url`, `--dlc-public-base-url`, `--skip-build`,
+`--purchase-smoke-test`, and `--force-renderer-accessibility`. `--skip-build`
+requires an existing Packer workspace with a successful payload report and
+unsigned MSIX artifact, then performs the content validation, package removal,
+installation, and launch stages only. Equivalent environment fallbacks are
+available through the `WIN_STORE_PACKER_*` variables documented by `--help`.
+
+Failures are intentional boundaries: invalid plans stop before workspace
+mutation, stage failures stop before installation, missing runtime or Server
+payload entries stop before installation, and certificate or package-trust
+errors from `Add-AppxPackage` are reported instead of falling back to an
+unpacked executable or development registration.
+
 ## Local Commands
 
 Version resolution defaults to the Cloudflare `index.json` endpoints (`https://dl-desktop.hagicode.com/index.json` and `https://dl-server.hagicode.com/index.json`) instead of the `index.hagicode.com` portal. Artifact downloads default to Cloudflare public sources from the release plan (public base + `asset.path`, then `asset.directUrl` or the official `downloadSources` entry). Server artifacts use `https://dl-server.hagicode.com`; Turbo Engine DLC artifacts use `https://dl-dlc.hagicode.com`. When an external DLC `index.json` is supplied, the packer reads the current `dlcs[].versions[].artifacts[]` shape and preserves its structured download metadata.
