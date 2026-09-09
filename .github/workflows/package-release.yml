@@ -331,3 +331,13 @@ jobs:
           name: store-release-metadata-${{ needs.resolve_plan.outputs.release_tag }}
           path: ${{ runner.temp }}/release-metadata
           if-no-files-found: error
+
+  draft_release:
+    name: Refresh release draft
+    if: github.event_name == 'release' && needs.publish.result == 'success'
+    needs:
+      - publish
+    uses: ./.github/workflows/release-drafter.yml
+    permissions:
+      contents: write
+      pull-requests: write
