@@ -87,6 +87,8 @@ The workflow no longer replays Desktop packaging internals such as overlay rende
 - `release_tag`: the published `win_store_packer` release tag to rebuild and publish against (used only when `build_mode=published-release`)
 - `dry_run`: optional flag to build and stage release metadata without mutating the published GitHub Release
 
+`release-drafter.yml` also supports manual runs. After a successful `release: published` packaging run, it is invoked automatically to refresh the next draft release.
+
 When `build_mode=main`, the workflow:
 
 - resolves the current Release Drafter tag
