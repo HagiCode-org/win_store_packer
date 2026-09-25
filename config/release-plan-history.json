@@ -17,10 +17,10 @@
     },
     "v0.4.6": {
       "status": "unpublished",
-      "changedAt": "2026-09-25T21:11:09.343Z",
+      "changedAt": "2026-09-25T21:35:36.168Z",
       "plan": {
         "storeVersion": "v0.4.6",
-        "desktopVersion": "v0.1.86",
+        "desktopVersion": "v0.1.87",
         "desktopRef": "main",
         "serverVersion": "0.1.0-beta.85",
         "dlcVersion": "0.1.0-beta.85",
