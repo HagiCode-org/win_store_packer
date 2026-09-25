@@ -4,12 +4,12 @@ import { zstdDecompressSync } from 'node:zlib';
 
 export const DEFAULT_INDEX_SOURCES = Object.freeze({
   desktop: Object.freeze([
-    'https://desktop.dl.hagicode.com/index.json',
-    'https://dl-desktop.hagicode.com/index.json'
+    'https://dl-desktop.hagicode.com/index.json',
+    'https://desktop.dl.hagicode.com/index.json'
   ]),
   service: Object.freeze([
-    'https://server.dl.hagicode.com/index.json',
-    'https://dl-server.hagicode.com/index.json'
+    'https://dl-server.hagicode.com/index.json',
+    'https://server.dl.hagicode.com/index.json'
   ])
 });
 

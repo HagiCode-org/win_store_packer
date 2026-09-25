@@ -13,8 +13,8 @@ const INDEX_URL = 'https://dl-dlc.hagicode.com/index.json';
 
 test('default version indexes have ordered public endpoints', () => {
   assert.deepEqual(DEFAULT_INDEX_SOURCES, {
-    desktop: ['https://desktop.dl.hagicode.com/index.json', 'https://dl-desktop.hagicode.com/index.json'],
-    service: ['https://server.dl.hagicode.com/index.json', 'https://dl-server.hagicode.com/index.json']
+    desktop: ['https://dl-desktop.hagicode.com/index.json', 'https://desktop.dl.hagicode.com/index.json'],
+    service: ['https://dl-server.hagicode.com/index.json', 'https://server.dl.hagicode.com/index.json']
   });
 });
 
@@ -117,8 +117,8 @@ test('default index reports both URL-specific failures', async () => {
       ? new Response('unavailable', { status: 502 })
       : new Response('{', { headers: { 'content-type': 'application/json' } })),
     (error) => {
-      assert.match(error.message, /server\.dl\.hagicode\.com\/index\.json.*502/);
-      assert.match(error.message, /dl-server\.hagicode\.com\/index\.json.*invalid JSON/);
+      assert.match(error.message, /dl-server\.hagicode\.com\/index\.json.*502/);
+      assert.match(error.message, /server\.dl\.hagicode\.com\/index\.json.*invalid JSON/);
       return true;
     }
   );
