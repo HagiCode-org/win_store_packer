@@ -1,8 +1,21 @@
 # win_store_packer
 
+[![Release plan preview](https://github.com/HagiCode-org/win_store_packer/actions/workflows/release-plan-preview.yml/badge.svg)](https://github.com/HagiCode-org/win_store_packer/actions/workflows/release-plan-preview.yml)
+[![Package release](https://github.com/HagiCode-org/win_store_packer/actions/workflows/package-release.yml/badge.svg)](https://github.com/HagiCode-org/win_store_packer/actions/workflows/package-release.yml)
+
 `win_store_packer` resolves Desktop, Server, and Turbo Engine DLC releases, validates the staged runtime payload, invokes the desktop-owned Microsoft Store packaging entrypoint, and publishes GitHub release metadata.
 
 Desktop now owns Store packaging. This repository does not render Store overlays or build MSIX packages independently anymore.
+
+## Recent release plans
+
+The latest 10 changed versions appear below; older records remain in [`config/release-plan-history.json`](config/release-plan-history.json). Each record stores only the normalized packer tag, status, UTC last-change timestamp, Store version, Desktop version and checkout ref, Server version, Turbo Engine DLC version, and platforms. `Unpublished` is a validated scheduled or manually refreshed preview; `Published` means the real release publication succeeded and uses its release-time plan. Snapshot times indicate when recorded inputs last changed, not when they were last checked. Previews are advisory: release-time plans are authoritative.
+
+<!-- release-plan-history:start -->
+| Version | Status | Store version | Desktop / ref | Server | Turbo Engine DLC | Platforms | Snapshot UTC |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| v0.4.5 | Unpublished | v0.4.5 | v0.1.85 / main | 0.1.0-beta.85 | 0.1.0-beta.85 | win-x64 | 2026-09-25T17:37:46.824Z |
+<!-- release-plan-history:end -->
 
 ## Responsibilities
 
@@ -76,16 +89,6 @@ Defines workflow defaults such as:
 4. the workflow builds the unsigned Desktop Store package, uploads its artifacts, and publishes release metadata after plan validation succeeds
 
 The release plan is no longer pre-synced to a draft release asset. The canonical Microsoft Store version is always derived from the release tag at consume time, so the plan is generated on demand inside `package-release.yml`.
-
-## Recent release plans
-
-The latest 10 changed versions appear below; older records remain in [`config/release-plan-history.json`](config/release-plan-history.json). Each record stores only the normalized packer tag, status, UTC last-change timestamp, Store version, Desktop version and checkout ref, Server version, Turbo Engine DLC version, and platforms. `Unpublished` is a validated scheduled or manually refreshed preview; `Published` means the real release publication succeeded and uses its release-time plan. Snapshot times indicate when recorded inputs last changed, not when they were last checked. Previews are advisory: release-time plans are authoritative.
-
-<!-- release-plan-history:start -->
-| Version | Status | Store version | Desktop / ref | Server | Turbo Engine DLC | Platforms | Snapshot UTC |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| v0.4.5 | Unpublished | v0.4.5 | v0.1.85 / main | 0.1.0-beta.85 | 0.1.0-beta.85 | win-x64 | 2026-09-25T17:37:46.824Z |
-<!-- release-plan-history:end -->
 
 The workflow no longer replays Desktop packaging internals such as overlay rendering or packer-owned MSIX generation.
 
