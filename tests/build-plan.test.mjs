@@ -18,6 +18,7 @@ import {
   DEFAULT_SERVER_PUBLIC_BASE_URL
 } from '../scripts/lib/artifact-download.mjs';
 import { resolveDispatchBuildPlan } from '../scripts/resolve-dispatch-build-plan.mjs';
+import { DEFAULT_INDEX_SOURCES } from '../scripts/lib/index-source.mjs';
 
 const DESKTOP_INDEX_URL = 'https://index.hagicode.com/desktop/index.json';
 const SERVER_INDEX_URL = 'https://index.hagicode.com/server/index.json';
@@ -204,6 +205,102 @@ test('buildPlan accepts legacy Azure SAS index fallback when explicitly supplied
   assert.equal(plan.upstream.dlcs['turbo-engine'].manifestUrl, 'https://example.blob.core.windows.net/dlc/index.json?<sas-token-redacted>');
   assert.equal(plan.upstream.server.sourceAuthority, 'legacy-azure-sas');
   assert.equal(plan.upstream.dlcs['turbo-engine'].sourceAuthority, 'legacy-azure-sas');
+  assert.equal(plan.repositories.desktop, plan.upstream.desktop.manifestUrl);
+  assert.equal(plan.repositories.server, plan.upstream.server.manifestUrl);
+});
+
+test('buildPlan uses each default primary and records its selected source', async () => {
+  const requests = [];
+  const originalFetch = createFetchStub();
+  const plan = await buildPlan(baseBuildPlanOptions({
+    repositories: { packer: 'HagiCode-org/win_store_packer' },
+    fetchImpl: (url, options) => {
+      requests.push(url);
+      const mappedUrl = url === DEFAULT_INDEX_SOURCES.desktop[0] ? DESKTOP_INDEX_URL : SERVER_INDEX_URL;
+      return originalFetch(mappedUrl, options);
+    }
+  }));
+  assert.deepEqual(requests, [DEFAULT_INDEX_SOURCES.desktop[0], DEFAULT_INDEX_SOURCES.service[0]]);
+  assert.equal(plan.repositories.desktop, DEFAULT_INDEX_SOURCES.desktop[0]);
+  assert.equal(plan.repositories.server, DEFAULT_INDEX_SOURCES.service[0]);
+  assert.equal(plan.upstream.desktop.manifestUrl, plan.repositories.desktop);
+  assert.equal(plan.upstream.server.manifestUrl, plan.repositories.server);
+  assert.equal(plan.upstream.server.version, '0.1.0-beta.34');
+  assert.equal(plan.upstream.desktop.sourceAuthority, 'cloudflare-index-default');
+});
+
+test('buildPlan records fallback selection independently for Desktop and Server', async (t) => {
+  for (const failedProduct of ['desktop', 'service']) {
+    await t.test(failedProduct, async () => {
+      const requests = [];
+      const originalFetch = createFetchStub();
+      const plan = await buildPlan(baseBuildPlanOptions({
+        repositories: { packer: 'HagiCode-org/win_store_packer' },
+        fetchImpl: (url, options) => {
+          requests.push(url);
+          if (url === DEFAULT_INDEX_SOURCES[failedProduct][0]) {
+            return Promise.resolve(new Response('unavailable', { status: 503 }));
+          }
+          const mappedUrl = DEFAULT_INDEX_SOURCES.desktop.includes(url) ? DESKTOP_INDEX_URL : SERVER_INDEX_URL;
+          return originalFetch(mappedUrl, options);
+        }
+      }));
+      for (const [product, sourceType] of [['desktop', 'desktop'], ['server', 'service']]) {
+        const selectedUrl = DEFAULT_INDEX_SOURCES[sourceType][sourceType === failedProduct ? 1 : 0];
+        assert.equal(plan.repositories[product], selectedUrl);
+        assert.equal(plan.upstream[product].manifestUrl, selectedUrl);
+        assert.equal(requests.includes(DEFAULT_INDEX_SOURCES[sourceType][1]), sourceType === failedProduct);
+      }
+      assert.deepEqual(requests.slice(0, 2), [DEFAULT_INDEX_SOURCES.desktop[0], DEFAULT_INDEX_SOURCES.service[0]]);
+      assert.equal(requests.at(-1), DEFAULT_INDEX_SOURCES[failedProduct][1]);
+    });
+  }
+});
+
+test('explicit URLs take precedence over SAS and defaults without fallback', async () => {
+  const requests = [];
+  const plan = await buildPlan(baseBuildPlanOptions({
+    azureSasUrls: { desktop: DESKTOP_AZURE_SAS_URL, server: SERVER_AZURE_SAS_URL },
+    fetchImpl: createFetchStub({ requests })
+  }));
+  assert.deepEqual(requests, [DESKTOP_INDEX_URL, SERVER_INDEX_URL]);
+  assert.equal(plan.repositories.desktop, DESKTOP_INDEX_URL);
+  assert.equal(plan.repositories.server, SERVER_INDEX_URL);
+
+  const failedRequests = [];
+  await assert.rejects(
+    buildPlan(baseBuildPlanOptions({
+      azureSasUrls: { server: SERVER_AZURE_SAS_URL },
+      fetchImpl: async (url) => {
+        failedRequests.push(url);
+        if (url === SERVER_INDEX_URL) throw new Error('unavailable');
+        return createFetchStub()(url);
+      }
+    })),
+    /Failed to fetch index manifest .*unavailable/
+  );
+  assert.deepEqual(failedRequests, [DESKTOP_INDEX_URL, SERVER_INDEX_URL]);
+});
+
+test('legacy SAS retrieval errors redact credentials and never try public defaults', async () => {
+  const requests = [];
+  await assert.rejects(
+    buildPlan(baseBuildPlanOptions({
+      repositories: { desktop: DESKTOP_INDEX_URL },
+      azureSasUrls: { server: SERVER_AZURE_SAS_URL },
+      fetchImpl: async (url) => {
+        requests.push(url);
+        if (url === SERVER_AZURE_MANIFEST_URL) throw new Error(`failed ${url}`);
+        return createFetchStub()(url);
+      }
+    })),
+    (error) => {
+      assert.match(error.message, /server\/index\.json\?<sas-token-redacted>/);
+      assert.doesNotMatch(error.message, /test-token|sig=/);
+      return true;
+    }
+  );
+  assert.deepEqual(requests, [DESKTOP_INDEX_URL, SERVER_AZURE_MANIFEST_URL]);
 });
 
 test('buildPlan rejects the removed desktop release mode input', async () => {

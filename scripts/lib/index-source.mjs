@@ -1,11 +1,19 @@
 import { matchDesktopAssetForPlatform, matchDlcAssetForPlatform, matchServerAssetForPlatform, stripGitRef } from './platforms.mjs';
+import { sanitizeUrlForLogs } from './artifact-download.mjs';
 
 export const DEFAULT_INDEX_SOURCES = Object.freeze({
-  desktop: 'https://dl-desktop.hagicode.com/index.json',
-  service: 'https://dl-server.hagicode.com/index.json'
+  desktop: Object.freeze([
+    'https://desktop.dl.hagicode.com/index.json',
+    'https://dl-desktop.hagicode.com/index.json'
+  ]),
+  service: Object.freeze([
+    'https://server.dl.hagicode.com/index.json',
+    'https://dl-server.hagicode.com/index.json'
+  ])
 });
 
 export const DEFAULT_INDEX_MANIFEST_PATH = 'index.json';
+export const DEFAULT_INDEX_TIMEOUT_MS = 10_000;
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
@@ -291,30 +299,43 @@ export function mapDlcAssetsByPlatform({ dlcName, directoryId, versionEntry, pla
   return assetsByPlatform;
 }
 
-export async function fetchIndexManifest(indexUrl, { fetchImpl } = {}) {
+export async function fetchIndexManifest(indexUrl, { fetchImpl, signal } = {}) {
+  const safeUrl = sanitizeUrlForLogs(indexUrl);
+  const hasCredentials = safeUrl !== indexUrl;
   let response;
   try {
     response = await getFetch(fetchImpl)(indexUrl, {
       headers: {
         Accept: 'application/json',
         'User-Agent': 'win-store-packer-automation'
-      }
+      },
+      ...(signal ? { signal } : {})
     });
   } catch (error) {
-    throw new Error(`Failed to fetch index manifest ${indexUrl}: ${error.message}`, { cause: error });
+    throw new Error(
+      `Failed to fetch index manifest ${safeUrl}: ${hasCredentials ? 'request failed' : error.message}`,
+      hasCredentials ? undefined : { cause: error }
+    );
   }
 
+  let body;
+  try {
+    body = await response.text();
+  } catch (error) {
+    throw new Error(
+      `Failed to read index manifest ${safeUrl}: ${hasCredentials ? 'request failed' : error.message}`,
+      hasCredentials ? undefined : { cause: error }
+    );
+  }
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Failed to read index manifest ${indexUrl}: ${response.status} ${body}`);
+    throw new Error(`Failed to read index manifest ${safeUrl}: ${response.status}${hasCredentials ? '' : ` ${body}`}`);
   }
 
   const contentType = response.headers.get('content-type') ?? '';
-  const body = await response.text();
   if (!contentType.toLowerCase().includes('json')) {
     throw new Error(
-      `Index manifest ${indexUrl} returned ${contentType || 'unknown'} content instead of JSON. ` +
-      `Expected JSON but received: ${body.slice(0, 500)}`
+      `Index manifest ${safeUrl} returned ${contentType || 'unknown'} content instead of JSON. ` +
+      (hasCredentials ? '' : `Expected JSON but received: ${body.slice(0, 500)}`)
     );
   }
 
@@ -322,15 +343,37 @@ export async function fetchIndexManifest(indexUrl, { fetchImpl } = {}) {
     return JSON.parse(body);
   } catch (error) {
     throw new Error(
-      `Index manifest ${indexUrl} returned invalid JSON: ${error.message}. ` +
-      `Received: ${body.slice(0, 500)}`
+      `Index manifest ${safeUrl} returned invalid JSON: ${hasCredentials ? 'unable to parse response' : error.message}. ` +
+      (hasCredentials ? '' : `Received: ${body.slice(0, 500)}`)
     );
   }
+}
+
+async function fetchFirstIndexManifest(indexUrls, fetchImpl) {
+  const failures = [];
+  for (const indexUrl of indexUrls) {
+    try {
+      return {
+        manifest: await fetchIndexManifest(indexUrl, {
+          fetchImpl,
+          signal: AbortSignal.timeout(DEFAULT_INDEX_TIMEOUT_MS)
+        }),
+        indexUrl
+      };
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  throw new AggregateError(
+    failures,
+    `Failed to retrieve index manifest from all default sources: ${failures.map((error) => error.message).join('; ')}`
+  );
 }
 
 export async function resolveIndexRelease({
   sourceType,
   indexUrl,
+  indexUrls,
   manifestUrl = indexUrl,
   selector,
   platforms,
@@ -338,7 +381,10 @@ export async function resolveIndexRelease({
   sourceAuthority = 'cloudflare-index',
   manifestPath = null
 }) {
-  const manifest = await fetchIndexManifest(indexUrl, { fetchImpl });
+  const selected = indexUrls
+    ? await fetchFirstIndexManifest(indexUrls, fetchImpl)
+    : { manifest: await fetchIndexManifest(indexUrl, { fetchImpl }), indexUrl };
+  const { manifest } = selected;
   const versionEntry = resolveVersionEntry({
     manifest,
     selector,
@@ -348,7 +394,7 @@ export async function resolveIndexRelease({
   return {
     sourceType: 'index',
     sourceAuthority,
-    manifestUrl,
+    manifestUrl: indexUrls ? selected.indexUrl : manifestUrl,
     manifestPath,
     selector: normalizeVersionSelector(selector)?.normalized ?? null,
     version: versionEntry.version,

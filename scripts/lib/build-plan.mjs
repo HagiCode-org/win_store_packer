@@ -102,10 +102,8 @@ function resolveIndexRepository({ sourceType, explicitUrl, azureSasUrl }) {
     };
   }
 
-  const fallbackUrl = DEFAULT_INDEX_SOURCES[sourceType];
   return {
-    requestUrl: fallbackUrl,
-    manifestUrl: fallbackUrl,
+    indexUrls: DEFAULT_INDEX_SOURCES[sourceType],
     sourceAuthority: 'cloudflare-index-default',
     manifestPath: null
   };
@@ -238,6 +236,7 @@ export async function buildPlan({
     resolveIndexRelease({
       sourceType: 'desktop',
       indexUrl: desktopRepository.requestUrl,
+      indexUrls: desktopRepository.indexUrls,
       manifestUrl: desktopRepository.manifestUrl,
       sourceAuthority: desktopRepository.sourceAuthority,
       manifestPath: desktopRepository.manifestPath,
@@ -248,6 +247,7 @@ export async function buildPlan({
     resolveIndexRelease({
       sourceType: 'service',
       indexUrl: serverRepository.requestUrl,
+      indexUrls: serverRepository.indexUrls,
       manifestUrl: serverRepository.manifestUrl,
       sourceAuthority: serverRepository.sourceAuthority,
       manifestPath: serverRepository.manifestPath,
@@ -309,8 +309,8 @@ export async function buildPlan({
     schemaVersion: 1,
     generatedAt: now,
     repositories: {
-      desktop: desktopRepository.manifestUrl,
-      server: serverRepository.manifestUrl,
+      desktop: desktopRelease.manifestUrl,
+      server: serverRelease.manifestUrl,
       dlc: dlcRepository?.manifestUrl ?? null,
       packer: packerRepository
     },
