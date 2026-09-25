@@ -1,4 +1,19 @@
 {
   "schemaVersion": 1,
-  "records": {}
+  "records": {
+    "v0.4.5": {
+      "status": "unpublished",
+      "changedAt": "2026-09-25T17:37:46.824Z",
+      "plan": {
+        "storeVersion": "v0.4.5",
+        "desktopVersion": "v0.1.85",
+        "desktopRef": "main",
+        "serverVersion": "0.1.0-beta.85",
+        "dlcVersion": "0.1.0-beta.85",
+        "platforms": [
+          "win-x64"
+        ]
+      }
+    }
+  }
 }
