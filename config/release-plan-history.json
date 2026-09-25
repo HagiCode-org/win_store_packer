@@ -16,8 +16,8 @@
       }
     },
     "v0.4.6": {
-      "status": "unpublished",
-      "changedAt": "2026-09-25T21:35:36.168Z",
+      "status": "published",
+      "changedAt": "2026-09-25T21:36:08.627Z",
       "plan": {
         "storeVersion": "v0.4.6",
         "desktopVersion": "v0.1.87",
