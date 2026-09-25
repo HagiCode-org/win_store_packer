@@ -1,0 +1,106 @@
+name: Release plan preview
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL: https://dl-server.hagicode.com
+  WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL: https://dl-dlc.hagicode.com
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.draft.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Resolve packer draft tag
+        id: draft
+        uses: release-drafter/release-drafter@v7
+        with:
+          config-name: release-drafter.yml
+          dry-run: true
+          token: ${{ github.token }}
+      - name: Require draft tag
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.draft.outputs.tag_name }}
+        run: |
+          if [ -z "$RELEASE_TAG" ]; then
+            echo '::error::Unable to resolve a Release Drafter tag.'
+            exit 1
+          fi
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: npm ci
+      - name: Generate and validate preview plan
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.draft.outputs.tag_name }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/build-plan"
+          node scripts/resolve-dispatch-build-plan.mjs \
+            --event-name workflow_dispatch \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --packer-release-tag "$RELEASE_TAG" \
+            --producer-workflow package-release \
+            --publication-mode github-release \
+            --handoff-source workflow-artifact \
+            --output "$RUNNER_TEMP/build-plan/release-plan.json"
+          node scripts/resolve-release-plan.mjs \
+            --plan "$RUNNER_TEMP/build-plan/release-plan.json" \
+            --expected-release-tag "$RELEASE_TAG" \
+            --expected-publication-mode github-release \
+            --expected-handoff-source workflow-artifact
+      - uses: actions/upload-artifact@v6
+        with:
+          name: preview-release-plan
+          path: ${{ runner.temp }}/build-plan/release-plan.json
+          if-no-files-found: error
+
+  write_history:
+    needs: preview
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: release-plan-history-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: preview-release-plan
+          path: ${{ runner.temp }}/build-plan
+      - name: Record unpublished plan
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.preview.outputs.release_tag }}
+        run: |
+          node scripts/update-readme-release-plan.mjs \
+            --plan "$RUNNER_TEMP/build-plan/release-plan.json" \
+            --expected-release-tag "$RELEASE_TAG" --status unpublished
+          if ! git diff --quiet -- README.md config/release-plan-history.json; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -- README.md config/release-plan-history.json
+            git commit -m "docs: refresh release plan history"
+            git push origin "HEAD:${{ github.event.repository.default_branch }}"
+          fi
