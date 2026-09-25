@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { zstdCompressSync } from 'node:zlib';
 import {
   DEFAULT_INDEX_SOURCES,
   DEFAULT_INDEX_TIMEOUT_MS,
@@ -41,9 +42,30 @@ test('default index stops at the primary when it returns a readable manifest', a
     assert.ok(signal);
     return Response.json(SERVER_MANIFEST);
   });
+
   assert.deepEqual(requests, [DEFAULT_INDEX_SOURCES.service[0]]);
   assert.equal(release.manifestUrl, requests[0]);
   assert.equal(release.version, '1.2.3');
+});
+
+test('primary zstd index is decoded before falling back', async (t) => {
+  for (const [label, bytes] of [
+    ['compressed', zstdCompressSync(Buffer.from(JSON.stringify(SERVER_MANIFEST)))],
+    ['already decoded by fetch', JSON.stringify(SERVER_MANIFEST)]
+  ]) {
+    await t.test(label, async () => {
+      const requests = [];
+      const release = await resolveServer(async (url) => {
+        requests.push(url);
+        return new Response(bytes, {
+          headers: { 'content-type': 'application/json', 'content-encoding': 'zstd' }
+        });
+      });
+      assert.deepEqual(requests, [DEFAULT_INDEX_SOURCES.service[0]]);
+      assert.equal(release.manifestUrl, requests[0]);
+      assert.equal(release.version, '1.2.3');
+    });
+  }
 });
 
 test('default index falls back for network, HTTP, content type, and JSON errors', async (t) => {
@@ -52,7 +74,10 @@ test('default index falls back for network, HTTP, content type, and JSON errors'
     ['HTTP', () => new Response('missing', { status: 503 })],
     ['body read', () => ({ text: async () => { throw new Error('stream interrupted'); } })],
     ['content type', () => new Response('<html>error</html>', { headers: { 'content-type': 'text/html' } })],
-    ['invalid JSON', () => new Response('{invalid', { headers: { 'content-type': 'application/json' } })]
+    ['invalid JSON', () => new Response('{invalid', { headers: { 'content-type': 'application/json' } })],
+    ['invalid zstd', () => new Response(Buffer.from([0x28, 0xb5, 0x2f, 0xfd]), {
+      headers: { 'content-type': 'application/json', 'content-encoding': 'zstd' }
+    })]
   ];
   for (const [name, failure] of failures) {
     await t.test(name, async () => {

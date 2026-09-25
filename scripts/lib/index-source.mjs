@@ -1,5 +1,6 @@
 import { matchDesktopAssetForPlatform, matchDlcAssetForPlatform, matchServerAssetForPlatform, stripGitRef } from './platforms.mjs';
 import { sanitizeUrlForLogs } from './artifact-download.mjs';
+import { zstdDecompressSync } from 'node:zlib';
 
 export const DEFAULT_INDEX_SOURCES = Object.freeze({
   desktop: Object.freeze([
@@ -320,7 +321,14 @@ export async function fetchIndexManifest(indexUrl, { fetchImpl, signal } = {}) {
 
   let body;
   try {
-    body = await response.text();
+    if (response.headers.get('content-encoding') === 'zstd') {
+      const bytes = Buffer.from(await response.arrayBuffer());
+      body = (bytes.subarray(0, 4).toString('hex') === '28b52ffd'
+        ? zstdDecompressSync(bytes)
+        : bytes).toString('utf8');
+    } else {
+      body = await response.text();
+    }
   } catch (error) {
     throw new Error(
       `Failed to read index manifest ${safeUrl}: ${hasCredentials ? 'request failed' : error.message}`,
