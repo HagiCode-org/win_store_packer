@@ -3,10 +3,10 @@
   "records": {
     "v0.4.5": {
       "status": "unpublished",
-      "changedAt": "2026-09-25T17:37:46.824Z",
+      "changedAt": "2026-09-25T17:54:39.055Z",
       "plan": {
         "storeVersion": "v0.4.5",
-        "desktopVersion": "v0.1.85",
+        "desktopVersion": "v0.1.86",
         "desktopRef": "main",
         "serverVersion": "0.1.0-beta.85",
         "dlcVersion": "0.1.0-beta.85",
