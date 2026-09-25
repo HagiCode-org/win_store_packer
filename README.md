@@ -77,6 +77,15 @@ Defines workflow defaults such as:
 
 The release plan is no longer pre-synced to a draft release asset. The canonical Microsoft Store version is always derived from the release tag at consume time, so the plan is generated on demand inside `package-release.yml`.
 
+## Recent release plans
+
+The latest 10 changed versions appear below; older records remain in [`config/release-plan-history.json`](config/release-plan-history.json). Each record stores only the normalized packer tag, status, UTC last-change timestamp, Store version, Desktop version and checkout ref, Server version, Turbo Engine DLC version, and platforms. `Unpublished` is a validated scheduled or manually refreshed preview; `Published` means the real release publication succeeded and uses its release-time plan. Snapshot times indicate when recorded inputs last changed, not when they were last checked. Previews are advisory: release-time plans are authoritative.
+
+<!-- release-plan-history:start -->
+| Version | Status | Store version | Desktop / ref | Server | Turbo Engine DLC | Platforms | Snapshot UTC |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+<!-- release-plan-history:end -->
+
 The workflow no longer replays Desktop packaging internals such as overlay rendering or packer-owned MSIX generation.
 
 ### Manual rebuilds
@@ -167,7 +176,7 @@ unpacked executable or development registration.
 
 ## Local Commands
 
-Version resolution defaults to the Cloudflare `index.json` endpoints (`https://dl-desktop.hagicode.com/index.json` and `https://dl-server.hagicode.com/index.json`) instead of the `index.hagicode.com` portal. Artifact downloads default to Cloudflare public sources from the release plan (public base + `asset.path`, then `asset.directUrl` or the official `downloadSources` entry). Server artifacts use `https://dl-server.hagicode.com`; Turbo Engine DLC artifacts use `https://dl-dlc.hagicode.com`. When an external DLC `index.json` is supplied, the packer reads the current `dlcs[].versions[].artifacts[]` shape and preserves its structured download metadata.
+Version resolution defaults to ordered Cloudflare `index.json` endpoints instead of the `index.hagicode.com` portal: Desktop tries `https://desktop.dl.hagicode.com/index.json`, then `https://dl-desktop.hagicode.com/index.json`; Server tries `https://server.dl.hagicode.com/index.json`, then `https://dl-server.hagicode.com/index.json`. Each default attempt has a 10-second timeout. The second address is requested only when the first cannot return readable JSON, not when a requested version or asset is absent. An explicit index URL takes precedence over a legacy Azure SAS index source; either override is a single-source choice with no fallback to public defaults. The release plan records the address that supplied each index. Artifact downloads default to Cloudflare public sources from the release plan (public base + `asset.path`, then `asset.directUrl` or the official `downloadSources` entry). Server artifacts use `https://dl-server.hagicode.com`; Turbo Engine DLC artifacts use `https://dl-dlc.hagicode.com`. When an external DLC `index.json` is supplied, the packer reads the current `dlcs[].versions[].artifacts[]` shape and preserves its structured download metadata.
 Set `WIN_STORE_PACKER_SERVER_PUBLIC_BASE_URL` / `WIN_STORE_PACKER_DLC_PUBLIC_BASE_URL` or pass `--public-base-url` / `--dlc-public-base-url` to override the Cloudflare public bases.
 
 Generate a release plan locally from an authoritative tag, exactly like `package-release.yml` does at consume time:
