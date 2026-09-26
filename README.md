@@ -28,7 +28,7 @@ The latest 10 changed versions appear below; older records remain in [`config/re
 - prepare a tagged Desktop worktree for packaging
 - download, extract, and validate the Server payload plus the required Turbo Engine DLC package
 - invoke `npm run build:win:store` in the Desktop workspace
-- require Desktop build metadata to confirm that the packaged PM2-only Node executable, PM2 entrypoint, and production dependency files were validated
+- validate Desktop build metadata, Store package artifacts, and the staged Server/DLC payload
 - publish GitHub release assets and machine-readable release metadata
 
 Desktop owns these responsibilities:
@@ -39,11 +39,11 @@ Desktop owns these responsibilities:
 - payload injection into the packaged runtime layout
 - MSIX package generation
 - desktop-originated build metadata
-- staging and packaging the Windows PM2-only Node/PM2 toolchain
+- validating the packaged .NET runtime and rejecting Desktop-managed Node/PM2 assets
 
-Synthetic dry-run archives do not validate executable MSIX contents; their metadata explicitly marks
-the PM2 toolchain as unvalidated. Real Desktop Store build metadata must report successful bundled
-toolchain validation before the packer accepts its artifact.
+Synthetic dry-run archives do not validate executable MSIX contents. Real Desktop Store builds
+validate the packaged .NET runtime and reject Desktop-managed Node/PM2 assets before the packer
+accepts their artifacts.
 
 ## Configuration
 
