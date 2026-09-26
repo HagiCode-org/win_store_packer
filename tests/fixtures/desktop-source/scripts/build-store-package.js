@@ -232,25 +232,6 @@ async function main() {
     schemaVersion: 1,
     platform: options.platformId,
     buildMode: options.dryRun ? 'desktop-store-build-dry-run' : 'desktop-store-build-command',
-    pm2Toolchain: options.dryRun
-      ? {
-          validationPassed: false,
-          validationStatus: 'not-validated-synthetic',
-          requiredFiles: [],
-        }
-      : {
-          validationPassed: true,
-          validationStatus: 'validated-staged-and-packaged',
-          nodeExecutable: 'components/node/runtime/node.exe',
-          pm2Entrypoint: 'npm-pm2/node_modules/pm2/bin/pm2',
-          pm2Version: '7.0.1',
-          requiredFiles: [
-            'components/node/runtime/node.exe',
-            'npm-pm2/node_modules/pm2/bin/pm2',
-            'npm-pm2/node_modules/pm2/package.json',
-            'npm-pm2/node_modules/pm2-fixture-dependency/package.json',
-          ],
-        },
     desktopVersion: packageJson.version,
     windowsStoreVersion,
     desktopSourceRef: 'fixture-desktop-ref',

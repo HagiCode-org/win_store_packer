@@ -257,7 +257,6 @@ function resolveDesktopMetadataPath(value, desktopWorkspace) {
 export function validateDesktopBuildMetadata(metadata, { desktopWorkspace }) {
   const normalized = requireObject(metadata, 'desktopBuildMetadata');
   const buildMode = requireNonEmptyString(normalized.buildMode, 'desktopBuildMetadata.buildMode');
-  const pm2Toolchain = validateDesktopPm2ToolchainMetadata(normalized.pm2Toolchain, buildMode);
   const artifacts = requireArray(normalized.artifacts, 'desktopBuildMetadata.artifacts').map((artifact, index) => {
     const entry = requireObject(artifact, `desktopBuildMetadata.artifacts[${index}]`);
     const artifactPath = resolveDesktopMetadataPath(entry.path, desktopWorkspace);
@@ -283,7 +282,6 @@ export function validateDesktopBuildMetadata(metadata, { desktopWorkspace }) {
   return {
     ...normalized,
     buildMode,
-    pm2Toolchain,
     desktopVersion: requireNonEmptyString(normalized.desktopVersion, 'desktopBuildMetadata.desktopVersion'),
     windowsStoreVersion: normalized.windowsStoreVersion
       ? requireNonEmptyString(normalized.windowsStoreVersion, 'desktopBuildMetadata.windowsStoreVersion')
@@ -302,85 +300,6 @@ export function validateDesktopBuildMetadata(metadata, { desktopWorkspace }) {
     primaryArtifact,
     artifacts,
     store: requireObject(normalized.store, 'desktopBuildMetadata.store'),
-  };
-}
-
-function validateDesktopPm2ToolchainMetadata(value, buildMode) {
-  const metadata = requireObject(value, 'desktopBuildMetadata.pm2Toolchain');
-  const validationPassed = metadata.validationPassed === true;
-  const validationStatus = requireNonEmptyString(
-    metadata.validationStatus,
-    'desktopBuildMetadata.pm2Toolchain.validationStatus'
-  );
-  const requiredFiles = Array.isArray(metadata.requiredFiles)
-    ? metadata.requiredFiles.map((file, index) =>
-        requireNonEmptyString(file, `desktopBuildMetadata.pm2Toolchain.requiredFiles[${index}]`)
-      )
-    : [];
-
-  if (buildMode === 'desktop-store-build-dry-run') {
-    if (validationPassed || validationStatus !== 'not-validated-synthetic') {
-      throw new Error(
-        'Synthetic Desktop Store build metadata must not claim PM2 toolchain artifact validation.'
-      );
-    }
-    return {
-      ...metadata,
-      validationPassed: false,
-      validationStatus,
-      artifactContentsValidated: false,
-      requiredFiles,
-    };
-  }
-
-  if (!validationPassed || validationStatus !== 'validated-staged-and-packaged') {
-    throw new Error(
-      'Desktop Store build metadata must confirm the bundled PM2 toolchain was validated in the produced package.'
-    );
-  }
-
-  for (const requiredPath of [
-    'components/node/runtime/node.exe',
-    'npm-pm2/node_modules/pm2/bin/pm2',
-    'npm-pm2/node_modules/pm2/package.json',
-  ]) {
-    if (!requiredFiles.includes(requiredPath)) {
-      throw new Error(
-        `Desktop Store PM2 toolchain validation is missing required file metadata: ${requiredPath}.`
-      );
-    }
-  }
-  if (!requiredFiles.some((file) =>
-    file.startsWith('npm-pm2/node_modules/') &&
-    file !== 'npm-pm2/node_modules/pm2/bin/pm2' &&
-    file !== 'npm-pm2/node_modules/pm2/package.json')) {
-    throw new Error(
-      'Desktop Store PM2 toolchain validation must include at least one PM2 production dependency.'
-    );
-  }
-
-  const nodeExecutable = requireNonEmptyString(
-    metadata.nodeExecutable,
-    'desktopBuildMetadata.pm2Toolchain.nodeExecutable'
-  );
-  const pm2Entrypoint = requireNonEmptyString(
-    metadata.pm2Entrypoint,
-    'desktopBuildMetadata.pm2Toolchain.pm2Entrypoint'
-  );
-  if (nodeExecutable !== 'components/node/runtime/node.exe') {
-    throw new Error(`Desktop Store PM2 toolchain reported an unexpected Node executable: ${nodeExecutable}.`);
-  }
-  if (pm2Entrypoint !== 'npm-pm2/node_modules/pm2/bin/pm2') {
-    throw new Error(`Desktop Store PM2 toolchain reported an unexpected PM2 entrypoint: ${pm2Entrypoint}.`);
-  }
-  return {
-    ...metadata,
-    validationPassed: true,
-    validationStatus,
-    artifactContentsValidated: true,
-    nodeExecutable,
-    pm2Entrypoint,
-    requiredFiles,
   };
 }
 
@@ -652,8 +571,6 @@ export async function buildMsix({
           storeConfigPath: publishedDesktopBuildMetadata.storeConfigPath,
           overlayConfigPath: publishedDesktopBuildMetadata.overlayConfigPath,
           runtimeInjectionPath: publishedDesktopBuildMetadata.effectiveRuntimeInjectionPath,
-          pm2ToolchainValidationPassed: publishedDesktopBuildMetadata.pm2Toolchain.validationPassed,
-          pm2ToolchainValidationStatus: publishedDesktopBuildMetadata.pm2Toolchain.validationStatus,
           serverPayloadPath: publishedDesktopBuildMetadata.serverPayloadPath,
           serverPayloadRoot: publishedDesktopBuildMetadata.serverPayloadRoot,
           includedDlcs,
@@ -681,7 +598,6 @@ export async function buildMsix({
     artifactVariant: normalizedArtifactVariant,
     desktopBuildMetadataPath,
     desktopBuildMode: publishedDesktopBuildMetadata.buildMode,
-    pm2Toolchain: publishedDesktopBuildMetadata.pm2Toolchain,
     desktopVersion: workspaceManifest.desktopVersion,
     desktopTag: workspaceManifest.desktopTag,
     canonicalVersionInput: workspaceManifest.canonicalVersionInput,
@@ -728,7 +644,6 @@ export async function buildMsix({
     storePackageVersion: desktopBuildMetadata.storePackageVersion,
     storeConfigPath: desktopBuildMetadata.storeConfigPath,
     desktopBuildMetadataPath,
-    pm2Toolchain: publishedDesktopBuildMetadata.pm2Toolchain,
     signing: {
       mode: normalizedSigningMode,
       enabled: signingConfig.enabled,
@@ -757,7 +672,6 @@ export async function buildMsix({
     `- Published artifact: ${path.basename(primaryArtifactRecord.outputPath)}`,
     `- Signing mode: ${normalizedSigningMode}`,
     `- Build mode: ${desktopBuildMetadata.buildMode}`,
-    `- PM2 toolchain validation: ${desktopBuildMetadata.pm2Toolchain.validationStatus}`,
   ]);
 
   return {
