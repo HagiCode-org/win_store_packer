@@ -11,6 +11,15 @@ import {
 
 const INDEX_URL = 'https://dl-dlc.hagicode.com/index.json';
 
+function assertFreshRequests(requests, sources) {
+  assert.deepEqual(requests.map((url) => {
+    const request = new URL(url);
+    assert.match(request.searchParams.get('_') ?? '', /^[0-9a-f-]{36}$/);
+    return `${request.origin}${request.pathname}`;
+  }), sources);
+  assert.equal(new Set(requests).size, requests.length);
+}
+
 test('default version indexes have ordered public endpoints', () => {
   assert.deepEqual(DEFAULT_INDEX_SOURCES, {
     desktop: ['https://dl-desktop.hagicode.com/index.json', 'https://desktop.dl.hagicode.com/index.json'],
@@ -40,12 +49,29 @@ test('default index stops at the primary when it returns a readable manifest', a
   const release = await resolveServer(async (url, { signal }) => {
     requests.push(url);
     assert.ok(signal);
+    assert.notEqual(url, DEFAULT_INDEX_SOURCES.service[0]);
     return Response.json(SERVER_MANIFEST);
   });
 
-  assert.deepEqual(requests, [DEFAULT_INDEX_SOURCES.service[0]]);
-  assert.equal(release.manifestUrl, requests[0]);
+  assertFreshRequests(requests, [DEFAULT_INDEX_SOURCES.service[0]]);
+  assert.equal(release.manifestUrl, DEFAULT_INDEX_SOURCES.service[0]);
   assert.equal(release.version, '1.2.3');
+});
+
+test('default index bypasses a stale cached manifest on each resolution', async () => {
+  const requests = [];
+  const fetchImpl = async (url) => {
+    requests.push(url);
+    return Response.json({
+      versions: (new URL(url).searchParams.has('_') ? ['85', '86'] : ['85']).map((number) => ({
+        version: `0.1.0-beta.${number}`,
+        assets: [`hagicode-0.1.0-beta.${number}-win-x64-nort.zip`]
+      }))
+    });
+  };
+  assert.equal((await resolveServer(fetchImpl)).version, '0.1.0-beta.86');
+  assert.equal((await resolveServer(fetchImpl)).version, '0.1.0-beta.86');
+  assertFreshRequests(requests, [DEFAULT_INDEX_SOURCES.service[0], DEFAULT_INDEX_SOURCES.service[0]]);
 });
 
 test('primary zstd index is decoded before falling back', async (t) => {
@@ -61,8 +87,8 @@ test('primary zstd index is decoded before falling back', async (t) => {
           headers: { 'content-type': 'application/json', 'content-encoding': 'zstd' }
         });
       });
-      assert.deepEqual(requests, [DEFAULT_INDEX_SOURCES.service[0]]);
-      assert.equal(release.manifestUrl, requests[0]);
+      assertFreshRequests(requests, [DEFAULT_INDEX_SOURCES.service[0]]);
+      assert.equal(release.manifestUrl, DEFAULT_INDEX_SOURCES.service[0]);
       assert.equal(release.version, '1.2.3');
     });
   }
@@ -86,7 +112,7 @@ test('default index falls back for network, HTTP, content type, and JSON errors'
         requests.push(url);
         return requests.length === 1 ? failure() : Response.json(SERVER_MANIFEST);
       });
-      assert.deepEqual(requests, DEFAULT_INDEX_SOURCES.service);
+      assertFreshRequests(requests, DEFAULT_INDEX_SOURCES.service);
       assert.equal(release.manifestUrl, DEFAULT_INDEX_SOURCES.service[1]);
     });
   }
@@ -103,7 +129,7 @@ test('default index times out its primary before requesting the fallback', async
         signal.addEventListener('abort', () => reject(signal.reason), { once: true });
       });
     });
-    assert.deepEqual(requests, DEFAULT_INDEX_SOURCES.service);
+    assertFreshRequests(requests, DEFAULT_INDEX_SOURCES.service);
     assert.equal(release.manifestUrl, DEFAULT_INDEX_SOURCES.service[1]);
     assert.equal(DEFAULT_INDEX_TIMEOUT_MS, 10_000);
   } finally {
@@ -113,7 +139,7 @@ test('default index times out its primary before requesting the fallback', async
 
 test('default index reports both URL-specific failures', async () => {
   await assert.rejects(
-    resolveServer(async (url) => url === DEFAULT_INDEX_SOURCES.service[0]
+    resolveServer(async (url) => new URL(url).origin === new URL(DEFAULT_INDEX_SOURCES.service[0]).origin
       ? new Response('unavailable', { status: 502 })
       : new Response('{', { headers: { 'content-type': 'application/json' } })),
     (error) => {
@@ -137,7 +163,7 @@ test('a retrieved manifest with a missing selector or asset never falls back', a
       }, selector),
       expected
     );
-    assert.deepEqual(requests, [DEFAULT_INDEX_SOURCES.service[0]]);
+    assertFreshRequests(requests, [DEFAULT_INDEX_SOURCES.service[0]]);
   }
 });
 

@@ -216,11 +216,13 @@ test('buildPlan uses each default primary and records its selected source', asyn
     repositories: { packer: 'HagiCode-org/win_store_packer' },
     fetchImpl: (url, options) => {
       requests.push(url);
-      const mappedUrl = url === DEFAULT_INDEX_SOURCES.desktop[0] ? DESKTOP_INDEX_URL : SERVER_INDEX_URL;
+      const mappedUrl = url.startsWith(DEFAULT_INDEX_SOURCES.desktop[0]) ? DESKTOP_INDEX_URL : SERVER_INDEX_URL;
       return originalFetch(mappedUrl, options);
     }
   }));
-  assert.deepEqual(requests, [DEFAULT_INDEX_SOURCES.desktop[0], DEFAULT_INDEX_SOURCES.service[0]]);
+  assert.deepEqual(requests.map((url) => new URL(url).origin + new URL(url).pathname),
+    [DEFAULT_INDEX_SOURCES.desktop[0], DEFAULT_INDEX_SOURCES.service[0]]);
+  assert.ok(requests.every((url) => new URL(url).searchParams.has('_')));
   assert.equal(plan.repositories.desktop, DEFAULT_INDEX_SOURCES.desktop[0]);
   assert.equal(plan.repositories.server, DEFAULT_INDEX_SOURCES.service[0]);
   assert.equal(plan.upstream.desktop.manifestUrl, plan.repositories.desktop);
@@ -238,10 +240,11 @@ test('buildPlan records fallback selection independently for Desktop and Server'
         repositories: { packer: 'HagiCode-org/win_store_packer' },
         fetchImpl: (url, options) => {
           requests.push(url);
-          if (url === DEFAULT_INDEX_SOURCES[failedProduct][0]) {
+          if (url.startsWith(DEFAULT_INDEX_SOURCES[failedProduct][0])) {
             return Promise.resolve(new Response('unavailable', { status: 503 }));
           }
-          const mappedUrl = DEFAULT_INDEX_SOURCES.desktop.includes(url) ? DESKTOP_INDEX_URL : SERVER_INDEX_URL;
+          const mappedUrl = url.startsWith(DEFAULT_INDEX_SOURCES.desktop[0]) || url.startsWith(DEFAULT_INDEX_SOURCES.desktop[1])
+            ? DESKTOP_INDEX_URL : SERVER_INDEX_URL;
           return originalFetch(mappedUrl, options);
         }
       }));
@@ -249,10 +252,11 @@ test('buildPlan records fallback selection independently for Desktop and Server'
         const selectedUrl = DEFAULT_INDEX_SOURCES[sourceType][sourceType === failedProduct ? 1 : 0];
         assert.equal(plan.repositories[product], selectedUrl);
         assert.equal(plan.upstream[product].manifestUrl, selectedUrl);
-        assert.equal(requests.includes(DEFAULT_INDEX_SOURCES[sourceType][1]), sourceType === failedProduct);
+        assert.equal(requests.some((url) => url.startsWith(DEFAULT_INDEX_SOURCES[sourceType][1])), sourceType === failedProduct);
       }
-      assert.deepEqual(requests.slice(0, 2), [DEFAULT_INDEX_SOURCES.desktop[0], DEFAULT_INDEX_SOURCES.service[0]]);
-      assert.equal(requests.at(-1), DEFAULT_INDEX_SOURCES[failedProduct][1]);
+      assert.deepEqual(requests.slice(0, 2).map((url) => new URL(url).origin + new URL(url).pathname),
+        [DEFAULT_INDEX_SOURCES.desktop[0], DEFAULT_INDEX_SOURCES.service[0]]);
+      assert.ok(requests.at(-1).startsWith(DEFAULT_INDEX_SOURCES[failedProduct][1]));
     });
   }
 });

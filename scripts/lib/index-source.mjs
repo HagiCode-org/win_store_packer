@@ -1,5 +1,6 @@
 import { matchDesktopAssetForPlatform, matchDlcAssetForPlatform, matchServerAssetForPlatform, stripGitRef } from './platforms.mjs';
 import { sanitizeUrlForLogs } from './artifact-download.mjs';
+import { randomUUID } from 'node:crypto';
 import { zstdDecompressSync } from 'node:zlib';
 
 export const DEFAULT_INDEX_SOURCES = Object.freeze({
@@ -361,8 +362,10 @@ async function fetchFirstIndexManifest(indexUrls, fetchImpl) {
   const failures = [];
   for (const indexUrl of indexUrls) {
     try {
+      const requestUrl = new URL(indexUrl);
+      requestUrl.searchParams.set('_', randomUUID());
       return {
-        manifest: await fetchIndexManifest(indexUrl, {
+        manifest: await fetchIndexManifest(requestUrl.href, {
           fetchImpl,
           signal: AbortSignal.timeout(DEFAULT_INDEX_TIMEOUT_MS)
         }),
