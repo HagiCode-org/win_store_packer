@@ -302,6 +302,8 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
   assert.equal(buildMetadata.storeConfigPath.endsWith('config/store-package.json'), true);
   assert.equal(buildMetadata.storePackageVersion, '1.4.0.0');
   assert.equal(buildMetadata.desktopBuildMode, 'desktop-store-build-dry-run');
+  assert.equal(buildMetadata.pm2Toolchain.validationPassed, false);
+  assert.equal(buildMetadata.pm2Toolchain.artifactContentsValidated, false);
   assert.equal(buildMetadata.signing.mode, 'disabled');
   assert.equal(buildMetadata.includedDlcs.length, 1);
   assert.equal(buildMetadata.includedDlcs[0].sourceArtifact, `hagicode-dlc-turbo-engine-${TURBO_ENGINE_DLC_VERSION}-win-x64-nort.zip`);
@@ -333,6 +335,7 @@ test('dry-run packaging assembles the tagged workspace, stages the server payloa
 
   const storePackagePath = inventory.artifacts[0].outputPath;
   const storePackageListing = (await validateZipPaths(storePackagePath)).join('\n');
+  assert.doesNotMatch(storePackageListing, /node\.exe|npm-pm2\/node_modules\/pm2/);
   assert.match(storePackageListing, /extra\/portable-fixed\/current\/manifest\.json/);
   assert.match(storePackageListing, /extra\/portable-fixed\/current\/lib\/PCode\.Web\.dll/);
   assert.match(storePackageListing, /extra\/portable-fixed\/current\/lib\/dlcs\/index\.json/);
@@ -449,6 +452,8 @@ test('workflow-artifact packaging can build from desktop main using the plan-pro
   assert.equal(buildMetadata.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
   assert.equal(buildMetadata.storePackageVersion, '1.4.1.0');
   assert.equal(buildMetadata.desktopBuildMode, 'desktop-store-build-command');
+  assert.equal(buildMetadata.pm2Toolchain.validationPassed, true);
+  assert.equal(buildMetadata.pm2Toolchain.artifactContentsValidated, true);
   assert.equal(inventory.windowsStoreVersion, NEXT_PACKER_RELEASE_TAG);
   assert.equal(inventory.storePackageVersion, '1.4.1.0');
   assert.equal(path.basename(inventory.artifacts[0].outputPath), 'hagicode-store-v1.4.1-win-x64-unsigned.msix');
