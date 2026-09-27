@@ -42,6 +42,20 @@
           "win-x64"
         ]
       }
+    },
+    "v0.4.8": {
+      "status": "published",
+      "changedAt": "2026-09-27T06:17:03.880Z",
+      "plan": {
+        "storeVersion": "v0.4.8",
+        "desktopVersion": "v0.1.89",
+        "desktopRef": "main",
+        "serverVersion": "0.1.0-beta.88",
+        "dlcVersion": "0.1.0-beta.88",
+        "platforms": [
+          "win-x64"
+        ]
+      }
     }
   }
 }
