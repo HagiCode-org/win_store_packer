@@ -1,12 +1,18 @@
 name: Release Drafter
 
+# Drafts the next stable release from Conventional Commit messages since the last
+# vX.Y.Z tag, so direct pushes to main are covered as well as merged pull requests.
+# Publishing the draft is a manual step; this workflow never publishes a release.
+
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, reopened, synchronize]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      version:
+        description: Optional X.Y.Z to use instead of the version derived from the commits
+        required: false
+        type: string
   workflow_call:
 
 permissions:
@@ -20,11 +26,40 @@ jobs:
   update_release_draft:
     permissions:
       contents: write
-      pull-requests: write
     runs-on: ubuntu-latest
-
     steps:
-      - name: Update release draft
-        uses: release-drafter/release-drafter@v7
+      - uses: actions/checkout@v6
+        with:
+          # Also runs after a published release (workflow_call), when the default ref is the release tag.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Generate version and notes from commits
+        id: notes
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          echo "version=$(node .github/scripts/release-notes.mjs version)" >> "$GITHUB_OUTPUT"
+          node .github/scripts/release-notes.mjs notes > "$RUNNER_TEMP/release-notes.md"
+      - name: Create or update the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.notes.outputs.version }}
+          TITLE_TEMPLATE: 'Microsoft Store v{version}'
+        run: |
+          tag="v$VERSION"
+          title="${TITLE_TEMPLATE//\{version\}/$VERSION}"
+          target="$(git rev-parse HEAD)"
+          existing="$(gh release list --limit 100 --json tagName,isDraft --jq '[.[] | select(.isDraft)][0].tagName // empty')"
+          if [ -n "$existing" ]; then
+            gh release edit "$existing" --tag "$tag" --title "$title" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" --target "$target"
+          else
+            gh release create "$tag" --draft --title "$title" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" --target "$target"
+          fi
+          echo "Draft release $tag updated from commits up to $target." >> "$GITHUB_STEP_SUMMARY"
