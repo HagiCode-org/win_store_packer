@@ -30,7 +30,7 @@ The latest 10 changed versions appear below; older records remain in [`config/re
 `win_store_packer` keeps these responsibilities:
 
 - resolve Desktop, Server, and Turbo Engine DLC versions from the release indexes
-- resolve the packer Release Drafter tag and derive the canonical Microsoft Store version from it
+- resolve the packer draft release tag and derive the canonical Microsoft Store version from it
 - prepare a tagged Desktop worktree for packaging
 - download, extract, and validate the Server payload plus the required Turbo Engine DLC package
 - invoke `npm run build:win:store` in the Desktop workspace
@@ -114,11 +114,11 @@ The workflow no longer replays Desktop packaging internals such as overlay rende
 - `release_tag`: the published `win_store_packer` release tag to rebuild and publish against (used only when `build_mode=published-release`)
 - `dry_run`: optional flag to build and stage release metadata without mutating the published GitHub Release
 
-`release-drafter.yml` also supports manual runs. After a successful `release: published` packaging run, it is invoked automatically to refresh the next draft release.
+`release-draft-action.yml` also supports manual runs with the `version` input. After a successful `release: published` packaging run, it is invoked automatically through `workflow_call` to refresh the next draft release.
 
 When `build_mode=main`, the workflow:
 
-- resolves the current Release Drafter tag
+- resolves the current draft release tag
 - generates a fresh plan from Desktop `main` and the latest eligible Server build
 - performs the normal Desktop Store packaging flow instead of the synthetic dry-run build
 - forces artifact-only publication so the resulting MSIX packages and release metadata stay in GitHub Actions artifacts for testing
@@ -277,7 +277,7 @@ The staged payload now records bundled DLC details in `payload-validation-<platf
 
 Those workspace and publication artifacts now repeat the same three values for verification:
 
-- the canonical `win_store_packer` Release Drafter tag
+- the canonical `win_store_packer` draft release tag
 - the mirrored Microsoft Store version
 - the normalized Microsoft Store package version
 

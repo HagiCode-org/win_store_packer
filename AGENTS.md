@@ -30,7 +30,7 @@ npm run verify:signing
 ## Agent Guidelines
 
 - This repo does NOT render Store overlays or build MSIX packages independently; Desktop owns that responsibility.
-- The canonical Microsoft Store version input comes from the packer Release Drafter tag.
+- The canonical Microsoft Store version input comes from the packer draft release tag.
 - Server/DLC packaging inputs resolve from public/R2 sources (`asset.directUrl` or public base + `asset.path`); Azure Blob SAS is legacy fallback only. Signing still uses Azure Trusted Signing / OIDC.
 - Signing finalization is optional and controlled by configuration.
 - Run `npm run verify:signing` after changes to the signing pipeline.
