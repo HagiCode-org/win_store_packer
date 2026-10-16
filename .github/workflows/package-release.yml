@@ -389,7 +389,7 @@ jobs:
     if: github.event_name == 'release' && needs.publish.result == 'success'
     needs:
       - publish
-    uses: ./.github/workflows/release-drafter.yml
+    uses: ./.github/workflows/release-draft-action.yml
     permissions:
       contents: write
       pull-requests: write
