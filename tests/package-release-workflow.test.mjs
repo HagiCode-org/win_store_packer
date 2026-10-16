@@ -20,8 +20,8 @@ test('preview runs on schedule and dispatch, validates before unpublished writeb
   const workflow = await readFile(previewPath, 'utf8');
   assert.match(workflow, /schedule:\n\s+- cron:/);
   assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /release-drafter\/release-drafter@v7/);
-  assert.match(workflow, /dry-run: true/);
+  assert.match(workflow, /\.github\/scripts\/release-notes\.mjs version/);
+  assert.doesNotMatch(workflow, /release-drafter\/release-drafter/);
   assert.match(workflow, /resolve-dispatch-build-plan\.mjs[\s\S]*resolve-release-plan\.mjs/);
   assert.match(workflow, /needs: preview[\s\S]*--status unpublished/);
   assert.doesNotMatch(workflow, /publish-release\.mjs|build-msix\.mjs/);

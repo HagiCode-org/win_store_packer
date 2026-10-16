@@ -23,13 +23,13 @@ jobs:
       release_tag: ${{ steps.draft.outputs.tag_name }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
       - name: Resolve packer draft tag
         id: draft
-        uses: release-drafter/release-drafter@v7
-        with:
-          config-name: release-drafter.yml
-          dry-run: true
-          token: ${{ github.token }}
+        shell: bash
+        run: echo "tag_name=v$(node .github/scripts/release-notes.mjs version)" >> "$GITHUB_OUTPUT"
       - name: Require draft tag
         shell: bash
         env:
