@@ -63,7 +63,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: 24'
           package-manager-cache: false
 
       - name: Install win_store_packer dependencies
@@ -178,7 +178,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: 24'
           package-manager-cache: false
 
       - name: Install win_store_packer dependencies
@@ -293,7 +293,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: 24'
           package-manager-cache: false
 
       - name: Install win_store_packer dependencies
@@ -361,7 +361,7 @@ jobs:
           persist-credentials: true
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: 24'
           package-manager-cache: false
       - name: Download validated release-time plan
         uses: actions/download-artifact@v8

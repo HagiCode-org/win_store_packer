@@ -41,7 +41,7 @@ jobs:
           fi
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: 24'
           package-manager-cache: false
       - run: npm ci
       - name: Generate and validate preview plan
@@ -86,7 +86,7 @@ jobs:
           persist-credentials: true
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: 24'
           package-manager-cache: false
       - uses: actions/download-artifact@v8
         with:
