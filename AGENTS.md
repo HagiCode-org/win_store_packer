@@ -26,6 +26,8 @@ npm run verify:signing
 
 - `scripts/`: packaging, publication, and signing scripts
 - `tests/`: verification and dry-run tests
+- `config/`: `store-package.json`, `workflow-defaults.json`, and `release-plan-history.json` (refreshed by CI, not hand-edited)
+- `.github/workflows/`: `package-release.yml` (main pipeline), `release-draft-action.yml` (calls `HagiCode-org/hagi-release-drafter` to refresh the next draft release), `release-plan-preview.yml`, `list-store-apps.yml`
 
 ## Agent Guidelines
 
