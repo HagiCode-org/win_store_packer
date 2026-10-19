@@ -20,7 +20,10 @@ npm test
 npm run verify:dry-run
 npm run verify:publication
 npm run verify:signing
+npm run test:win-store:local   # Windows-only local MSIX generate/install/launch workflow
 ```
+
+`test:win-store:local` needs the Desktop checkout at `inputs/hagicode-desktop` (git submodule, see `.gitmodules`) or `--desktop-source <path>`; its workspace defaults to `build/store-win-x64`. See `README.md` for flags.
 
 ## Key Paths
 
