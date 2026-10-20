@@ -128,8 +128,8 @@
       }
     },
     "v0.5.3": {
-      "status": "unpublished",
-      "changedAt": "2026-10-20T16:30:57.659Z",
+      "status": "published",
+      "changedAt": "2026-10-20T19:56:51.495Z",
       "plan": {
         "storeVersion": "v0.5.3",
         "desktopVersion": "v0.2.0",
