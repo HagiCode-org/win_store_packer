@@ -14,6 +14,7 @@ The latest 10 changed versions appear below; older records remain in [`config/re
 <!-- release-plan-history:start -->
 | Version | Status | Store version | Desktop / ref | Server | Turbo Engine DLC | Platforms | Snapshot UTC |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| v0.5.3 | Unpublished | v0.5.3 | v0.2.0 / main | 0.1.0-beta.100 | 0.1.0-beta.100 | win-x64 | 2026-10-20T16:30:57.659Z |
 | v0.5.2 | Published | v0.5.2 | v0.2.0 / main | 0.1.0-beta.99 | 0.1.0-beta.99 | win-x64 | 2026-10-20T03:38:06.306Z |
 | v0.5.1 | Published | v0.5.1 | v0.1.91 / main | 0.1.0-beta.96 | 0.1.0-beta.96 | win-x64 | 2026-10-15T05:32:08.680Z |
 | v0.5.0 | Published | v0.5.0 | v0.1.90 / main | 0.1.0-beta.94 | 0.1.0-beta.94 | win-x64 | 2026-10-11T07:56:25.246Z |
