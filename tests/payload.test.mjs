@@ -21,7 +21,6 @@ function fixturePath(...segments) {
 
 test('validateServerPayloadRoot accepts a complete payload tree', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'win-store-payload-'));
-  await mkdir(path.join(tempRoot, 'config'), { recursive: true });
   await mkdir(path.join(tempRoot, 'lib'), { recursive: true });
   await writeFile(path.join(tempRoot, 'manifest.json'), '{}');
   await writeFile(path.join(tempRoot, 'lib', 'PCode.Web.dll'), 'fixture');
@@ -42,7 +41,7 @@ test('validateServerPayloadRoot reports missing required files', async () => {
 
   await assert.rejects(
     () => validateServerPayloadRoot(tempRoot, 'win-x64'),
-    /Missing: config, lib\/PCode\.Web\.runtimeconfig\.json, lib\/PCode\.Web\.deps\.json/
+    /Missing: lib\/PCode\.Web\.runtimeconfig\.json, lib\/PCode\.Web\.deps\.json/
   );
 });
 

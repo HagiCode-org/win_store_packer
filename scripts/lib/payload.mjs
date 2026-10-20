@@ -5,7 +5,6 @@ import { getPlatformConfig } from './platforms.mjs';
 
 export const REQUIRED_SERVER_PAYLOAD_PATHS = [
   'manifest.json',
-  path.join('config'),
   path.join('lib', 'PCode.Web.dll'),
   path.join('lib', 'PCode.Web.runtimeconfig.json'),
   path.join('lib', 'PCode.Web.deps.json')
