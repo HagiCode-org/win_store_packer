@@ -157,13 +157,13 @@
     },
     "v0.5.5": {
       "status": "unpublished",
-      "changedAt": "2026-10-22T11:51:57.277Z",
+      "changedAt": "2026-10-22T22:05:20.798Z",
       "plan": {
         "storeVersion": "v0.5.5",
         "desktopVersion": "v0.3.0",
         "desktopRef": "main",
-        "serverVersion": "0.1.0-beta.100",
-        "dlcVersion": "0.1.0-beta.100",
+        "serverVersion": "0.1.0-beta.101",
+        "dlcVersion": "0.1.0-beta.101",
         "platforms": [
           "win-x64"
         ]
