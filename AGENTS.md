@@ -27,7 +27,7 @@ npm run test:win-store:local   # Windows-only local MSIX generate/install/launch
 
 ## Key Paths
 
-- `scripts/`: packaging, publication, and signing scripts
+- `scripts/`: packaging, publication, and signing scripts; shared helpers live in `scripts/lib/`
 - `tests/`: verification and dry-run tests
 - `config/`: `store-package.json`, `workflow-defaults.json`, and `release-plan-history.json` (refreshed by CI, not hand-edited)
 - `.github/workflows/`: `package-release.yml` (main pipeline), `release-draft-action.yml` (calls `HagiCode-org/hagi-release-drafter` to refresh the next draft release), `release-plan-preview.yml`, `list-store-apps.yml`
