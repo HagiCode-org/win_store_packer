@@ -14,6 +14,7 @@ The latest 10 changed versions appear below; older records remain in [`config/re
 <!-- release-plan-history:start -->
 | Version | Status | Store version | Desktop / ref | Server | Turbo Engine DLC | Platforms | Snapshot UTC |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| v0.5.6 | Unpublished | v0.5.6 | v0.3.1 / main | 0.1.0-beta.102 | 0.1.0-beta.102 | win-x64 | 2026-10-23T11:38:05.432Z |
 | v0.5.5 | Published | v0.5.5 | v0.3.0 / main | 0.1.0-beta.101 | 0.1.0-beta.101 | win-x64 | 2026-10-22T22:07:58.556Z |
 | v0.5.4 | Published | v0.5.4 | v0.2.0 / main | 0.1.0-beta.100 | 0.1.0-beta.100 | win-x64 | 2026-10-20T20:35:38.003Z |
 | v0.5.3 | Published | v0.5.3 | v0.2.0 / main | 0.1.0-beta.100 | 0.1.0-beta.100 | win-x64 | 2026-10-20T19:56:51.495Z |
@@ -23,7 +24,6 @@ The latest 10 changed versions appear below; older records remain in [`config/re
 | v0.4.10 | Unpublished | v0.4.10 | v0.1.90 / main | 0.1.0-beta.94 | 0.1.0-beta.94 | win-x64 | 2026-10-11T07:55:09.592Z |
 | v0.4.9 | Published | v0.4.9 | v0.1.89 / main | 0.1.0-beta.91 | 0.1.0-beta.91 | win-x64 | 2026-10-09T06:43:51.020Z |
 | v0.4.8 | Published | v0.4.8 | v0.1.89 / main | 0.1.0-beta.88 | 0.1.0-beta.88 | win-x64 | 2026-09-27T06:17:03.880Z |
-| v0.4.7 | Published | v0.4.7 | v0.1.88 / main | 0.1.0-beta.86 | 0.1.0-beta.86 | win-x64 | 2026-09-26T16:11:40.989Z |
 <!-- release-plan-history:end -->
 
 ## Responsibilities
