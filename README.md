@@ -52,87 +52,9 @@ Synthetic dry-run archives do not validate executable MSIX contents. Real Deskto
 validate the packaged .NET runtime and reject Desktop-managed Node/PM2 assets before the packer
 accepts their artifacts.
 
-## Configuration
-
-### `config/store-package.json`
-
-This repository now stores workflow-facing defaults plus the Desktop contract reference:
-
-- `supportedWindowsTargets`
-- `packageVersion`
-- `signing.*`
-- `desktop.submodulePath`
-- `desktop.storeConfigPath`
-- `desktop.buildCommand`
-- `desktop.runtimeInjectionPath`
-- `dlcs.turbo-engine.*`
-
-The `dlcs.turbo-engine` block defines the required Store-bundled DLC contract:
-
-- `dlcId`: canonical runtime DLC identifier (`pcode.turbo-engine`)
-- `directoryId`: staged runtime directory name (`turbo-engine`)
-- `sourceName`: DLC root-index entry used during plan resolution
-- `runtimeTargetPath`: merged runtime destination (`lib/dlcs/turbo-engine`)
-- `runtimeIndexPath`: regenerated root catalog path (`lib/dlcs/index.json`)
-- `manifestFileName` / `filesManifestFileName`: required structured DLC files
-
-Store identity fields such as `identityName`, `publisher`, `languages`, and `capabilities` no longer live here. They are loaded from the tagged Desktop repository.
-
-Desktop capability validation continues to normalize `runFullTrust`, but it does not require or reintroduce `unvirtualizedResources` when the Desktop Store config omits that legacy flag.
-
-The canonical Microsoft Store version is always derived from the authoritative release tag and is never stored in the producer plan. The producer omits `release.canonicalVersionInput`, `release.windowsStoreVersion`, and `release.versionSource`; `validateReleasePlan` recomputes them from the release tag (`release.tag`) and injects them back into the resolved plan as `release.canonicalVersionInput`, `release.windowsStoreVersion`, and `release.versionSource` for downstream metadata checks.
-
-For main test builds that are not bound to a release tag, the canonical version is reported as the fixed sentinel `0.1.0` (`DESKTOP_MAIN_BUILD_VERSION`) regardless of the packer Release Drafter placeholder tag. Tagged releases compute the canonical version directly from the tag as the single source of truth.
-
-### `config/workflow-defaults.json`
-
-Defines workflow defaults such as:
-
-- default platforms
-- build-plan artifact naming
-- release-metadata artifact naming
-- Desktop source checkout path
-- schedule cadence
-
-## Workflow Shape
-
-`.github/workflows/package-release.yml` follows this flow:
-
-1. `package-release.yml` starts from a published release or a manual rebuild of a published release tag
-2. `package-release.yml` generates a fresh `release-plan.json` from the authoritative release tag plus the latest Desktop/Server index state; Turbo Engine DLC artifact paths are derived from the selected Server version
-3. the workflow prepares a Desktop `main` worktree, downloads the Server payload, merges the Turbo Engine DLC runtime under `lib/dlcs/turbo-engine`, regenerates `lib/dlcs/index.json`, and runs `scripts/build-msix.mjs`
-4. the workflow builds the unsigned Desktop Store package, uploads its artifacts, and publishes release metadata after plan validation succeeds
-
-The release plan is no longer pre-synced to a draft release asset. The canonical Microsoft Store version is always derived from the release tag at consume time, so the plan is generated on demand inside `package-release.yml`.
-
-The workflow no longer replays Desktop packaging internals such as overlay rendering or packer-owned MSIX generation.
-
-### Manual rebuilds
-
-`workflow_dispatch` on `package-release.yml` accepts:
-
-- `build_mode`: choose `published-release` to publish to a released tag, or `main` to build from Desktop `main` plus the latest Server payload for testing
-- `release_tag`: the published `win_store_packer` release tag to rebuild and publish against (used only when `build_mode=published-release`)
-- `dry_run`: optional flag to build and stage release metadata without mutating the published GitHub Release
-
-`release-draft-action.yml` also supports manual runs with the `version` input. After a successful `release: published` packaging run, it is invoked automatically through `workflow_call` to refresh the next draft release.
-
-When `build_mode=main`, the workflow:
-
-- resolves the current draft release tag
-- generates a fresh plan from Desktop `main` and the latest eligible Server build
-- performs the normal Desktop Store packaging flow instead of the synthetic dry-run build
-- forces artifact-only publication so the resulting MSIX packages and release metadata stay in GitHub Actions artifacts for testing
-
-The workflow no longer accepts `desktop_source=release`, Desktop release selectors, or any branch that derived package inputs from release notes text.
-
-## Signing
-
-Azure Trusted Signing is temporarily suspended. The release workflow builds and publishes only the Desktop-produced unsigned Store package; it does not request Azure credentials, authenticate with Azure OIDC, or produce a signed artifact.
-
 ## Local Verification
 
-From `repos/win_store_packer`:
+From the repository root:
 
 ```bash
 npm test
@@ -262,25 +184,7 @@ node scripts/publish-release.mjs \
   --force-dry-run
 ```
 
-## Artifact Layout
-
-Per-workspace outputs include:
-
-- `workspace-manifest.json`
-- `workspace-validation-<platform>.json`
-- `payload-validation-<platform>.json`
-- `reports/desktop-store-build-<platform>-<variant>.json`
-- `build-metadata-<platform>-<variant>.json`
-- `artifact-inventory-<platform>-<variant>.json`
-- `release-assets/*.msix`
-
-The staged payload now records bundled DLC details in `payload-validation-<platform>.json`, and the same `includedDlcs` metadata is copied into `build-metadata-*` plus `artifact-inventory-*` so CI can verify Turbo Engine inclusion without unpacking the MSIX.
-
-Those workspace and publication artifacts now repeat the same three values for verification:
-
-- the canonical `win_store_packer` draft release tag
-- the mirrored Microsoft Store version
-- the normalized Microsoft Store package version
+## Published release outputs
 
 Publication outputs include:
 
