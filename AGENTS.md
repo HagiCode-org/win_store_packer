@@ -15,12 +15,12 @@ Run commands from `repos/win_store_packer/`.
 ## Key Commands
 
 ```bash
-npm install
-npm test
-npm run verify:dry-run
-npm run verify:publication
-npm run verify:signing
-npm run test:win-store:local   # Windows-only local MSIX generate/install/launch workflow
+pnpm install
+pnpm test
+pnpm run verify:dry-run
+pnpm run verify:publication
+pnpm run verify:signing
+pnpm run test:win-store:local   # Windows-only local MSIX generate/install/launch workflow
 ```
 
 `test:win-store:local` needs the Desktop checkout at `inputs/hagicode-desktop` (git submodule, see `.gitmodules`) or `--desktop-source <path>`; its workspace defaults to `build/store-win-x64`. See `README.md` for flags.
@@ -38,8 +38,15 @@ npm run test:win-store:local   # Windows-only local MSIX generate/install/launch
 - The canonical Microsoft Store version input comes from the packer draft release tag.
 - Server/DLC packaging inputs resolve from public/R2 sources (`asset.directUrl` or public base + `asset.path`); Azure Blob SAS is legacy fallback only. Signing still uses Azure Trusted Signing / OIDC.
 - Signing finalization is optional and controlled by configuration.
-- Run `npm run verify:signing` after changes to the signing pipeline.
+- Run `pnpm run verify:signing` after changes to the signing pipeline.
 
 ## References
 
 - `README.md`
+
+## Package management
+
+- The repository uses pnpm, pinned in `package.json` `packageManager`. Run `corepack enable` once, then `pnpm install`. `pnpm-lock.yaml` is the only lockfile; do not commit `package-lock.json`.
+- Settings live in `pnpm-workspace.yaml`. `allowBuilds` lists the dependencies whose install scripts may run (reviewed individually, `false` means reviewed and denied); review any new dependency that has an install script and add it there.
+- A local registry mirror belongs in `~/.npmrc` only. Never commit a `registry=` line or a mirror URL; `pnpm run check:registry` (also run in CI) fails on any non-`registry.npmjs.org` `tarball` in the lockfile and on mirror hosts in tracked files.
+- Undeclared imports fail under pnpm's strict layout: declare the package instead of hoisting it.

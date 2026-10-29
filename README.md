@@ -34,7 +34,7 @@ The latest 10 changed versions appear below; older records remain in [`config/re
 - resolve the packer draft release tag and derive the canonical Microsoft Store version from it
 - prepare a tagged Desktop worktree for packaging
 - download, extract, and validate the Server payload plus the required Turbo Engine DLC package
-- invoke `npm run build:win:store` in the Desktop workspace
+- invoke `pnpm run build:win:store` in the Desktop workspace
 - validate Desktop build metadata, Store package artifacts, and the staged Server/DLC payload
 - publish GitHub release assets and machine-readable release metadata
 
@@ -57,14 +57,14 @@ accepts their artifacts.
 From the repository root:
 
 ```bash
-npm test
-npm run verify:dry-run
-npm run verify:publication
+pnpm test
+pnpm run verify:dry-run
+pnpm run verify:publication
 ```
 
 ### Local Windows Store package test
 
-`npm run test:win-store:local` is the single local workflow for generating,
+`pnpm run test:win-store:local` is the single local workflow for generating,
 installing, and launching the Packer-produced MSIX. It must run on Windows with
 PowerShell, Node/npm, the Windows AppX/MSIX tooling, and the certificate and
 trust prerequisites required by the Desktop Store package. The Desktop source
@@ -83,7 +83,7 @@ development layout.
 Basic usage:
 
 ```bash
-npm run test:win-store:local
+pnpm run test:win-store:local
 ```
 
 The local workflow uses the fixed Packer test tag `v0.1.0` by default and
@@ -94,7 +94,7 @@ different package version is required.
 Use an existing plan and local archives when network downloads are not desired:
 
 ```bash
-npm run test:win-store:local -- \
+pnpm run test:win-store:local \
   --plan build/release-plan.json \
   --desktop-source inputs/hagicode-desktop \
   --server-asset-source C:\archives\server.zip \
