@@ -3,8 +3,10 @@ import { pathExists, readJson } from './fs-utils.mjs';
 
 const DEFAULT_STORE_BUILD_COMMAND = 'build:win:store';
 
-function npmCommand(platform = process.platform) {
-  return platform === 'win32' ? 'npm.cmd' : 'npm';
+// Tagged desktop workspaces predate and follow the desktop's move to pnpm, so the package manager
+// follows the lockfile the workspace actually carries.
+function packageManagerCommand(packageManager = 'npm', platform = process.platform) {
+  return platform === 'win32' ? `${packageManager}.cmd` : packageManager;
 }
 
 function normalizeShellPath(value) {
@@ -38,6 +40,7 @@ export async function resolveDesktopStoreBuildStrategy({ desktopWorkspace, build
   }
 
   const packageJson = await readJson(packageJsonPath);
+  const packageManager = (await pathExists(path.join(desktopWorkspace, 'pnpm-lock.yaml'))) ? 'pnpm' : 'npm';
   const scripts = packageJson?.scripts ?? {};
   const hasStoreBuildCommand = typeof scripts[buildCommand] === 'string';
   const storeConfigPresent = await pathExists(storeConfigPath);
@@ -52,6 +55,7 @@ export async function resolveDesktopStoreBuildStrategy({ desktopWorkspace, build
     canBuild,
     isCompatible: canBuild,
     buildCommand,
+    packageManager,
     scripts,
   };
 }
@@ -63,12 +67,15 @@ export function buildDesktopStoreSteps(strategy, options = {}) {
 
   const platform = options.platform ?? process.platform;
   const forwardedArgs = Array.isArray(options.forwardArgs) ? options.forwardArgs.filter(Boolean) : [];
+  const packageManager = strategy.packageManager ?? 'npm';
   const args = ['run', strategy.buildCommand];
   if (forwardedArgs.length > 0) {
-    args.push('--', ...forwardedArgs);
+    // npm needs `--` to forward flags to the script; pnpm forwards them as they are and would pass `--` on.
+    if (packageManager === 'npm') args.push('--');
+    args.push(...forwardedArgs);
   }
 
-  return [createStep(`npm run ${strategy.buildCommand}`, npmCommand(platform), args)];
+  return [createStep(`${packageManager} run ${strategy.buildCommand}`, packageManagerCommand(packageManager, platform), args)];
 }
 
 export function buildDesktopStoreCommand(strategy, options = {}) {

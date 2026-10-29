@@ -73,3 +73,17 @@ test('shouldUseSyntheticDryRunBuild falls back to synthetic packaging when no de
     true
   );
 });
+
+test('buildDesktopStoreSteps follows the lockfile of the desktop workspace', async () => {
+  const workspacePath = await mkdtemp(path.join(os.tmpdir(), 'desktop-pm-'));
+  await mkdir(path.join(workspacePath, 'config'), { recursive: true });
+  await writeFile(path.join(workspacePath, 'package.json'), JSON.stringify({ scripts: { 'build:win:store': 'node build.js' } }));
+  await writeFile(path.join(workspacePath, 'config', 'store-package.json'), '{}');
+  await writeFile(path.join(workspacePath, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n");
+
+  const strategy = await resolveDesktopStoreBuildStrategy({ desktopWorkspace: workspacePath });
+  assert.equal(strategy.packageManager, 'pnpm');
+  const [step] = buildDesktopStoreSteps(strategy, { platform: 'win32', forwardArgs: ['--dry-run'] });
+  assert.equal(step.command, 'pnpm.cmd');
+  assert.deepEqual(step.args, ['run', 'build:win:store', '--dry-run']);
+});

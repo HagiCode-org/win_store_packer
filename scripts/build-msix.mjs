@@ -435,9 +435,17 @@ export async function buildMsix({
   }
 
   const packageLockPath = path.join(workspaceManifest.desktopWorkspace, 'package-lock.json');
+  const pnpmLockPath = path.join(workspaceManifest.desktopWorkspace, 'pnpm-lock.yaml');
   const skipDesktopWorkspaceInstall = process.env.WIN_STORE_PACKER_SKIP_DESKTOP_NPM_CI === '1';
-  if (!skipDesktopWorkspaceInstall && await pathExists(packageLockPath)) {
-    await runCommand(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci'], { cwd: workspaceManifest.desktopWorkspace });
+  if (!skipDesktopWorkspaceInstall) {
+    // Desktop tags from before the pnpm migration carry package-lock.json; later ones carry pnpm-lock.yaml.
+    if (await pathExists(pnpmLockPath)) {
+      await runCommand(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['install', '--frozen-lockfile'], {
+        cwd: workspaceManifest.desktopWorkspace,
+      });
+    } else if (await pathExists(packageLockPath)) {
+      await runCommand(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci'], { cwd: workspaceManifest.desktopWorkspace });
+    }
   }
 
   await ensureDir(workspaceManifest.outputDirectory);
