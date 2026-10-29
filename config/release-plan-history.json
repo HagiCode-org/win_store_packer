@@ -210,6 +210,20 @@
           "win-x64"
         ]
       }
+    },
+    "v0.6.0": {
+      "status": "unpublished",
+      "changedAt": "2026-10-29T12:59:46.974Z",
+      "plan": {
+        "storeVersion": "v0.6.0",
+        "desktopVersion": "v0.5.1",
+        "desktopRef": "main",
+        "serverVersion": "0.1.0-beta.105",
+        "dlcVersion": "0.1.0-beta.105",
+        "platforms": [
+          "win-x64"
+        ]
+      }
     }
   }
 }
