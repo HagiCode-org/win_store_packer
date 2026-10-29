@@ -3,13 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "npm@10.9.2",
+  "packageManager": "pnpm@12.16.1",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "test:win-store:local": "node scripts/run-local-win-store-test.mjs",
     "verify:dry-run": "node --test tests/dry-run-packaging.test.mjs",
     "verify:publication": "node --test tests/publish-release.test.mjs",
-    "verify:signing": "node --test tests/finalize-msix-signing.test.mjs tests/store-config.test.mjs tests/desktop-build-strategy.test.mjs"
+    "verify:signing": "node --test tests/finalize-msix-signing.test.mjs tests/store-config.test.mjs tests/desktop-build-strategy.test.mjs",
+    "check:registry": "node scripts/check-registry-neutrality.mjs",
+    "test:registry": "node --test scripts/check-registry-neutrality.node-test.mjs"
   },
   "dependencies": {
     "execa": "^9.6.1"
