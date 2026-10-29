@@ -73,6 +73,9 @@ jobs:
           fi
           echo "tag_name=$tag" >> "$GITHUB_OUTPUT"
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -81,7 +84,15 @@ jobs:
 
       - name: Install win_store_packer dependencies
         shell: bash
-        run: npm ci
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify install and lockfile stability
+        run: |
+          test -d node_modules
+          git diff --exit-code -- pnpm-lock.yaml
+
+      - name: Registry neutrality
+        run: pnpm run check:registry
 
       - name: Resolve target release
         id: target
@@ -188,6 +199,9 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -196,7 +210,15 @@ jobs:
 
       - name: Install win_store_packer dependencies
         shell: bash
-        run: npm ci
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify install and lockfile stability
+        run: |
+          test -d node_modules
+          git diff --exit-code -- pnpm-lock.yaml
+
+      - name: Registry neutrality
+        run: pnpm run check:registry
 
       - name: Install global hagiscript
         shell: bash
@@ -252,7 +274,7 @@ jobs:
             ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/build/embedded-node-runtime/downloads
             ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.generated/code-server-runtime/downloads
             ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.generated/omniroute-runtime/downloads
-          key: ${{ runner.os }}-desktop-build-downloads-${{ hashFiles('inputs/hagicode-desktop/package-lock.json', 'inputs/hagicode-desktop/resources/manifest.yml') }}
+          key: ${{ runner.os }}-desktop-build-downloads-${{ hashFiles('inputs/hagicode-desktop/package-lock.json', 'inputs/hagicode-desktop/pnpm-lock.yaml', 'inputs/hagicode-desktop/resources/manifest.yml') }}
           restore-keys: |
             ${{ runner.os }}-desktop-build-downloads-
 
@@ -303,6 +325,9 @@ jobs:
       - name: Checkout win_store_packer
         uses: actions/checkout@v5
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -311,7 +336,15 @@ jobs:
 
       - name: Install win_store_packer dependencies
         shell: bash
-        run: npm ci
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify install and lockfile stability
+        run: |
+          test -d node_modules
+          git diff --exit-code -- pnpm-lock.yaml
+
+      - name: Registry neutrality
+        run: pnpm run check:registry
 
       - name: Download resolved build plan
         uses: actions/download-artifact@v8

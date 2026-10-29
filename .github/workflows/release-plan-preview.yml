@@ -52,11 +52,14 @@ jobs:
             echo '::error::Unable to resolve a Release Drafter tag.'
             exit 1
           fi
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
           package-manager-cache: false
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
       - name: Generate and validate preview plan
         shell: bash
         env:
