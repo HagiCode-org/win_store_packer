@@ -223,16 +223,13 @@ jobs:
       - name: Install global hagiscript
         shell: bash
         run: |
-          npm install -g "$HAGISCRIPT_INSTALL_SPEC"
-
-          npm_prefix="$(npm config get prefix)"
-          if [ "$RUNNER_OS" = 'Windows' ]; then
-            echo "$npm_prefix" >> "$GITHUB_PATH"
-            export PATH="$npm_prefix:$PATH"
-          else
-            echo "$npm_prefix/bin" >> "$GITHUB_PATH"
-            export PATH="$npm_prefix/bin:$PATH"
-          fi
+          export PNPM_HOME="$RUNNER_TEMP/pnpm-global"
+          mkdir -p "$PNPM_HOME/bin"
+          if command -v cygpath >/dev/null 2>&1; then home_posix="$(cygpath -u "$PNPM_HOME")"; else home_posix="$PNPM_HOME"; fi
+          export PATH="$home_posix:$home_posix/bin:$PATH"
+          pnpm add --global "$HAGISCRIPT_INSTALL_SPEC"
+          echo "$(pnpm bin --global)" >> "$GITHUB_PATH"
+          hash -r
 
           hagiscript --version
 
@@ -274,7 +271,7 @@ jobs:
             ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/build/embedded-node-runtime/downloads
             ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.generated/code-server-runtime/downloads
             ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.generated/omniroute-runtime/downloads
-          key: ${{ runner.os }}-desktop-build-downloads-${{ hashFiles('inputs/hagicode-desktop/package-lock.json', 'inputs/hagicode-desktop/pnpm-lock.yaml', 'inputs/hagicode-desktop/resources/manifest.yml') }}
+          key: ${{ runner.os }}-desktop-build-downloads-${{ hashFiles('inputs/hagicode-desktop/pnpm-lock.yaml', 'inputs/hagicode-desktop/resources/manifest.yml') }}
           restore-keys: |
             ${{ runner.os }}-desktop-build-downloads-
 
