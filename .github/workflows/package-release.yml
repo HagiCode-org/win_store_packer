@@ -270,7 +270,6 @@ jobs:
             ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/build/embedded-runtime/downloads
             ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/build/embedded-node-runtime/downloads
             ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.generated/code-server-runtime/downloads
-            ${{ runner.temp }}/store-release-${{ matrix.target.platform }}-${{ matrix.variant }}/extracted/desktop/.generated/omniroute-runtime/downloads
           key: ${{ runner.os }}-desktop-build-downloads-${{ hashFiles('inputs/hagicode-desktop/pnpm-lock.yaml', 'inputs/hagicode-desktop/resources/manifest.yml') }}
           restore-keys: |
             ${{ runner.os }}-desktop-build-downloads-
