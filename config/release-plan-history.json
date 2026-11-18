@@ -227,13 +227,13 @@
     },
     "v0.6.1": {
       "status": "unpublished",
-      "changedAt": "2026-11-12T15:14:21.039Z",
+      "changedAt": "2026-11-18T15:39:35.234Z",
       "plan": {
         "storeVersion": "v0.6.1",
         "desktopVersion": "v0.6.0",
         "desktopRef": "main",
-        "serverVersion": "0.1.0-beta.107",
-        "dlcVersion": "0.1.0-beta.107",
+        "serverVersion": "0.2.1",
+        "dlcVersion": "0.2.1",
         "platforms": [
           "win-x64"
         ]
